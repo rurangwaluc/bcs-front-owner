@@ -205,37 +205,41 @@ export function OverlayModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4 py-6">
-      <div className="w-full max-w-xl rounded-[28px] border border-stone-200 bg-white shadow-2xl dark:border-stone-800 dark:bg-stone-900">
-        <div className="flex items-start justify-between gap-4 border-b border-stone-200 px-5 py-5 dark:border-stone-800 sm:px-6">
-          <div>
-            <h3 className="text-xl font-black text-stone-950 dark:text-stone-50">
-              {title}
-            </h3>
-            {subtitle ? (
-              <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-300">
-                {subtitle}
-              </p>
-            ) : null}
+    <div className="fixed inset-0 z-[100] bg-black/45">
+      <div className="flex min-h-screen items-start justify-center overflow-y-auto px-4 py-4 sm:px-6 sm:py-8">
+        <div className="my-auto flex w-full max-w-xl flex-col overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-2xl dark:border-stone-800 dark:bg-stone-900 max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-4rem)]">
+          <div className="flex items-start justify-between gap-4 border-b border-stone-200 px-5 py-5 dark:border-stone-800 sm:px-6">
+            <div>
+              <h3 className="text-xl font-black text-stone-950 dark:text-stone-50">
+                {title}
+              </h3>
+              {subtitle ? (
+                <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-300">
+                  {subtitle}
+                </p>
+              ) : null}
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+              aria-label="Close modal"
+            >
+              ×
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
-            aria-label="Close modal"
-          >
-            ×
-          </button>
+          <div className="flex-1 overflow-y-auto px-5 py-5 dark:text-stone-100 sm:px-6">
+            {children}
+          </div>
+
+          {footer ? (
+            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 px-5 py-5 dark:border-stone-800 sm:flex-row sm:justify-end sm:px-6">
+              {footer}
+            </div>
+          ) : null}
         </div>
-
-        <div className="px-5 py-5 dark:text-stone-100 sm:px-6">{children}</div>
-
-        {footer ? (
-          <div className="flex flex-col-reverse gap-3 border-t border-stone-200 px-5 py-5 dark:border-stone-800 sm:flex-row sm:justify-end sm:px-6">
-            {footer}
-          </div>
-        ) : null}
       </div>
     </div>
   );

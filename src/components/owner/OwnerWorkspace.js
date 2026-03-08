@@ -57,6 +57,8 @@ export default function OwnerWorkspace({
   staffSearch,
   setStaffSearch,
   staffStatusFilter,
+  staffLocationFilter,
+  setStaffLocationFilter,
   setStaffStatusFilter,
   activeLocations,
   openCreateBranchModal,
@@ -255,6 +257,7 @@ export default function OwnerWorkspace({
     content = (
       <OwnerStaffTab
         users={users}
+        locations={locations}
         activeLocations={activeLocations}
         selectedUserId={selectedUserId}
         onSelectUser={setSelectedUserId}
@@ -265,36 +268,38 @@ export default function OwnerWorkspace({
         onChangeStaffSearch={setStaffSearch}
         staffStatusFilter={staffStatusFilter}
         onChangeStaffStatusFilter={setStaffStatusFilter}
+        staffLocationFilter={staffLocationFilter}
+        onChangeStaffLocationFilter={setStaffLocationFilter}
       />
     );
   } else if (activeTab === "inventory") {
-    content = <OwnerInventoryTab />;
+    content = <OwnerInventoryTab locations={locations} />;
   } else if (activeTab === "products") {
-    content = <OwnerProductsTab />;
+    content = <OwnerProductsTab locations={locations} />;
   } else if (activeTab === "sales") {
-    content = <OwnerSalesTab />;
+    content = <OwnerSalesTab locations={locations} />;
   } else if (activeTab === "payments") {
-    content = <OwnerPaymentsTab />;
+    content = <OwnerPaymentsTab locations={locations} />;
   } else if (activeTab === "credits") {
-    content = <OwnerCreditsTab />;
+    content = <OwnerCreditsTab locations={locations} />;
   } else if (activeTab === "suppliers") {
-    content = <OwnerSuppliersTab />;
-  } else if (activeTab === "supplierBills") {
-    content = <OwnerSupplierBillsTab />;
+    content = <OwnerSuppliersTab locations={locations} />;
+  } else if (activeTab === "supplier-bills") {
+    content = <OwnerSupplierBillsTab locations={locations} />;
   } else if (activeTab === "cash") {
-    content = <OwnerCashTab />;
+    content = <OwnerCashTab locations={locations} users={users} />;
   } else if (activeTab === "refunds") {
-    content = <OwnerRefundsTab />;
+    content = <OwnerRefundsTab locations={locations} />;
   } else if (activeTab === "expenses") {
-    content = <OwnerExpensesTab />;
+    content = <OwnerExpensesTab locations={locations} />;
   } else if (activeTab === "customers") {
-    content = <OwnerCustomersTab />;
+    content = <OwnerCustomersTab locations={locations} />;
   } else if (activeTab === "reports") {
-    content = <OwnerReportsTab />;
+    content = <OwnerReportsTab locations={locations} />;
   } else if (activeTab === "audit") {
-    content = <OwnerAuditTab audit={audit} />;
+    content = <OwnerAuditTab audit={audit} locations={locations} />;
   } else if (activeTab === "notes") {
-    content = <OwnerNotesTab />;
+    content = <OwnerNotesTab locations={locations} />;
   } else {
     content = (
       <OwnerOverviewTab
@@ -323,7 +328,7 @@ export default function OwnerWorkspace({
           { key: "payments", label: "Payments" },
           { key: "credits", label: "Credits" },
           { key: "suppliers", label: "Suppliers" },
-          { key: "supplierBills", label: "Supplier Bills" },
+          { key: "supplier-bills", label: "Supplier Bills" },
           { key: "cash", label: "Cash" },
           { key: "refunds", label: "Refunds" },
           { key: "expenses", label: "Expenses" },

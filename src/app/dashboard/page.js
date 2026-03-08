@@ -47,6 +47,7 @@ export default function DashboardPage() {
   const [branchStatusFilter, setBranchStatusFilter] = useState("ALL");
   const [staffSearch, setStaffSearch] = useState("");
   const [staffStatusFilter, setStaffStatusFilter] = useState("ALL");
+  const [staffLocationFilter, setStaffLocationFilter] = useState("");
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -615,6 +616,8 @@ export default function DashboardPage() {
       openDeactivateUserModal={openDeactivateUserModal}
       branchModalProps={branchModalProps}
       staffModalProps={staffModalProps}
+      staffLocationFilter={staffLocationFilter}
+      setStaffLocationFilter={setStaffLocationFilter}
     />
   );
 }
