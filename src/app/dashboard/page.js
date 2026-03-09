@@ -9,7 +9,27 @@ import OwnerWorkspace from "../../components/owner/OwnerWorkspace";
 import { apiFetch } from "../../lib/api";
 import { useRouter } from "next/navigation";
 
-const TAB_KEYS = ["overview", "branches", "staff", "audit"];
+const TAB_KEYS = [
+  "overview",
+  "branches",
+  "staff",
+  "inventory",
+  "products",
+  "sales",
+  "payments",
+  "credits",
+  "suppliers",
+  "supplier-bills",
+  "proformas",
+  "delivery-notes",
+  "cash",
+  "refunds",
+  "expenses",
+  "customers",
+  "reports",
+  "audit",
+  "notes",
+];
 
 function updateUrlTab(tab) {
   if (typeof window === "undefined") return;
@@ -605,6 +625,8 @@ export default function DashboardPage() {
       setStaffSearch={setStaffSearch}
       staffStatusFilter={staffStatusFilter}
       setStaffStatusFilter={setStaffStatusFilter}
+      staffLocationFilter={staffLocationFilter}
+      setStaffLocationFilter={setStaffLocationFilter}
       activeLocations={activeLocations}
       openCreateBranchModal={openCreateBranchModal}
       openEditBranchModal={openEditBranchModal}
@@ -616,8 +638,6 @@ export default function DashboardPage() {
       openDeactivateUserModal={openDeactivateUserModal}
       branchModalProps={branchModalProps}
       staffModalProps={staffModalProps}
-      staffLocationFilter={staffLocationFilter}
-      setStaffLocationFilter={setStaffLocationFilter}
     />
   );
 }

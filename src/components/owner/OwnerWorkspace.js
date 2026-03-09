@@ -12,12 +12,14 @@ import OwnerBranchesTab from "./tabs/OwnerBranchesTab";
 import OwnerCashTab from "./tabs/OwnerCashTab";
 import OwnerCreditsTab from "./tabs/OwnerCreditsTab";
 import OwnerCustomersTab from "./tabs/OwnerCustomersTab";
+import OwnerDeliveryNotesTab from "./tabs/OwnerDeliveryNotesTab";
 import OwnerExpensesTab from "./tabs/OwnerExpensesTab";
 import OwnerInventoryTab from "./tabs/OwnerInventoryTab";
 import OwnerNotesTab from "./tabs/OwnerNotesTab";
 import OwnerOverviewTab from "./tabs/OwnerOverviewTab";
 import OwnerPaymentsTab from "./tabs/OwnerPaymentsTab";
 import OwnerProductsTab from "./tabs/OwnerProductsTab";
+import OwnerProformasTab from "./tabs/OwnerProformasTab";
 import OwnerRefundsTab from "./tabs/OwnerRefundsTab";
 import OwnerReportsTab from "./tabs/OwnerReportsTab";
 import OwnerSalesTab from "./tabs/OwnerSalesTab";
@@ -101,7 +103,8 @@ export default function OwnerWorkspace({
       },
       products: {
         title: "Products",
-        subtitle: "Manage product structure and product availability.",
+        subtitle:
+          "Manage catalog structure for hardware, apparel, PPE, and mixed stock.",
       },
       sales: {
         title: "Sales",
@@ -120,8 +123,19 @@ export default function OwnerWorkspace({
         subtitle: "Manage supplier records and supplier relationships.",
       },
       "supplier-bills": {
-        title: "Supplier Bills",
-        subtitle: "Track supplier liabilities and settlements.",
+        title: "Purchase Orders",
+        subtitle:
+          "Manage purchase commitments, ordered items, and supplier-facing purchasing records.",
+      },
+      proformas: {
+        title: "Proformas",
+        subtitle:
+          "Create and track printable quotations and pre-invoice documents across branches.",
+      },
+      "delivery-notes": {
+        title: "Delivery Notes",
+        subtitle:
+          "Issue and track printable goods dispatch documents tied to completed sales.",
       },
       cash: {
         title: "Cash",
@@ -290,6 +304,10 @@ export default function OwnerWorkspace({
     content = <OwnerSuppliersTab locations={locations} />;
   } else if (activeTab === "supplier-bills") {
     content = <OwnerSupplierBillsTab locations={locations} />;
+  } else if (activeTab === "proformas") {
+    content = <OwnerProformasTab locations={locations} />;
+  } else if (activeTab === "delivery-notes") {
+    content = <OwnerDeliveryNotesTab locations={locations} />;
   } else if (activeTab === "cash") {
     content = <OwnerCashTab locations={locations} users={users} />;
   } else if (activeTab === "refunds") {
@@ -301,7 +319,7 @@ export default function OwnerWorkspace({
   } else if (activeTab === "reports") {
     content = <OwnerReportsTab locations={locations} />;
   } else if (activeTab === "audit") {
-    content = <OwnerAuditTab locations={locations} />;
+    content = <OwnerAuditTab audit={audit} locations={locations} />;
   } else if (activeTab === "notes") {
     content = <OwnerNotesTab locations={locations} />;
   } else {
@@ -325,21 +343,23 @@ export default function OwnerWorkspace({
         navItems={[
           { key: "overview", label: "Dashboard" },
           { key: "branches", label: "Branches", badge: locations.length || 0 },
-          { key: "staff", label: "Staff", badge: users.length || 0 },
+          { key: "staff", label: "Team", badge: users.length || 0 },
           { key: "inventory", label: "Inventory" },
           { key: "products", label: "Products" },
           { key: "sales", label: "Sales" },
           { key: "payments", label: "Payments" },
           { key: "credits", label: "Credits" },
           { key: "suppliers", label: "Suppliers" },
-          { key: "supplier-bills", label: "Supplier Bills" },
+          { key: "supplier-bills", label: "Purchase Orders" },
+          { key: "proformas", label: "Proformas" },
+          { key: "delivery-notes", label: "Delivery Notes" },
           { key: "cash", label: "Cash" },
           { key: "refunds", label: "Refunds" },
           { key: "expenses", label: "Expenses" },
           { key: "customers", label: "Customers" },
           { key: "reports", label: "Reports" },
           { key: "audit", label: "Audit" },
-          { key: "notes", label: "Notes / Notifications" },
+          { key: "notes", label: "Notes / Alerts" },
         ]}
         activeKey={activeTab}
         onNavigate={onNavigate}
