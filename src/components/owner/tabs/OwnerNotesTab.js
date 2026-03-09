@@ -92,7 +92,7 @@ function notificationTypeTone(type) {
   if (
     value.includes("failed") ||
     value.includes("void") ||
-    value.includes("deactivate") ||
+    value.includes("reject") ||
     value.includes("overdue")
   ) {
     return "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300";
@@ -102,13 +102,16 @@ function notificationTypeTone(type) {
     value.includes("create") ||
     value.includes("payment") ||
     value.includes("approved") ||
+    value.includes("settled") ||
     value.includes("success")
   ) {
     return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300";
   }
 
   if (
-    value.includes("update") ||
+    value.includes("awaiting") ||
+    value.includes("draft") ||
+    value.includes("adjust") ||
     value.includes("note") ||
     value.includes("reminder")
   ) {
@@ -124,14 +127,21 @@ function entityTone(entity) {
   if (value === "sale") {
     return "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300";
   }
+
   if (value === "credit") {
     return "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-300";
   }
+
   if (value === "customer") {
     return "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300";
   }
+
   if (value === "supplier" || value === "supplier_bill") {
     return "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300";
+  }
+
+  if (value === "inventory_adjustment_request") {
+    return "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300";
   }
 
   return "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300";
@@ -140,9 +150,10 @@ function entityTone(entity) {
 function displayLocationLabel(row, locationsMap) {
   if (safe(row?.locationLabel)) return safe(row.locationLabel);
 
-  const direct = row?.location;
-  if (direct?.name) {
-    return direct?.code ? `${direct.name} (${direct.code})` : direct.name;
+  if (row?.location?.name) {
+    return row.location?.code
+      ? `${safe(row.location.name)} (${safe(row.location.code)})`
+      : safe(row.location.name);
   }
 
   const id = row?.locationId;
@@ -265,7 +276,9 @@ function NotificationCard({ row, locationsMap, onMarkRead, markingId }) {
   );
 }
 
-function NoteCard({ row }) {
+function NoteCard({ row, locationsMap }) {
+  const placeText = displayLocationLabel(row, locationsMap);
+
   return (
     <div className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 sm:p-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -298,6 +311,13 @@ function NoteCard({ row }) {
           <div className="mt-4 grid gap-3 text-sm text-stone-600 dark:text-stone-400 sm:grid-cols-2 xl:grid-cols-4">
             <p>
               <span className="font-medium text-stone-900 dark:text-stone-100">
+                Place:
+              </span>{" "}
+              {placeText}
+            </p>
+
+            <p>
+              <span className="font-medium text-stone-900 dark:text-stone-100">
                 User:
               </span>{" "}
               {row?.userId != null ? `User #${safeNumber(row.userId)}` : "-"}
@@ -315,13 +335,6 @@ function NoteCard({ row }) {
                 Updated:
               </span>{" "}
               {safeDate(row?.updatedAt)}
-            </p>
-
-            <p>
-              <span className="font-medium text-stone-900 dark:text-stone-100">
-                Location ID:
-              </span>{" "}
-              {safeNumber(row?.locationId)}
             </p>
           </div>
         </div>
@@ -489,7 +502,7 @@ export default function OwnerNotesTab({ locations = [] }) {
   const [notificationsError, setNotificationsError] = useState("");
   const [notificationsRows, setNotificationsRows] = useState([]);
   const [notificationsNextCursor, setNotificationsNextCursor] = useState(null);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCountValue, setUnreadCountValue] = useState(0);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [markingId, setMarkingId] = useState(null);
   const [notificationsSuccess, setNotificationsSuccess] = useState("");
@@ -525,7 +538,7 @@ export default function OwnerNotesTab({ locations = [] }) {
   const notificationsOverview = useMemo(() => {
     const rows = Array.isArray(notificationsRows) ? notificationsRows : [];
 
-    const unread = rows.filter((row) => !row?.isRead).length;
+    const unreadLoaded = rows.filter((row) => !row?.isRead).length;
     const highPriority = rows.filter(
       (row) => String(row?.priority || "").toLowerCase() === "high",
     ).length;
@@ -538,7 +551,7 @@ export default function OwnerNotesTab({ locations = [] }) {
 
     return {
       loaded: rows.length,
-      unread,
+      unreadLoaded,
       highPriority,
       relatedEntities,
     };
@@ -558,8 +571,10 @@ export default function OwnerNotesTab({ locations = [] }) {
   function buildNotificationsParams(extra = {}) {
     const params = new URLSearchParams();
     params.set("limit", String(extra.limit || PAGE_SIZE));
+
     if (extra.cursor) params.set("cursor", String(extra.cursor));
     if (unreadOnly) params.set("unreadOnly", "true");
+
     return params;
   }
 
@@ -573,7 +588,9 @@ export default function OwnerNotesTab({ locations = [] }) {
     );
     params.set("entityId", String(noteEntityId || "").trim());
     params.set("limit", String(extra.limit || PAGE_SIZE));
+
     if (extra.cursor) params.set("cursor", String(extra.cursor));
+
     return params;
   }
 
@@ -582,9 +599,9 @@ export default function OwnerNotesTab({ locations = [] }) {
       const result = await apiFetch("/notifications/unread-count", {
         method: "GET",
       });
-      setUnreadCount(Number(result?.unread || 0));
+      setUnreadCountValue(Number(result?.unread || 0));
     } catch {
-      setUnreadCount(0);
+      setUnreadCountValue(0);
     }
   }
 
@@ -663,14 +680,15 @@ export default function OwnerNotesTab({ locations = [] }) {
             ? {
                 ...item,
                 isRead: true,
-                readAt: new Date().toISOString(),
+                readAt: item.readAt || new Date().toISOString(),
               }
             : item,
         ),
       );
 
+      await loadUnreadCount();
+
       setNotificationsSuccess("Notification marked as read");
-      loadUnreadCount();
       setTimeout(() => setNotificationsSuccess(""), 2500);
     } catch (e) {
       setNotificationsError(
@@ -697,7 +715,7 @@ export default function OwnerNotesTab({ locations = [] }) {
         })),
       );
 
-      setUnreadCount(0);
+      setUnreadCountValue(0);
       setNotificationsSuccess("All notifications marked as read");
       setTimeout(() => setNotificationsSuccess(""), 2500);
     } catch (e) {
@@ -795,7 +813,7 @@ export default function OwnerNotesTab({ locations = [] }) {
 
       <SectionCard
         title="Notes / Notifications"
-        subtitle="Separate operational alerts from entity-specific internal notes."
+        subtitle="Separate personal alerts from entity-specific internal notes."
       >
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
@@ -809,7 +827,7 @@ export default function OwnerNotesTab({ locations = [] }) {
             }
           >
             Notifications
-            {unreadCount > 0 ? ` (${safeNumber(unreadCount)})` : ""}
+            {unreadCountValue > 0 ? ` (${safeNumber(unreadCountValue)})` : ""}
           </button>
 
           <button
@@ -831,7 +849,7 @@ export default function OwnerNotesTab({ locations = [] }) {
         <>
           <SectionCard
             title="Notification overview"
-            subtitle="Personal operational alerts for the signed-in user."
+            subtitle="Personal operational alerts for the signed-in account."
           >
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard
@@ -841,7 +859,7 @@ export default function OwnerNotesTab({ locations = [] }) {
               />
               <StatCard
                 label="Unread"
-                value={safeNumber(unreadCount)}
+                value={safeNumber(unreadCountValue)}
                 sub="Unread notifications"
               />
               <StatCard
@@ -879,16 +897,16 @@ export default function OwnerNotesTab({ locations = [] }) {
                 <option value="true">Unread only</option>
               </FormSelect>
 
-              <div className="flex items-center text-sm text-stone-500 dark:text-stone-400">
-                Notifications are user-specific and come from the signed-in
-                account.
+              <div className="flex items-center text-sm text-stone-500 dark:text-stone-400 sm:col-span-2">
+                This feed is user-specific. It only shows notifications
+                addressed to the signed-in user.
               </div>
             </div>
           </SectionCard>
 
           <SectionCard
             title="Notification feed"
-            subtitle="Recent alerts, reminders, and system events addressed to you."
+            subtitle="Recent alerts, reminders, and workflow events addressed to you."
           >
             {loadingNotifications ? (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -939,7 +957,7 @@ export default function OwnerNotesTab({ locations = [] }) {
               <StatCard
                 label="Loaded"
                 value={safeNumber(notesOverview?.loaded)}
-                sub="Notes for the current entity"
+                sub="Notes for current target"
               />
               <StatCard
                 label="Pinned"
@@ -961,7 +979,7 @@ export default function OwnerNotesTab({ locations = [] }) {
 
           <SectionCard
             title="Note target"
-            subtitle="Notes cannot be listed globally with this backend. You must choose the exact entity type and entity id."
+            subtitle="This backend lists notes only for one exact entity type and one exact entity id."
             right={
               <AsyncButton
                 idleText="Create note"
@@ -989,7 +1007,7 @@ export default function OwnerNotesTab({ locations = [] }) {
               />
 
               <div className="flex items-center text-sm text-stone-500 dark:text-stone-400 sm:col-span-2">
-                Example: choose customer + enter customer id to see only notes
+                Example: choose customer + enter customer id to load only notes
                 for that customer.
               </div>
             </div>
@@ -1015,7 +1033,11 @@ export default function OwnerNotesTab({ locations = [] }) {
             ) : (
               <div className="space-y-4">
                 {notesRows.map((row, index) => (
-                  <NoteCard key={row?.id ?? index} row={row} />
+                  <NoteCard
+                    key={row?.id ?? index}
+                    row={row}
+                    locationsMap={locationsMap}
+                  />
                 ))}
               </div>
             )}

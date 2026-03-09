@@ -119,7 +119,7 @@ export default function OwnerWorkspace({
         title: "Suppliers",
         subtitle: "Manage supplier records and supplier relationships.",
       },
-      supplierBills: {
+      "supplier-bills": {
         title: "Supplier Bills",
         subtitle: "Track supplier liabilities and settlements.",
       },
@@ -189,6 +189,7 @@ export default function OwnerWorkspace({
           row?.closeReason ?? "",
         ]),
       ];
+
       downloadCSV("owner-branches.csv", rows);
       return;
     }
@@ -205,6 +206,7 @@ export default function OwnerWorkspace({
           row?.isActive ? "Active" : "Inactive",
         ]),
       ];
+
       downloadCSV("owner-staff.csv", rows);
       return;
     }
@@ -219,6 +221,7 @@ export default function OwnerWorkspace({
           row?.createdAt || row?.created_at || "",
         ]),
       ];
+
       downloadCSV("owner-audit.csv", rows);
       return;
     }
@@ -231,6 +234,7 @@ export default function OwnerWorkspace({
       ["Sales", summary?.totals?.salesCount ?? 0],
       ["Payments", summary?.totals?.paymentsCount ?? 0],
     ];
+
     downloadCSV("owner-overview.csv", rows);
   }
 
@@ -297,7 +301,7 @@ export default function OwnerWorkspace({
   } else if (activeTab === "reports") {
     content = <OwnerReportsTab locations={locations} />;
   } else if (activeTab === "audit") {
-    content = <OwnerAuditTab audit={audit} locations={locations} />;
+    content = <OwnerAuditTab locations={locations} />;
   } else if (activeTab === "notes") {
     content = <OwnerNotesTab locations={locations} />;
   } else {
