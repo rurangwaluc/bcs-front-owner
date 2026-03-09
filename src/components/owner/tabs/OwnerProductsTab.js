@@ -1,8 +1,5 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "../../../lib/api";
-import AsyncButton from "../../AsyncButton";
 import {
   AlertBox,
   EmptyState,
@@ -17,11 +14,54 @@ import {
   safeDate,
   safeNumber,
 } from "../OwnerShared";
+import { useEffect, useMemo, useState } from "react";
+
+import AsyncButton from "../../AsyncButton";
+import { apiFetch } from "../../../lib/api";
 
 const PRODUCT_STATUS_FILTERS = [
   { value: "ALL", label: "All" },
   { value: "ACTIVE", label: "Active" },
   { value: "ARCHIVED", label: "Archived" },
+];
+
+const CATEGORY_OPTIONS = [
+  "GENERAL_HARDWARE",
+  "FASTENERS",
+  "TOOLS",
+  "POWER_TOOLS",
+  "ELECTRICAL",
+  "PLUMBING",
+  "PAINT",
+  "BUILDING_MATERIALS",
+  "SAFETY",
+  "PPE",
+  "APPAREL",
+  "FOOTWEAR",
+  "RAIN_GEAR",
+  "ACCESSORIES",
+  "OTHER",
+];
+
+const UNIT_OPTIONS = [
+  "PIECE",
+  "PAIR",
+  "SET",
+  "BOX",
+  "PACK",
+  "BUNDLE",
+  "ROLL",
+  "METER",
+  "CENTIMETER",
+  "MILLIMETER",
+  "KILOGRAM",
+  "GRAM",
+  "LITER",
+  "MILLILITER",
+  "SHEET",
+  "BAG",
+  "CARTON",
+  "DOZEN",
 ];
 
 const PAGE_SIZE = 20;
@@ -36,29 +76,121 @@ function productStatusTone(isActive) {
     : "bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300";
 }
 
+function categoryTone(category) {
+  const value = String(category || "").toUpperCase();
+
+  if (value.includes("PPE") || value.includes("SAFETY")) {
+    return "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300";
+  }
+
+  if (
+    value.includes("APPAREL") ||
+    value.includes("RAIN") ||
+    value.includes("FOOTWEAR")
+  ) {
+    return "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300";
+  }
+
+  if (value.includes("ELECTRICAL") || value.includes("POWER")) {
+    return "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300";
+  }
+
+  return "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300";
+}
+
+function normalizeProduct(row) {
+  if (!row) return null;
+
+  return {
+    productId: Number(row.productId ?? row.id ?? 0),
+    id: Number(row.productId ?? row.id ?? 0),
+    locationId: Number(row.locationId ?? row.location_id ?? 0),
+    locationName: row.locationName ?? row.location_name ?? "",
+    locationCode: row.locationCode ?? row.location_code ?? "",
+    locationStatus: row.locationStatus ?? row.location_status ?? "",
+    name: row.name ?? "",
+    displayName: row.displayName ?? row.display_name ?? "",
+    category: row.category ?? "GENERAL_HARDWARE",
+    subcategory: row.subcategory ?? "",
+    sku: row.sku ?? "",
+    barcode: row.barcode ?? "",
+    supplierSku: row.supplierSku ?? row.supplier_sku ?? "",
+    brand: row.brand ?? "",
+    model: row.model ?? "",
+    size: row.size ?? "",
+    color: row.color ?? "",
+    material: row.material ?? "",
+    variantSummary: row.variantSummary ?? row.variant_summary ?? "",
+    unit: row.unit ?? "",
+    stockUnit: row.stockUnit ?? row.stock_unit ?? row.unit ?? "",
+    salesUnit: row.salesUnit ?? row.sales_unit ?? row.unit ?? "",
+    purchaseUnit: row.purchaseUnit ?? row.purchase_unit ?? row.unit ?? "",
+    purchaseUnitFactor: Number(
+      row.purchaseUnitFactor ?? row.purchase_unit_factor ?? 1,
+    ),
+    sellingPrice: Number(row.sellingPrice ?? row.selling_price ?? 0),
+    purchasePrice: Number(
+      row.purchasePrice ?? row.purchase_price ?? row.costPrice ?? 0,
+    ),
+    costPrice: Number(
+      row.costPrice ?? row.cost_price ?? row.purchasePrice ?? 0,
+    ),
+    maxDiscountPercent: Number(
+      row.maxDiscountPercent ?? row.max_discount_percent ?? 0,
+    ),
+    trackInventory:
+      row.trackInventory ?? row.track_inventory ?? row.trackinventory ?? true,
+    reorderLevel: Number(row.reorderLevel ?? row.reorder_level ?? 0),
+    attributes: row.attributes ?? null,
+    notes: row.notes ?? "",
+    isActive: row.isActive ?? row.is_active ?? row.isactive ?? true,
+    createdAt: row.createdAt ?? row.created_at ?? null,
+    updatedAt: row.updatedAt ?? row.updated_at ?? null,
+    qtyOnHand: Number(row.qtyOnHand ?? row.qty_on_hand ?? 0),
+  };
+}
+
 function ProductListRow({ row, active, onSelect }) {
   return (
     <button
       type="button"
       onClick={() => onSelect?.(row)}
       className={
-        "hidden w-full grid-cols-[minmax(220px,2fr)_120px_160px_120px_120px_90px_110px] items-center gap-3 border-b border-stone-200 px-4 py-3 text-left transition last:border-b-0 lg:grid " +
+        "hidden w-full grid-cols-[minmax(260px,2fr)_120px_160px_120px_120px_90px_120px] items-center gap-3 border-b border-stone-200 px-4 py-3 text-left transition last:border-b-0 lg:grid " +
         (active
           ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-950"
           : "bg-white hover:bg-stone-50 dark:bg-stone-900 dark:hover:bg-stone-800/70")
       }
     >
       <div className="min-w-0">
-        <p className="truncate text-sm font-bold">{safe(row?.name) || "-"}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate text-[13px] font-semibold leading-5">
+            {safe(row?.displayName) || safe(row?.name) || "-"}
+          </p>
+          <span
+            className={
+              "rounded-full px-2 py-0.5 text-[9px] font-medium tracking-[0.08em] " +
+              (active
+                ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
+                : categoryTone(row?.category))
+            }
+          >
+            {safe(row?.category) || "CATEGORY"}
+          </span>
+        </div>
+
         <p
           className={
-            "mt-1 truncate text-xs " +
+            "mt-1 truncate text-[11px] leading-5 " +
             (active
               ? "text-stone-300 dark:text-stone-600"
               : "text-stone-500 dark:text-stone-400")
           }
         >
-          Unit: {safe(row?.unit) || "-"}
+          {safe(row?.brand) || "-"}
+          {safe(row?.model) ? ` · ${safe(row.model)}` : ""}
+          {safe(row?.size) ? ` · ${safe(row.size)}` : ""}
+          {safe(row?.color) ? ` · ${safe(row.color)}` : ""}
         </p>
       </div>
 
@@ -67,12 +199,12 @@ function ProductListRow({ row, active, onSelect }) {
       </div>
 
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium">
+        <p className="truncate text-[13px] font-semibold leading-5">
           {safe(row?.locationName) || "-"}
         </p>
         <p
           className={
-            "mt-1 truncate text-xs " +
+            "mt-1 truncate text-[11px] leading-5 " +
             (active
               ? "text-stone-300 dark:text-stone-600"
               : "text-stone-500 dark:text-stone-400")
@@ -116,10 +248,25 @@ function ProductMobileRow({ row, active, onSelect }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold">{safe(row?.name) || "-"}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-[13px] font-semibold leading-5">
+              {safe(row?.displayName) || safe(row?.name) || "-"}
+            </p>
+            <span
+              className={
+                "rounded-full px-2 py-0.5 text-[9px] font-medium tracking-[0.08em] " +
+                (active
+                  ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
+                  : categoryTone(row?.category))
+              }
+            >
+              {safe(row?.category) || "CATEGORY"}
+            </span>
+          </div>
+
           <p
             className={
-              "mt-1 truncate text-xs " +
+              "mt-1 truncate text-[11px] leading-5 " +
               (active
                 ? "text-stone-300 dark:text-stone-600"
                 : "text-stone-500 dark:text-stone-400")
@@ -127,9 +274,10 @@ function ProductMobileRow({ row, active, onSelect }) {
           >
             SKU: {safe(row?.sku) || "-"}
           </p>
+
           <p
             className={
-              "mt-1 truncate text-xs " +
+              "mt-1 truncate text-[11px] leading-5 " +
               (active
                 ? "text-stone-300 dark:text-stone-600"
                 : "text-stone-500 dark:text-stone-400")
@@ -189,11 +337,12 @@ export default function OwnerProductsTab({ locations = [] }) {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [includeArchived, setIncludeArchived] = useState(false);
+  const [includeArchived, setIncludeArchived] = useState(true);
   const [locationFilter, setLocationFilter] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [pricingModalOpen, setPricingModalOpen] = useState(false);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
 
@@ -203,12 +352,52 @@ export default function OwnerProductsTab({ locations = [] }) {
   const [createForm, setCreateForm] = useState({
     locationId: "",
     name: "",
+    displayName: "",
+    category: "GENERAL_HARDWARE",
+    subcategory: "",
     sku: "",
-    unit: "unit",
+    barcode: "",
+    supplierSku: "",
+    brand: "",
+    model: "",
+    size: "",
+    color: "",
+    material: "",
+    variantSummary: "",
+    stockUnit: "PIECE",
+    salesUnit: "PIECE",
+    purchaseUnit: "PIECE",
+    purchaseUnitFactor: "1",
     sellingPrice: "",
     costPrice: "",
-    maxDiscountPercent: "",
-    openingQty: "",
+    maxDiscountPercent: "0",
+    openingQty: "0",
+    reorderLevel: "0",
+    trackInventory: true,
+    notes: "",
+  });
+
+  const [editForm, setEditForm] = useState({
+    name: "",
+    displayName: "",
+    category: "GENERAL_HARDWARE",
+    subcategory: "",
+    sku: "",
+    barcode: "",
+    supplierSku: "",
+    brand: "",
+    model: "",
+    size: "",
+    color: "",
+    material: "",
+    variantSummary: "",
+    unit: "PIECE",
+    stockUnit: "PIECE",
+    salesUnit: "PIECE",
+    purchaseUnit: "PIECE",
+    purchaseUnitFactor: "1",
+    reorderLevel: "0",
+    trackInventory: true,
     notes: "",
   });
 
@@ -228,20 +417,24 @@ export default function OwnerProductsTab({ locations = [] }) {
       : [];
   }, [locations]);
 
+  const activeLocationOptions = useMemo(() => {
+    return locationOptions.filter(
+      (row) => safe(row?.status).toUpperCase() === "ACTIVE",
+    );
+  }, [locationOptions]);
+
   async function loadProducts() {
     setLoading(true);
     setErrorText("");
-    setSuccessText("");
 
     const summaryParams = new URLSearchParams();
-    if (includeArchived) summaryParams.set("includeInactive", "1");
+    if (includeArchived) summaryParams.set("includeInactive", "true");
 
     const listParams = new URLSearchParams();
     if (locationFilter) listParams.set("locationId", locationFilter);
     if (search.trim()) listParams.set("search", search.trim());
-    if (statusFilter && statusFilter !== "ALL")
-      listParams.set("status", statusFilter);
-    if (includeArchived) listParams.set("includeInactive", "1");
+    if (statusFilter) listParams.set("status", statusFilter);
+    if (includeArchived) listParams.set("includeInactive", "true");
 
     const summaryUrl = `/owner/products/summary${
       summaryParams.toString() ? `?${summaryParams.toString()}` : ""
@@ -255,39 +448,39 @@ export default function OwnerProductsTab({ locations = [] }) {
       apiFetch(listUrl, { method: "GET" }),
     ]);
 
-    let firstError = "";
+    let nextError = "";
 
     if (summaryRes.status === "fulfilled") {
       setSummary(summaryRes.value?.summary || null);
     } else {
       setSummary(null);
-      firstError =
-        firstError ||
+      nextError =
         summaryRes.reason?.data?.error ||
         summaryRes.reason?.message ||
-        "Failed to load products summary";
+        "Products summary request failed";
     }
 
     if (listRes.status === "fulfilled") {
       const rows = Array.isArray(listRes.value?.products)
-        ? listRes.value.products
+        ? listRes.value.products.map(normalizeProduct).filter(Boolean)
         : [];
+
       setProducts(rows);
+
       setSelectedProductId((prev) =>
         prev && rows.some((x) => String(x.productId) === String(prev))
           ? prev
-          : null,
+          : (rows[0]?.productId ?? null),
       );
     } else {
       setProducts([]);
-      firstError =
-        firstError ||
+      nextError =
         listRes.reason?.data?.error ||
         listRes.reason?.message ||
-        "Failed to load owner products";
+        "Products list request failed";
     }
 
-    setErrorText(firstError);
+    setErrorText(nextError);
     setLoading(false);
   }
 
@@ -334,7 +527,7 @@ export default function OwnerProductsTab({ locations = [] }) {
 
       try {
         const result = await apiFetch(
-          `/owner/products/${selectedProduct.productId}/branches?includeInactive=1`,
+          `/owner/products/${selectedProduct.productId}/branches?includeInactive=true`,
           { method: "GET" },
         );
         setSelectedProductBranches(result?.product || null);
@@ -350,42 +543,139 @@ export default function OwnerProductsTab({ locations = [] }) {
 
   const summaryTotals = summary?.totals || {
     branchesCount: 0,
-    productsCount: 0,
-    activeProductsCount: 0,
-    archivedProductsCount: 0,
+    productsCount: products.length,
+    activeProductsCount: products.filter((x) => x.isActive !== false).length,
+    archivedProductsCount: products.filter((x) => x.isActive === false).length,
   };
+
+  const categorySummary = useMemo(() => {
+    const rows = Array.isArray(summary?.byCategory) ? summary.byCategory : [];
+    const first = rows[0] || null;
+
+    return {
+      topCategory: safe(first?.category) || "-",
+      topCategoryCount: safeNumber(first?.productsCount || 0),
+    };
+  }, [summary]);
 
   function resetCreateModal() {
     setCreateModalOpen(false);
     setModalError("");
     setModalSubmitting(false);
     setCreateForm({
-      locationId: locationOptions[0]?.id ? String(locationOptions[0].id) : "",
+      locationId: activeLocationOptions[0]?.id
+        ? String(activeLocationOptions[0].id)
+        : "",
       name: "",
+      displayName: "",
+      category: "GENERAL_HARDWARE",
+      subcategory: "",
       sku: "",
-      unit: "unit",
+      barcode: "",
+      supplierSku: "",
+      brand: "",
+      model: "",
+      size: "",
+      color: "",
+      material: "",
+      variantSummary: "",
+      stockUnit: "PIECE",
+      salesUnit: "PIECE",
+      purchaseUnit: "PIECE",
+      purchaseUnitFactor: "1",
       sellingPrice: "",
       costPrice: "",
-      maxDiscountPercent: "",
-      openingQty: "",
+      maxDiscountPercent: "0",
+      openingQty: "0",
+      reorderLevel: "0",
+      trackInventory: true,
       notes: "",
     });
   }
 
   function openCreateModal() {
     setCreateForm({
-      locationId: locationOptions[0]?.id ? String(locationOptions[0].id) : "",
+      locationId: activeLocationOptions[0]?.id
+        ? String(activeLocationOptions[0].id)
+        : "",
       name: "",
+      displayName: "",
+      category: "GENERAL_HARDWARE",
+      subcategory: "",
       sku: "",
-      unit: "unit",
+      barcode: "",
+      supplierSku: "",
+      brand: "",
+      model: "",
+      size: "",
+      color: "",
+      material: "",
+      variantSummary: "",
+      stockUnit: "PIECE",
+      salesUnit: "PIECE",
+      purchaseUnit: "PIECE",
+      purchaseUnitFactor: "1",
       sellingPrice: "",
       costPrice: "",
-      maxDiscountPercent: "",
-      openingQty: "",
+      maxDiscountPercent: "0",
+      openingQty: "0",
+      reorderLevel: "0",
+      trackInventory: true,
       notes: "",
     });
     setModalError("");
     setCreateModalOpen(true);
+  }
+
+  function closeEditModal() {
+    setEditModalOpen(false);
+    setModalError("");
+    setModalSubmitting(false);
+  }
+
+  function openEditModal() {
+    if (!selectedProduct) return;
+
+    setEditForm({
+      name: safe(selectedProduct.name),
+      displayName: safe(selectedProduct.displayName),
+      category: safe(selectedProduct.category) || "GENERAL_HARDWARE",
+      subcategory: safe(selectedProduct.subcategory),
+      sku: safe(selectedProduct.sku),
+      barcode: safe(selectedProduct.barcode),
+      supplierSku: safe(selectedProduct.supplierSku),
+      brand: safe(selectedProduct.brand),
+      model: safe(selectedProduct.model),
+      size: safe(selectedProduct.size),
+      color: safe(selectedProduct.color),
+      material: safe(selectedProduct.material),
+      variantSummary: safe(selectedProduct.variantSummary),
+      unit:
+        safe(selectedProduct.unit) ||
+        safe(selectedProduct.stockUnit) ||
+        "PIECE",
+      stockUnit:
+        safe(selectedProduct.stockUnit) ||
+        safe(selectedProduct.unit) ||
+        "PIECE",
+      salesUnit:
+        safe(selectedProduct.salesUnit) ||
+        safe(selectedProduct.unit) ||
+        "PIECE",
+      purchaseUnit:
+        safe(selectedProduct.purchaseUnit) ||
+        safe(selectedProduct.unit) ||
+        "PIECE",
+      purchaseUnitFactor: String(
+        safeNumber(selectedProduct.purchaseUnitFactor || 1),
+      ),
+      reorderLevel: String(safeNumber(selectedProduct.reorderLevel || 0)),
+      trackInventory: !!selectedProduct.trackInventory,
+      notes: safe(selectedProduct.notes),
+    });
+
+    setModalError("");
+    setEditModalOpen(true);
   }
 
   function openPricingModal() {
@@ -432,13 +722,29 @@ export default function OwnerProductsTab({ locations = [] }) {
         body: {
           locationId: safeNumber(createForm.locationId),
           name: safe(createForm.name),
-          sku: safe(createForm.sku) || null,
-          unit: safe(createForm.unit) || "unit",
+          displayName: safe(createForm.displayName) || undefined,
+          category: safe(createForm.category) || undefined,
+          subcategory: safe(createForm.subcategory) || undefined,
+          sku: safe(createForm.sku) || undefined,
+          barcode: safe(createForm.barcode) || undefined,
+          supplierSku: safe(createForm.supplierSku) || undefined,
+          brand: safe(createForm.brand) || undefined,
+          model: safe(createForm.model) || undefined,
+          size: safe(createForm.size) || undefined,
+          color: safe(createForm.color) || undefined,
+          material: safe(createForm.material) || undefined,
+          variantSummary: safe(createForm.variantSummary) || undefined,
+          stockUnit: safe(createForm.stockUnit) || undefined,
+          salesUnit: safe(createForm.salesUnit) || undefined,
+          purchaseUnit: safe(createForm.purchaseUnit) || undefined,
+          purchaseUnitFactor: safeNumber(createForm.purchaseUnitFactor) || 1,
           sellingPrice: safeNumber(createForm.sellingPrice),
           costPrice: safeNumber(createForm.costPrice),
           maxDiscountPercent: safeNumber(createForm.maxDiscountPercent),
           openingQty: safeNumber(createForm.openingQty),
-          notes: safe(createForm.notes) || null,
+          reorderLevel: safeNumber(createForm.reorderLevel),
+          trackInventory: !!createForm.trackInventory,
+          notes: safe(createForm.notes) || undefined,
         },
       });
 
@@ -454,6 +760,53 @@ export default function OwnerProductsTab({ locations = [] }) {
     }
   }
 
+  async function updateProduct() {
+    if (!selectedProduct?.productId) return;
+
+    setModalSubmitting(true);
+    setModalError("");
+
+    try {
+      await apiFetch(`/owner/products/${selectedProduct.productId}`, {
+        method: "PATCH",
+        body: {
+          name: safe(editForm.name),
+          displayName: safe(editForm.displayName) || undefined,
+          category: safe(editForm.category) || undefined,
+          subcategory: safe(editForm.subcategory) || undefined,
+          sku: safe(editForm.sku) || undefined,
+          barcode: safe(editForm.barcode) || undefined,
+          supplierSku: safe(editForm.supplierSku) || undefined,
+          brand: safe(editForm.brand) || undefined,
+          model: safe(editForm.model) || undefined,
+          size: safe(editForm.size) || undefined,
+          color: safe(editForm.color) || undefined,
+          material: safe(editForm.material) || undefined,
+          variantSummary: safe(editForm.variantSummary) || undefined,
+          unit: safe(editForm.unit) || undefined,
+          stockUnit: safe(editForm.stockUnit) || undefined,
+          salesUnit: safe(editForm.salesUnit) || undefined,
+          purchaseUnit: safe(editForm.purchaseUnit) || undefined,
+          purchaseUnitFactor: safeNumber(editForm.purchaseUnitFactor) || 1,
+          reorderLevel: safeNumber(editForm.reorderLevel),
+          trackInventory: !!editForm.trackInventory,
+          notes: safe(editForm.notes) || undefined,
+        },
+      });
+
+      closeEditModal();
+      await loadProducts();
+      setSelectedProductId(selectedProduct.productId);
+      setSuccessText("Product updated successfully.");
+    } catch (error) {
+      setModalError(
+        error?.data?.error || error?.message || "Failed to update product",
+      );
+    } finally {
+      setModalSubmitting(false);
+    }
+  }
+
   async function updatePricing() {
     if (!selectedProduct?.productId) return;
 
@@ -462,7 +815,7 @@ export default function OwnerProductsTab({ locations = [] }) {
 
     try {
       await apiFetch(`/owner/products/${selectedProduct.productId}/pricing`, {
-        method: "PUT",
+        method: "PATCH",
         body: {
           purchasePrice: safeNumber(pricingForm.purchasePrice),
           sellingPrice: safeNumber(pricingForm.sellingPrice),
@@ -491,9 +844,9 @@ export default function OwnerProductsTab({ locations = [] }) {
 
     try {
       await apiFetch(`/owner/products/${selectedProduct.productId}/archive`, {
-        method: "PATCH",
+        method: "POST",
         body: {
-          reason: safe(archiveReason) || null,
+          reason: safe(archiveReason) || undefined,
         },
       });
 
@@ -518,7 +871,7 @@ export default function OwnerProductsTab({ locations = [] }) {
 
     try {
       await apiFetch(`/owner/products/${selectedProduct.productId}/restore`, {
-        method: "PATCH",
+        method: "POST",
       });
 
       await loadProducts();
@@ -541,8 +894,8 @@ export default function OwnerProductsTab({ locations = [] }) {
           title="Products"
           subtitle="Loading owner cross-branch products."
         >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {[1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}
                 className="h-32 animate-pulse rounded-3xl border border-stone-200 bg-stone-100 dark:border-stone-800 dark:bg-stone-800"
@@ -554,7 +907,7 @@ export default function OwnerProductsTab({ locations = [] }) {
         <>
           <SectionCard
             title="Cross-branch products summary"
-            subtitle="Owner-wide product visibility across branches."
+            subtitle="Owner-wide catalog visibility across branches, categories, and product states."
             right={
               <AsyncButton
                 idleText="Create product"
@@ -564,7 +917,7 @@ export default function OwnerProductsTab({ locations = [] }) {
               />
             }
           >
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
               <StatCard
                 label="Branches"
                 value={safeNumber(summaryTotals.branchesCount)}
@@ -573,30 +926,36 @@ export default function OwnerProductsTab({ locations = [] }) {
               <StatCard
                 label="Products"
                 value={safeNumber(summaryTotals.productsCount)}
-                sub="Product records across branches"
+                sub="Catalog records across branches"
               />
               <StatCard
                 label="Active"
                 value={safeNumber(summaryTotals.activeProductsCount)}
-                sub="Currently active product records"
+                sub="Currently usable records"
               />
               <StatCard
                 label="Archived"
                 value={safeNumber(summaryTotals.archivedProductsCount)}
-                sub="Archived product records"
+                sub="Hidden but preserved records"
+              />
+              <StatCard
+                label="Top category"
+                value={categorySummary.topCategory}
+                valueClassName="text-xl sm:text-lg leading-tight"
+                sub={`${categorySummary.topCategoryCount} products`}
               />
             </div>
           </SectionCard>
 
           <SectionCard
             title="Products directory"
-            subtitle="Search, filter, and inspect products across branches."
+            subtitle="Search, filter, inspect, and manage products across all branches."
           >
             <div className="grid gap-3 lg:grid-cols-4">
               <FormInput
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search product, SKU, unit, branch, code"
+                placeholder="Search product, display name, SKU, brand, barcode, branch"
               />
 
               <FormSelect
@@ -641,7 +1000,7 @@ export default function OwnerProductsTab({ locations = [] }) {
             </div>
 
             <div className="mt-5 overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-800">
-              <div className="hidden grid-cols-[minmax(220px,2fr)_120px_160px_120px_120px_90px_110px] gap-3 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:bg-stone-950 dark:text-stone-400 lg:grid">
+              <div className="hidden grid-cols-[minmax(260px,2fr)_120px_160px_120px_120px_90px_120px] gap-3 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:bg-stone-950 dark:text-stone-400 lg:grid">
                 <div>Product</div>
                 <div>SKU</div>
                 <div>Branch</div>
@@ -701,7 +1060,7 @@ export default function OwnerProductsTab({ locations = [] }) {
           {selectedProduct ? (
             <SectionCard
               title="Selected product detail"
-              subtitle="Focused branch-aware product detail and direct owner actions."
+              subtitle="Focused cross-branch product detail with owner actions and branch-level distribution."
               right={
                 <div className="flex flex-wrap gap-2">
                   <span
@@ -718,14 +1077,18 @@ export default function OwnerProductsTab({ locations = [] }) {
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                   <StatCard
                     label="Product"
-                    value={safe(selectedProduct.name) || "-"}
-                    valueClassName="text-2xl sm:text-[20px] leading-tight"
+                    value={
+                      safe(selectedProduct.displayName) ||
+                      safe(selectedProduct.name) ||
+                      "-"
+                    }
+                    valueClassName="text-xl sm:text-lg leading-tight"
                     sub={`SKU: ${safe(selectedProduct.sku) || "-"}`}
                   />
                   <StatCard
                     label="Branch"
                     value={safe(selectedProduct.locationName) || "-"}
-                    valueClassName="text-2xl sm:text-[20px] leading-tight"
+                    valueClassName="text-xl sm:text-lg leading-tight"
                     sub={safe(selectedProduct.locationCode) || "-"}
                   />
                   <StatCard
@@ -756,8 +1119,28 @@ export default function OwnerProductsTab({ locations = [] }) {
                         <span className="text-stone-500 dark:text-stone-400">
                           Product
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
-                          {safe(selectedProduct.name) || "-"}
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safe(selectedProduct.displayName) ||
+                            safe(selectedProduct.name) ||
+                            "-"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Category
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safe(selectedProduct.category) || "-"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Subcategory
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safe(selectedProduct.subcategory) || "-"}
                         </span>
                       </div>
 
@@ -765,17 +1148,119 @@ export default function OwnerProductsTab({ locations = [] }) {
                         <span className="text-stone-500 dark:text-stone-400">
                           SKU
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
                           {safe(selectedProduct.sku) || "-"}
                         </span>
                       </div>
 
                       <div className="flex justify-between gap-4">
                         <span className="text-stone-500 dark:text-stone-400">
-                          Unit
+                          Barcode
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
-                          {safe(selectedProduct.unit) || "-"}
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safe(selectedProduct.barcode) || "-"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Supplier SKU
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safe(selectedProduct.supplierSku) || "-"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Brand / Model
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safe(selectedProduct.brand) || "-"}
+                          {safe(selectedProduct.model)
+                            ? ` / ${safe(selectedProduct.model)}`
+                            : ""}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Size / Color
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safe(selectedProduct.size) || "-"}
+                          {safe(selectedProduct.color)
+                            ? ` / ${safe(selectedProduct.color)}`
+                            : ""}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Material
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safe(selectedProduct.material) || "-"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Variant summary
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safe(selectedProduct.variantSummary) || "-"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Stock / Sales / Purchase unit
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safe(
+                            selectedProduct.stockUnit || selectedProduct.unit,
+                          ) || "-"}
+                          {" / "}
+                          {safe(selectedProduct.salesUnit) || "-"}
+                          {" / "}
+                          {safe(selectedProduct.purchaseUnit) || "-"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Purchase unit factor
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safeNumber(selectedProduct.purchaseUnitFactor)}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Reorder level
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safeNumber(selectedProduct.reorderLevel)}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Track inventory
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {selectedProduct.trackInventory ? "Yes" : "No"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
+                          Max discount
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safeNumber(selectedProduct.maxDiscountPercent)}%
                         </span>
                       </div>
 
@@ -783,7 +1268,7 @@ export default function OwnerProductsTab({ locations = [] }) {
                         <span className="text-stone-500 dark:text-stone-400">
                           Branch
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
                           {safe(selectedProduct.locationName) || "-"}{" "}
                           {safe(selectedProduct.locationCode)
                             ? `(${safe(selectedProduct.locationCode)})`
@@ -795,7 +1280,7 @@ export default function OwnerProductsTab({ locations = [] }) {
                         <span className="text-stone-500 dark:text-stone-400">
                           Branch status
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
                           {safe(selectedProduct.locationStatus) || "-"}
                         </span>
                       </div>
@@ -804,7 +1289,7 @@ export default function OwnerProductsTab({ locations = [] }) {
                         <span className="text-stone-500 dark:text-stone-400">
                           Created
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
                           {safeDate(selectedProduct.createdAt)}
                         </span>
                       </div>
@@ -827,11 +1312,20 @@ export default function OwnerProductsTab({ locations = [] }) {
 
                     <div className="mt-4 space-y-3">
                       <AsyncButton
+                        idleText="Edit product"
+                        loadingText="Opening..."
+                        successText="Ready"
+                        onClick={async () => openEditModal()}
+                        className="w-full"
+                      />
+
+                      <AsyncButton
                         idleText="Update pricing"
                         loadingText="Opening..."
                         successText="Ready"
                         onClick={async () => openPricingModal()}
                         className="w-full"
+                        variant="secondary"
                       />
 
                       {selectedProduct?.isActive !== false ? (
@@ -855,8 +1349,9 @@ export default function OwnerProductsTab({ locations = [] }) {
                     </div>
 
                     <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-4 text-sm leading-6 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
-                      This tab now uses a scalable row view better suited for
-                      larger product lists.
+                      This owner tab now matches the richer backend product
+                      model, including mixed hardware, apparel, PPE, footwear,
+                      and rain gear attributes.
                     </div>
                   </div>
                 </div>
@@ -889,10 +1384,10 @@ export default function OwnerProductsTab({ locations = [] }) {
                           >
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                               <div>
-                                <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+                                <p className="text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
                                   {safe(branch.locationName) || "-"}
                                 </p>
-                                <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                                <p className="mt-1 text-[11px] leading-5 text-stone-500 dark:text-stone-400">
                                   {safe(branch.locationCode) || "-"} ·{" "}
                                   {safe(branch.locationStatus) || "-"}
                                 </p>
@@ -968,7 +1463,7 @@ export default function OwnerProductsTab({ locations = [] }) {
       <OverlayModal
         open={createModalOpen}
         title="Create product"
-        subtitle="Create a product record in a chosen active branch."
+        subtitle="Create a rich product record in a chosen active branch."
         onClose={resetCreateModal}
         footer={
           <>
@@ -987,7 +1482,7 @@ export default function OwnerProductsTab({ locations = [] }) {
                 modalSubmitting ||
                 !safe(createForm.locationId) ||
                 !safe(createForm.name) ||
-                safeNumber(createForm.sellingPrice) <= 0
+                safeNumber(createForm.sellingPrice) < 0
               }
               className="inline-flex h-11 items-center justify-center rounded-xl bg-stone-900 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-200"
             >
@@ -998,7 +1493,6 @@ export default function OwnerProductsTab({ locations = [] }) {
       >
         <div className="space-y-5">
           <AlertBox message={modalError} />
-
           <div>
             <FieldLabel htmlFor="product-branch">Active branch</FieldLabel>
             <FormSelect
@@ -1012,30 +1506,81 @@ export default function OwnerProductsTab({ locations = [] }) {
               }
             >
               <option value="">Select active branch</option>
-              {locationOptions
-                .filter((row) => safe(row?.status).toUpperCase() === "ACTIVE")
-                .map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {safe(row.name)}{" "}
-                    {safe(row.code) ? `(${safe(row.code)})` : ""}
-                  </option>
-                ))}
+              {activeLocationOptions.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {safe(row.name)} {safe(row.code) ? `(${safe(row.code)})` : ""}
+                </option>
+              ))}
             </FormSelect>
           </div>
 
-          <div>
-            <FieldLabel htmlFor="product-name">Product name</FieldLabel>
-            <FormInput
-              id="product-name"
-              value={createForm.name}
-              onChange={(e) =>
-                setCreateForm((prev) => ({ ...prev, name: e.target.value }))
-              }
-              placeholder="e.g. Samsung A15"
-            />
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <FieldLabel htmlFor="product-name">Product name</FieldLabel>
+              <FormInput
+                id="product-name"
+                value={createForm.name}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({ ...prev, name: e.target.value }))
+                }
+                placeholder="e.g. Safety shoe"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="product-display-name">
+                Display name
+              </FieldLabel>
+              <FormInput
+                id="product-display-name"
+                value={createForm.displayName}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    displayName: e.target.value,
+                  }))
+                }
+                placeholder="Optional richer display name"
+              />
+            </div>
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <FieldLabel htmlFor="product-category">Category</FieldLabel>
+              <FormSelect
+                id="product-category"
+                value={createForm.category}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    category: e.target.value,
+                  }))
+                }
+              >
+                {CATEGORY_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="product-subcategory">Subcategory</FieldLabel>
+              <FormInput
+                id="product-subcategory"
+                value={createForm.subcategory}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    subcategory: e.target.value,
+                  }))
+                }
+                placeholder="Optional subcategory"
+              />
+            </div>
+
             <div>
               <FieldLabel htmlFor="product-sku">SKU</FieldLabel>
               <FormInput
@@ -1044,24 +1589,211 @@ export default function OwnerProductsTab({ locations = [] }) {
                 onChange={(e) =>
                   setCreateForm((prev) => ({ ...prev, sku: e.target.value }))
                 }
-                placeholder="Optional SKU"
+                placeholder="Internal SKU"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <FieldLabel htmlFor="product-barcode">Barcode</FieldLabel>
+              <FormInput
+                id="product-barcode"
+                value={createForm.barcode}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    barcode: e.target.value,
+                  }))
+                }
+                placeholder="Optional barcode"
               />
             </div>
 
             <div>
-              <FieldLabel htmlFor="product-unit">Unit</FieldLabel>
+              <FieldLabel htmlFor="product-supplier-sku">
+                Supplier SKU
+              </FieldLabel>
               <FormInput
-                id="product-unit"
-                value={createForm.unit}
+                id="product-supplier-sku"
+                value={createForm.supplierSku}
                 onChange={(e) =>
-                  setCreateForm((prev) => ({ ...prev, unit: e.target.value }))
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    supplierSku: e.target.value,
+                  }))
                 }
-                placeholder="unit / pcs / box"
+                placeholder="Supplier code"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="product-brand">Brand</FieldLabel>
+              <FormInput
+                id="product-brand"
+                value={createForm.brand}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({ ...prev, brand: e.target.value }))
+                }
+                placeholder="Brand"
               />
             </div>
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <FieldLabel htmlFor="product-model">Model</FieldLabel>
+              <FormInput
+                id="product-model"
+                value={createForm.model}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({ ...prev, model: e.target.value }))
+                }
+                placeholder="Model"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="product-size">Size</FieldLabel>
+              <FormInput
+                id="product-size"
+                value={createForm.size}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({ ...prev, size: e.target.value }))
+                }
+                placeholder="Size"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="product-color">Color</FieldLabel>
+              <FormInput
+                id="product-color"
+                value={createForm.color}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({ ...prev, color: e.target.value }))
+                }
+                placeholder="Color"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="product-material">Material</FieldLabel>
+              <FormInput
+                id="product-material"
+                value={createForm.material}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    material: e.target.value,
+                  }))
+                }
+                placeholder="Material"
+              />
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="product-variant-summary">
+              Variant summary
+            </FieldLabel>
+            <FormInput
+              id="product-variant-summary"
+              value={createForm.variantSummary}
+              onChange={(e) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  variantSummary: e.target.value,
+                }))
+              }
+              placeholder="Optional variant summary"
+            />
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <FieldLabel htmlFor="product-stock-unit">Stock unit</FieldLabel>
+              <FormSelect
+                id="product-stock-unit"
+                value={createForm.stockUnit}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    stockUnit: e.target.value,
+                  }))
+                }
+              >
+                {UNIT_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="product-sales-unit">Sales unit</FieldLabel>
+              <FormSelect
+                id="product-sales-unit"
+                value={createForm.salesUnit}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    salesUnit: e.target.value,
+                  }))
+                }
+              >
+                {UNIT_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="product-purchase-unit">
+                Purchase unit
+              </FieldLabel>
+              <FormSelect
+                id="product-purchase-unit"
+                value={createForm.purchaseUnit}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    purchaseUnit: e.target.value,
+                  }))
+                }
+              >
+                {UNIT_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="product-purchase-unit-factor">
+                Purchase unit factor
+              </FieldLabel>
+              <FormInput
+                id="product-purchase-unit-factor"
+                type="number"
+                min="1"
+                value={createForm.purchaseUnitFactor}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    purchaseUnitFactor: e.target.value,
+                  }))
+                }
+                placeholder="1"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
             <div>
               <FieldLabel htmlFor="product-selling">Selling price</FieldLabel>
               <FormInput
@@ -1102,6 +1834,7 @@ export default function OwnerProductsTab({ locations = [] }) {
                 id="product-discount"
                 type="number"
                 min="0"
+                max="100"
                 value={createForm.maxDiscountPercent}
                 onChange={(e) =>
                   setCreateForm((prev) => ({
@@ -1129,7 +1862,40 @@ export default function OwnerProductsTab({ locations = [] }) {
                 placeholder="0"
               />
             </div>
+
+            <div>
+              <FieldLabel htmlFor="product-reorder-level">
+                Reorder level
+              </FieldLabel>
+              <FormInput
+                id="product-reorder-level"
+                type="number"
+                min="0"
+                value={createForm.reorderLevel}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    reorderLevel: e.target.value,
+                  }))
+                }
+                placeholder="0"
+              />
+            </div>
           </div>
+
+          <label className="inline-flex h-12 items-center gap-2 rounded-2xl border border-stone-300 bg-white px-4 text-sm text-stone-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200">
+            <input
+              type="checkbox"
+              checked={createForm.trackInventory}
+              onChange={(e) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  trackInventory: e.target.checked,
+                }))
+              }
+            />
+            <span>Track inventory for this product</span>
+          </label>
 
           <div>
             <FieldLabel htmlFor="product-notes">Notes</FieldLabel>
@@ -1138,6 +1904,389 @@ export default function OwnerProductsTab({ locations = [] }) {
               value={createForm.notes}
               onChange={(e) =>
                 setCreateForm((prev) => ({ ...prev, notes: e.target.value }))
+              }
+              placeholder="Optional notes"
+            />
+          </div>
+        </div>
+      </OverlayModal>
+
+      <OverlayModal
+        open={editModalOpen}
+        title="Edit product"
+        subtitle="Update product identity, classification, units, and operational details."
+        onClose={closeEditModal}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeEditModal}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={updateProduct}
+              disabled={modalSubmitting || !safe(editForm.name)}
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-stone-900 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-200"
+            >
+              {modalSubmitting ? "Saving..." : "Save product"}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-5">
+          <AlertBox message={modalError} />
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <FieldLabel htmlFor="edit-product-name">Product name</FieldLabel>
+              <FormInput
+                id="edit-product-name"
+                value={editForm.name}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, name: e.target.value }))
+                }
+                placeholder="Product name"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="edit-product-display-name">
+                Display name
+              </FieldLabel>
+              <FormInput
+                id="edit-product-display-name"
+                value={editForm.displayName}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    displayName: e.target.value,
+                  }))
+                }
+                placeholder="Optional richer display name"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <FieldLabel htmlFor="edit-product-category">Category</FieldLabel>
+              <FormSelect
+                id="edit-product-category"
+                value={editForm.category}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    category: e.target.value,
+                  }))
+                }
+              >
+                {CATEGORY_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="edit-product-subcategory">
+                Subcategory
+              </FieldLabel>
+              <FormInput
+                id="edit-product-subcategory"
+                value={editForm.subcategory}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    subcategory: e.target.value,
+                  }))
+                }
+                placeholder="Optional subcategory"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="edit-product-sku">SKU</FieldLabel>
+              <FormInput
+                id="edit-product-sku"
+                value={editForm.sku}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, sku: e.target.value }))
+                }
+                placeholder="Internal SKU"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <FieldLabel htmlFor="edit-product-barcode">Barcode</FieldLabel>
+              <FormInput
+                id="edit-product-barcode"
+                value={editForm.barcode}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    barcode: e.target.value,
+                  }))
+                }
+                placeholder="Optional barcode"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="edit-product-supplier-sku">
+                Supplier SKU
+              </FieldLabel>
+              <FormInput
+                id="edit-product-supplier-sku"
+                value={editForm.supplierSku}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    supplierSku: e.target.value,
+                  }))
+                }
+                placeholder="Supplier code"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="edit-product-brand">Brand</FieldLabel>
+              <FormInput
+                id="edit-product-brand"
+                value={editForm.brand}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, brand: e.target.value }))
+                }
+                placeholder="Brand"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <FieldLabel htmlFor="edit-product-model">Model</FieldLabel>
+              <FormInput
+                id="edit-product-model"
+                value={editForm.model}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, model: e.target.value }))
+                }
+                placeholder="Model"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="edit-product-size">Size</FieldLabel>
+              <FormInput
+                id="edit-product-size"
+                value={editForm.size}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, size: e.target.value }))
+                }
+                placeholder="Size"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="edit-product-color">Color</FieldLabel>
+              <FormInput
+                id="edit-product-color"
+                value={editForm.color}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, color: e.target.value }))
+                }
+                placeholder="Color"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="edit-product-material">Material</FieldLabel>
+              <FormInput
+                id="edit-product-material"
+                value={editForm.material}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    material: e.target.value,
+                  }))
+                }
+                placeholder="Material"
+              />
+            </div>
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="edit-product-variant-summary">
+              Variant summary
+            </FieldLabel>
+            <FormInput
+              id="edit-product-variant-summary"
+              value={editForm.variantSummary}
+              onChange={(e) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  variantSummary: e.target.value,
+                }))
+              }
+              placeholder="Optional variant summary"
+            />
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <FieldLabel htmlFor="edit-product-unit">Legacy unit</FieldLabel>
+              <FormSelect
+                id="edit-product-unit"
+                value={editForm.unit}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    unit: e.target.value,
+                  }))
+                }
+              >
+                {UNIT_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="edit-product-stock-unit">
+                Stock unit
+              </FieldLabel>
+              <FormSelect
+                id="edit-product-stock-unit"
+                value={editForm.stockUnit}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    stockUnit: e.target.value,
+                  }))
+                }
+              >
+                {UNIT_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="edit-product-sales-unit">
+                Sales unit
+              </FieldLabel>
+              <FormSelect
+                id="edit-product-sales-unit"
+                value={editForm.salesUnit}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    salesUnit: e.target.value,
+                  }))
+                }
+              >
+                {UNIT_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="edit-product-purchase-unit">
+                Purchase unit
+              </FieldLabel>
+              <FormSelect
+                id="edit-product-purchase-unit"
+                value={editForm.purchaseUnit}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    purchaseUnit: e.target.value,
+                  }))
+                }
+              >
+                {UNIT_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <FieldLabel htmlFor="edit-product-purchase-unit-factor">
+                Purchase unit factor
+              </FieldLabel>
+              <FormInput
+                id="edit-product-purchase-unit-factor"
+                type="number"
+                min="1"
+                value={editForm.purchaseUnitFactor}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    purchaseUnitFactor: e.target.value,
+                  }))
+                }
+                placeholder="1"
+              />
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="edit-product-reorder-level">
+                Reorder level
+              </FieldLabel>
+              <FormInput
+                id="edit-product-reorder-level"
+                type="number"
+                min="0"
+                value={editForm.reorderLevel}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    reorderLevel: e.target.value,
+                  }))
+                }
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          <label className="inline-flex h-12 items-center gap-2 rounded-2xl border border-stone-300 bg-white px-4 text-sm text-stone-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200">
+            <input
+              type="checkbox"
+              checked={editForm.trackInventory}
+              onChange={(e) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  trackInventory: e.target.checked,
+                }))
+              }
+            />
+            <span>Track inventory for this product</span>
+          </label>
+
+          <div>
+            <FieldLabel htmlFor="edit-product-notes">Notes</FieldLabel>
+            <FormTextarea
+              id="edit-product-notes"
+              value={editForm.notes}
+              onChange={(e) =>
+                setEditForm((prev) => ({ ...prev, notes: e.target.value }))
               }
               placeholder="Optional notes"
             />
@@ -1213,6 +2362,7 @@ export default function OwnerProductsTab({ locations = [] }) {
                 id="pricing-discount"
                 type="number"
                 min="0"
+                max="100"
                 value={pricingForm.maxDiscountPercent}
                 onChange={(e) =>
                   setPricingForm((prev) => ({
@@ -1256,8 +2406,12 @@ export default function OwnerProductsTab({ locations = [] }) {
           <AlertBox message={modalError} />
 
           <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-stone-700 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-300">
-            Product: <strong>{safe(selectedProduct?.name)}</strong> —{" "}
-            {safe(selectedProduct?.locationName)}
+            Product:{" "}
+            <strong>
+              {safe(selectedProduct?.displayName) ||
+                safe(selectedProduct?.name)}
+            </strong>{" "}
+            — {safe(selectedProduct?.locationName)}
             {safe(selectedProduct?.locationCode)
               ? ` (${safe(selectedProduct.locationCode)})`
               : ""}
