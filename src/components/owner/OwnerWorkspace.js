@@ -7,6 +7,7 @@ import AppShell from "../AppShell";
 import AsyncButton from "../AsyncButton";
 import BranchModals from "./BranchModals";
 import DashboardSkeleton from "../PageSkeleton";
+import OwnerArrivalsTab from "./tabs/OwnerArrivalsTab";
 import OwnerAuditTab from "./tabs/OwnerAuditTab";
 import OwnerBranchesTab from "./tabs/OwnerBranchesTab";
 import OwnerCashTab from "./tabs/OwnerCashTab";
@@ -99,7 +100,13 @@ export default function OwnerWorkspace({
       },
       inventory: {
         title: "Inventory",
-        subtitle: "Track and control stock across branches.",
+        subtitle:
+          "Track and inspect cross-branch stock visibility with owner-level control.",
+      },
+      arrivals: {
+        title: "Inventory Arrivals",
+        subtitle:
+          "Record stock received into branches and review arrival history professionally.",
       },
       products: {
         title: "Products",
@@ -292,6 +299,8 @@ export default function OwnerWorkspace({
     );
   } else if (activeTab === "inventory") {
     content = <OwnerInventoryTab locations={locations} />;
+  } else if (activeTab === "arrivals") {
+    content = <OwnerArrivalsTab locations={locations} />;
   } else if (activeTab === "products") {
     content = <OwnerProductsTab locations={locations} />;
   } else if (activeTab === "sales") {
@@ -345,6 +354,7 @@ export default function OwnerWorkspace({
           { key: "branches", label: "Branches", badge: locations.length || 0 },
           { key: "staff", label: "Team", badge: users.length || 0 },
           { key: "inventory", label: "Inventory" },
+          { key: "arrivals", label: "Arrivals" },
           { key: "products", label: "Products" },
           { key: "sales", label: "Sales" },
           { key: "payments", label: "Payments" },

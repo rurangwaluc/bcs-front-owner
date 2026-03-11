@@ -1,8 +1,5 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "../../../lib/api";
-import AsyncButton from "../../AsyncButton";
 import {
   AlertBox,
   EmptyState,
@@ -17,6 +14,10 @@ import {
   safeDate,
   safeNumber,
 } from "../OwnerShared";
+import { useEffect, useMemo, useState } from "react";
+
+import AsyncButton from "../../AsyncButton";
+import { apiFetch } from "../../../lib/api";
 
 const PAGE_SIZE = 20;
 
@@ -82,6 +83,66 @@ function amountPaidTone(totalAmount, amountPaid) {
   return "bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300";
 }
 
+function normalizeSaleRow(row) {
+  if (!row) return null;
+
+  const location =
+    row.location && typeof row.location === "object"
+      ? row.location
+      : {
+          id: row.locationId ?? row.location_id ?? null,
+          name: row.locationName ?? row.location_name ?? "",
+          code: row.locationCode ?? row.location_code ?? "",
+        };
+
+  return {
+    id: Number(row.id ?? 0),
+    location,
+    status: row.status ?? "",
+    totalAmount: Number(row.totalAmount ?? row.total_amount ?? 0),
+    paymentMethod: row.paymentMethod ?? row.payment_method ?? "",
+    note: row.note ?? "",
+    createdAt: row.createdAt ?? row.created_at ?? null,
+    updatedAt: row.updatedAt ?? row.updated_at ?? null,
+    canceledAt: row.canceledAt ?? row.canceled_at ?? null,
+    canceledBy: row.canceledBy ?? row.canceled_by ?? null,
+    cancelReason: row.cancelReason ?? row.cancel_reason ?? "",
+    sellerId: row.sellerId ?? row.seller_id ?? null,
+    sellerName: row.sellerName ?? row.seller_name ?? "",
+    customerId: row.customerId ?? row.customer_id ?? null,
+    customerName: row.customerName ?? row.customer_name ?? "",
+    customerPhone: row.customerPhone ?? row.customer_phone ?? "",
+    customerTin: row.customerTin ?? row.customer_tin ?? "",
+    customerAddress: row.customerAddress ?? row.customer_address ?? "",
+    amountPaid: Number(row.amountPaid ?? row.amount_paid ?? 0),
+    credit: row.credit ?? null,
+    itemsPreview: Array.isArray(row.itemsPreview ?? row.items_preview)
+      ? (row.itemsPreview ?? row.items_preview)
+      : [],
+  };
+}
+
+function normalizeSaleDetail(row) {
+  if (!row) return null;
+
+  const normalized = normalizeSaleRow(row);
+
+  return {
+    ...normalized,
+    items: Array.isArray(row.items)
+      ? row.items.map((item) => ({
+          id: Number(item.id ?? 0),
+          productId: Number(item.productId ?? item.product_id ?? 0),
+          productName: item.productName ?? item.product_name ?? "",
+          sku: item.sku ?? "",
+          qty: Number(item.qty ?? 0),
+          unitPrice: Number(item.unitPrice ?? item.unit_price ?? 0),
+          lineTotal: Number(item.lineTotal ?? item.line_total ?? 0),
+        }))
+      : [],
+  };
+}
+
 function SaleListRow({ row, active, onSelect }) {
   return (
     <button
@@ -97,12 +158,12 @@ function SaleListRow({ row, active, onSelect }) {
       <div className="text-sm font-bold">#{safe(row?.id) || "-"}</div>
 
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold">
+        <p className="truncate text-[13px] font-semibold leading-5">
           {safe(row?.customerName) || "Walk-in"}
         </p>
         <p
           className={
-            "mt-1 truncate text-xs " +
+            "mt-1 truncate text-[11px] leading-5 " +
             (active
               ? "text-stone-300 dark:text-stone-600"
               : "text-stone-500 dark:text-stone-400")
@@ -113,12 +174,12 @@ function SaleListRow({ row, active, onSelect }) {
       </div>
 
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium">
+        <p className="truncate text-[13px] font-semibold leading-5">
           {safe(row?.location?.name) || "-"}
         </p>
         <p
           className={
-            "mt-1 truncate text-xs " +
+            "mt-1 truncate text-[11px] leading-5 " +
             (active
               ? "text-stone-300 dark:text-stone-600"
               : "text-stone-500 dark:text-stone-400")
@@ -134,7 +195,7 @@ function SaleListRow({ row, active, onSelect }) {
         </p>
         <p
           className={
-            "mt-1 truncate text-xs " +
+            "mt-1 truncate text-[11px] leading-5 " +
             (active
               ? "text-stone-300 dark:text-stone-600"
               : "text-stone-500 dark:text-stone-400")
@@ -177,10 +238,12 @@ function SaleMobileRow({ row, active, onSelect }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-bold">Sale #{safe(row?.id) || "-"}</p>
+          <p className="text-[13px] font-semibold leading-5">
+            Sale #{safe(row?.id) || "-"}
+          </p>
           <p
             className={
-              "mt-1 truncate text-xs " +
+              "mt-1 truncate text-[11px] leading-5 " +
               (active
                 ? "text-stone-300 dark:text-stone-600"
                 : "text-stone-500 dark:text-stone-400")
@@ -191,7 +254,7 @@ function SaleMobileRow({ row, active, onSelect }) {
           </p>
           <p
             className={
-              "mt-1 truncate text-xs " +
+              "mt-1 truncate text-[11px] leading-5 " +
               (active
                 ? "text-stone-300 dark:text-stone-600"
                 : "text-stone-500 dark:text-stone-400")
@@ -293,8 +356,9 @@ export default function OwnerSalesTab({ locations = [] }) {
     if (dateFrom) params.set("dateFrom", dateFrom);
     if (dateTo) params.set("dateTo", dateTo);
 
-    const summaryUrl = `/owner/sales/summary${params.toString() ? `?${params.toString()}` : ""}`;
-    const listUrl = `/owner/sales${params.toString() ? `?${params.toString()}` : ""}`;
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const summaryUrl = `/owner/sales/summary${qs}`;
+    const listUrl = `/owner/sales${qs}`;
 
     const [summaryRes, listRes] = await Promise.allSettled([
       apiFetch(summaryUrl, { method: "GET" }),
@@ -316,14 +380,18 @@ export default function OwnerSalesTab({ locations = [] }) {
 
     if (listRes.status === "fulfilled") {
       const rows = Array.isArray(listRes.value?.sales)
-        ? listRes.value.sales
+        ? listRes.value.sales.map(normalizeSaleRow).filter(Boolean)
         : [];
+
       setSales(rows);
       setSelectedSaleId((prev) =>
-        prev && rows.some((x) => String(x.id) === String(prev)) ? prev : null,
+        prev && rows.some((x) => String(x.id) === String(prev))
+          ? prev
+          : (rows[0]?.id ?? null),
       );
     } else {
       setSales([]);
+      setSelectedSaleId(null);
       firstError =
         firstError ||
         listRes.reason?.data?.error ||
@@ -378,7 +446,7 @@ export default function OwnerSalesTab({ locations = [] }) {
         const result = await apiFetch(`/owner/sales/${selectedSale.id}`, {
           method: "GET",
         });
-        setSelectedSaleDetail(result?.sale || null);
+        setSelectedSaleDetail(normalizeSaleDetail(result?.sale));
       } catch {
         setSelectedSaleDetail(null);
       } finally {
@@ -723,12 +791,13 @@ export default function OwnerSalesTab({ locations = [] }) {
                   <StatCard
                     label="Branch"
                     value={safe(selectedSale.location?.name) || "-"}
+                    valueClassName="text-xl sm:text-lg leading-tight"
                     sub={safe(selectedSale.location?.code) || "-"}
                   />
                   <StatCard
                     label="Customer"
                     value={safe(selectedSale.customerName) || "Walk-in"}
-                    valueClassName="text-xl sm:text-2xl leading-tight"
+                    valueClassName="text-xl sm:text-lg leading-tight"
                     sub={safe(selectedSale.customerPhone) || "-"}
                   />
                   <StatCard
@@ -794,7 +863,7 @@ export default function OwnerSalesTab({ locations = [] }) {
                             <p className="mt-2">
                               <span
                                 className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${amountPaidTone(
-                                  selectedSale.totalAmount,
+                                  selectedSaleDetail.totalAmount,
                                   selectedSale.amountPaid,
                                 )}`}
                               >

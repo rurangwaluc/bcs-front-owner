@@ -52,6 +52,66 @@ function activeTone(isActive) {
     : "bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300";
 }
 
+function normalizeInventoryRow(row) {
+  if (!row) return null;
+
+  return {
+    productId: Number(row.productId ?? row.product_id ?? 0),
+    locationId: Number(row.locationId ?? row.location_id ?? 0),
+    locationName: row.locationName ?? row.location_name ?? "",
+    locationCode: row.locationCode ?? row.location_code ?? "",
+    locationStatus: row.locationStatus ?? row.location_status ?? "",
+    name: row.name ?? "",
+    sku: row.sku ?? "",
+    unit: row.unit ?? "",
+    sellingPrice: Number(row.sellingPrice ?? row.selling_price ?? 0),
+    purchasePrice: Number(row.purchasePrice ?? row.purchase_price ?? 0),
+    maxDiscountPercent: Number(
+      row.maxDiscountPercent ?? row.max_discount_percent ?? 0,
+    ),
+    isActive:
+      row.isActive === undefined || row.isActive === null
+        ? row.is_active !== false
+        : row.isActive !== false,
+    qtyOnHand: Number(row.qtyOnHand ?? row.qty_on_hand ?? 0),
+    updatedAt: row.updatedAt ?? row.updated_at ?? null,
+  };
+}
+
+function normalizeProductInventoryDetail(row) {
+  if (!row) return null;
+
+  return {
+    productId: Number(row.productId ?? row.product_id ?? 0),
+    name: row.name ?? "",
+    sku: row.sku ?? "",
+    unit: row.unit ?? "",
+    branches: Array.isArray(row.branches)
+      ? row.branches.map((branch) => ({
+          locationId: Number(branch.locationId ?? branch.location_id ?? 0),
+          locationName: branch.locationName ?? branch.location_name ?? "",
+          locationCode: branch.locationCode ?? branch.location_code ?? "",
+          locationStatus: branch.locationStatus ?? branch.location_status ?? "",
+          qtyOnHand: Number(branch.qtyOnHand ?? branch.qty_on_hand ?? 0),
+          sellingPrice: Number(
+            branch.sellingPrice ?? branch.selling_price ?? 0,
+          ),
+          purchasePrice: Number(
+            branch.purchasePrice ?? branch.purchase_price ?? 0,
+          ),
+          maxDiscountPercent: Number(
+            branch.maxDiscountPercent ?? branch.max_discount_percent ?? 0,
+          ),
+          isActive:
+            branch.isActive === undefined || branch.isActive === null
+              ? branch.is_active !== false
+              : branch.isActive !== false,
+          updatedAt: branch.updatedAt ?? branch.updated_at ?? null,
+        }))
+      : [],
+  };
+}
+
 function InventoryListRow({ row, active, onSelect }) {
   return (
     <button
@@ -65,10 +125,12 @@ function InventoryListRow({ row, active, onSelect }) {
       }
     >
       <div className="min-w-0">
-        <p className="truncate text-sm font-bold">{safe(row?.name) || "-"}</p>
+        <p className="truncate text-[13px] font-semibold leading-5">
+          {safe(row?.name) || "-"}
+        </p>
         <p
           className={
-            "mt-1 truncate text-xs " +
+            "mt-1 truncate text-[11px] leading-5 " +
             (active
               ? "text-stone-300 dark:text-stone-600"
               : "text-stone-500 dark:text-stone-400")
@@ -83,12 +145,12 @@ function InventoryListRow({ row, active, onSelect }) {
       </div>
 
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium">
+        <p className="truncate text-[13px] font-semibold leading-5">
           {safe(row?.locationName) || "-"}
         </p>
         <p
           className={
-            "mt-1 truncate text-xs " +
+            "mt-1 truncate text-[11px] leading-5 " +
             (active
               ? "text-stone-300 dark:text-stone-600"
               : "text-stone-500 dark:text-stone-400")
@@ -142,10 +204,12 @@ function InventoryMobileRow({ row, active, onSelect }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold">{safe(row?.name) || "-"}</p>
+          <p className="truncate text-[13px] font-semibold leading-5">
+            {safe(row?.name) || "-"}
+          </p>
           <p
             className={
-              "mt-1 truncate text-xs " +
+              "mt-1 truncate text-[11px] leading-5 " +
               (active
                 ? "text-stone-300 dark:text-stone-600"
                 : "text-stone-500 dark:text-stone-400")
@@ -155,7 +219,7 @@ function InventoryMobileRow({ row, active, onSelect }) {
           </p>
           <p
             className={
-              "mt-1 truncate text-xs " +
+              "mt-1 truncate text-[11px] leading-5 " +
               (active
                 ? "text-stone-300 dark:text-stone-600"
                 : "text-stone-500 dark:text-stone-400")
@@ -209,10 +273,10 @@ function BranchBreakdownCard({ branch }) {
     <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+          <p className="text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
             {safe(branch?.locationName) || "-"}
           </p>
-          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+          <p className="mt-1 text-[11px] leading-5 text-stone-500 dark:text-stone-400">
             {safe(branch?.locationCode) || "-"} ·{" "}
             {safe(branch?.locationStatus) || "-"}
           </p>
@@ -281,8 +345,9 @@ export default function OwnerInventoryTab({ locations = [] }) {
     const inventoryParams = new URLSearchParams();
     if (locationId) inventoryParams.set("locationId", locationId);
     if (search.trim()) inventoryParams.set("search", search.trim());
-    if (stockStatus && stockStatus !== "ALL")
+    if (stockStatus && stockStatus !== "ALL") {
       inventoryParams.set("stockStatus", stockStatus);
+    }
     if (includeArchived) inventoryParams.set("includeInactive", "1");
 
     const summaryParams = new URLSearchParams();
@@ -316,12 +381,17 @@ export default function OwnerInventoryTab({ locations = [] }) {
     if (inventoryRes.status === "fulfilled") {
       const rows = Array.isArray(inventoryRes.value?.inventory)
         ? inventoryRes.value.inventory
+            .map(normalizeInventoryRow)
+            .filter(Boolean)
         : [];
+
       setInventoryRows(rows);
       setSelectedRowKey((prev) =>
         prev && rows.some((x) => `${x.productId}-${x.locationId}` === prev)
           ? prev
-          : null,
+          : rows[0]
+            ? `${rows[0].productId}-${rows[0].locationId}`
+            : null,
       );
     } else {
       setInventoryRows([]);
@@ -382,7 +452,9 @@ export default function OwnerInventoryTab({ locations = [] }) {
           `/owner/products/${selectedRow.productId}/inventory?includeInactive=1`,
           { method: "GET" },
         );
-        setSelectedProductDetail(result?.product || null);
+        setSelectedProductDetail(
+          normalizeProductInventoryDetail(result?.product || null),
+        );
       } catch {
         setSelectedProductDetail(null);
       } finally {
@@ -434,7 +506,7 @@ export default function OwnerInventoryTab({ locations = [] }) {
               <StatCard
                 label="Products"
                 value={safeNumber(summaryTotals.productsCount)}
-                sub="Product-location inventory rows"
+                sub="Visible product records"
               />
               <StatCard
                 label="Qty on hand"
@@ -598,13 +670,13 @@ export default function OwnerInventoryTab({ locations = [] }) {
                   <StatCard
                     label="Product"
                     value={safe(selectedRow.name) || "-"}
-                    valueClassName="text-2xl sm:text-[28px] leading-tight"
+                    valueClassName="text-xl sm:text-lg leading-tight"
                     sub={`SKU: ${safe(selectedRow.sku) || "-"}`}
                   />
                   <StatCard
                     label="Branch"
                     value={safe(selectedRow.locationName) || "-"}
-                    valueClassName="text-2xl sm:text-[28px] leading-tight"
+                    valueClassName="text-xl sm:text-lg leading-tight"
                     sub={safe(selectedRow.locationCode) || "-"}
                   />
                   <StatCard
@@ -635,7 +707,7 @@ export default function OwnerInventoryTab({ locations = [] }) {
                         <span className="text-stone-500 dark:text-stone-400">
                           Branch
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
                           {safe(selectedRow.locationName) || "-"}{" "}
                           {safe(selectedRow.locationCode)
                             ? `(${safe(selectedRow.locationCode)})`
@@ -647,7 +719,7 @@ export default function OwnerInventoryTab({ locations = [] }) {
                         <span className="text-stone-500 dark:text-stone-400">
                           Branch status
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
                           {safe(selectedRow.locationStatus) || "-"}
                         </span>
                       </div>
@@ -656,7 +728,7 @@ export default function OwnerInventoryTab({ locations = [] }) {
                         <span className="text-stone-500 dark:text-stone-400">
                           Product status
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
                           {selectedRow.isActive === false
                             ? "Archived"
                             : "Active"}
@@ -667,7 +739,7 @@ export default function OwnerInventoryTab({ locations = [] }) {
                         <span className="text-stone-500 dark:text-stone-400">
                           Qty on hand
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
                           {safeNumber(selectedRow.qtyOnHand)}
                         </span>
                       </div>
@@ -676,7 +748,7 @@ export default function OwnerInventoryTab({ locations = [] }) {
                         <span className="text-stone-500 dark:text-stone-400">
                           Unit
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
                           {safe(selectedRow.unit) || "-"}
                         </span>
                       </div>
@@ -685,7 +757,7 @@ export default function OwnerInventoryTab({ locations = [] }) {
                         <span className="text-stone-500 dark:text-stone-400">
                           Max discount %
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
                           {safeNumber(selectedRow.maxDiscountPercent)}
                         </span>
                       </div>
@@ -694,7 +766,7 @@ export default function OwnerInventoryTab({ locations = [] }) {
                         <span className="text-stone-500 dark:text-stone-400">
                           Updated
                         </span>
-                        <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
                           {safeDate(selectedRow.updatedAt)}
                         </span>
                       </div>
@@ -703,47 +775,60 @@ export default function OwnerInventoryTab({ locations = [] }) {
 
                   <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                      Cross-branch product view
+                      Owner guidance
                     </p>
 
-                    {productDetailLoading ? (
-                      <div className="mt-4 space-y-3">
-                        {[1, 2, 3].map((i) => (
-                          <div
-                            key={i}
-                            className="h-24 animate-pulse rounded-2xl border border-stone-200 bg-stone-100 dark:border-stone-800 dark:bg-stone-800"
-                          />
-                        ))}
-                      </div>
-                    ) : !selectedProductDetail ? (
-                      <div className="mt-4">
-                        <EmptyState text="No cross-branch product detail available." />
-                      </div>
-                    ) : (
-                      <div className="mt-4 space-y-3">
-                        <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                          <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-                            {safe(selectedProductDetail.name) || "-"}
-                          </p>
-                          <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">
-                            SKU: {safe(selectedProductDetail.sku) || "-"} ·
-                            Unit: {safe(selectedProductDetail.unit) || "-"}
-                          </p>
-                        </div>
-
-                        <div className="grid gap-3">
-                          {(selectedProductDetail.branches || []).map(
-                            (branch) => (
-                              <BranchBreakdownCard
-                                key={`${selectedProductDetail.productId}-${branch.locationId}`}
-                                branch={branch}
-                              />
-                            ),
-                          )}
-                        </div>
-                      </div>
-                    )}
+                    <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-4 text-sm leading-6 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
+                      Inventory here is an owner visibility view. Stock changes
+                      should be recorded through inventory arrivals, sales,
+                      purchase flows, approved stock movement, or dedicated
+                      backend adjustment endpoints once those are implemented.
+                    </div>
                   </div>
+                </div>
+
+                <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                    Cross-branch product view
+                  </p>
+
+                  {productDetailLoading ? (
+                    <div className="mt-4 space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="h-24 animate-pulse rounded-2xl border border-stone-200 bg-stone-100 dark:border-stone-800 dark:bg-stone-800"
+                        />
+                      ))}
+                    </div>
+                  ) : !selectedProductDetail ? (
+                    <div className="mt-4">
+                      <EmptyState text="No cross-branch product detail available." />
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-3">
+                      <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+                        <p className="text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {safe(selectedProductDetail.name) || "-"}
+                        </p>
+                        <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">
+                          SKU: {safe(selectedProductDetail.sku) || "-"} · Unit:{" "}
+                          {safe(selectedProductDetail.unit) || "-"}
+                        </p>
+                      </div>
+
+                      <div className="grid gap-3">
+                        {(selectedProductDetail.branches || []).map(
+                          (branch) => (
+                            <BranchBreakdownCard
+                              key={`${selectedProductDetail.productId}-${branch.locationId}`}
+                              branch={branch}
+                            />
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </SectionCard>

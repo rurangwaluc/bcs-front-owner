@@ -14,6 +14,7 @@ const TAB_KEYS = [
   "branches",
   "staff",
   "inventory",
+  "arrivals",
   "products",
   "sales",
   "payments",
@@ -236,6 +237,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!me) return;
     loadWorkspace();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me]);
 
   async function handleLogout() {
