@@ -156,8 +156,8 @@ export default function DashboardPage() {
         apiFetch("/owner/summary", { method: "GET" }),
         apiFetch("/owner/locations", { method: "GET" }),
         apiFetch("/users", { method: "GET" }),
-        apiFetch("/sales", { method: "GET" }),
-        apiFetch("/audit", { method: "GET" }),
+        apiFetch("/owner/sales?limit=50&offset=0", { method: "GET" }),
+        apiFetch("/audit?limit=50", { method: "GET" }),
       ]);
 
     let firstError = "";

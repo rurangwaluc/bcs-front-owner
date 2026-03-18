@@ -298,7 +298,7 @@ function CreateExpenseModal({ open, locations, onClose, onSaved }) {
         note: form.note.trim() || undefined,
       };
 
-      const result = await apiFetch("/expenses", {
+      const result = await apiFetch("/cash/expenses", {
         method: "POST",
         body: payload,
       });
@@ -521,7 +521,7 @@ export default function OwnerExpensesTab({ locations = [] }) {
 
     try {
       const params = buildParams({ limit: PAGE_SIZE });
-      const result = await apiFetch(`/expenses?${params.toString()}`, {
+      const result = await apiFetch(`/cash/expenses?${params.toString()}`, {
         method: "GET",
       });
 
@@ -554,7 +554,7 @@ export default function OwnerExpensesTab({ locations = [] }) {
 
     try {
       const params = buildParams({ limit: PAGE_SIZE, cursor: nextCursor });
-      const result = await apiFetch(`/expenses?${params.toString()}`, {
+      const result = await apiFetch(`/cash/expenses?${params.toString()}`, {
         method: "GET",
       });
 
@@ -619,31 +619,42 @@ export default function OwnerExpensesTab({ locations = [] }) {
                 label="Expenses"
                 value={safeNumber(overview?.totalCount)}
                 sub="Loaded expenses"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Expense total"
                 value={money(overview?.totalAmount, "RWF")}
                 sub="Loaded expense value"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Branches"
                 value={safeNumber(overview?.branchCount)}
                 sub="Branches in current view"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Categories"
                 value={safeNumber(overview?.categoryCount)}
                 sub="Distinct categories"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="With reference"
                 value={safeNumber(overview?.withReferenceCount)}
                 sub="Reference captured"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="With session"
                 value={safeNumber(overview?.withSessionCount)}
                 sub="Linked cash session"
+                valueClassName="text-[17px] leading-tight"
               />
             </div>
           </SectionCard>
@@ -758,17 +769,23 @@ export default function OwnerExpensesTab({ locations = [] }) {
                     label="Expense"
                     value={`#${safeNumber(selectedExpense?.id)}`}
                     sub={safeDate(selectedExpense?.createdAt)}
+                    valueClassName="text-[17px] leading-tight"
                   />
+
                   <StatCard
                     label="Branch"
                     value={displayBranch(selectedExpense)}
                     sub={safe(selectedExpense?.locationCode) || "No code"}
+                    valueClassName="text-[17px] leading-tight"
                   />
+
                   <StatCard
                     label="Amount"
                     value={money(selectedExpense?.amount, "RWF")}
                     sub={safe(selectedExpense?.category) || "GENERAL"}
+                    valueClassName="text-[17px] leading-tight"
                   />
+
                   <StatCard
                     label="Cashier"
                     value={displayCashier(selectedExpense)}
@@ -777,6 +794,7 @@ export default function OwnerExpensesTab({ locations = [] }) {
                         ? `Session #${safeNumber(selectedExpense.cashSessionId)}`
                         : "No session"
                     }
+                    valueClassName="text-[17px] leading-tight"
                   />
                 </div>
 

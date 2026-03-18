@@ -23,10 +23,16 @@ function money(v, currency = "RWF") {
   return `${String(currency || "RWF").toUpperCase()} ${safeNumber(v).toLocaleString()}`;
 }
 
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function normalizeCustomersResponse(result) {
   if (Array.isArray(result)) return result;
   if (Array.isArray(result?.customers)) return result.customers;
   if (Array.isArray(result?.rows)) return result.rows;
+  if (Array.isArray(result?.items)) return result.items;
   if (Array.isArray(result?.data)) return result.data;
   return [];
 }
@@ -57,15 +63,109 @@ function normalizeCustomer(row) {
   };
 }
 
-function normalizeHistoryResponse(result) {
+function normalizeHistorySale(row) {
+  if (!row) return null;
+
   return {
-    sales: Array.isArray(result?.sales) ? result.sales : [],
-    totals: result?.totals || {
+    id: row.id ?? row.saleId ?? row.sale_id ?? null,
+    status: row.status ?? "",
+    createdAt: row.createdAt ?? row.created_at ?? null,
+    totalAmount: num(row.totalAmount ?? row.total_amount),
+    paymentAmount: num(
+      row.paymentAmount ??
+        row.payment_amount ??
+        row.amountPaid ??
+        row.amount_paid ??
+        row.paidAmount ??
+        row.paid_amount,
+    ),
+    paymentMethod: row.paymentMethod ?? row.payment_method ?? "",
+    creditAmount: num(
+      row.creditAmount ??
+        row.credit_amount ??
+        row.openCreditAmount ??
+        row.open_credit_amount,
+    ),
+    refundAmount: num(row.refundAmount ?? row.refund_amount),
+  };
+}
+
+function normalizeHistoryResponse(result) {
+  const salesRaw = Array.isArray(result?.sales)
+    ? result.sales
+    : Array.isArray(result?.rows)
+      ? result.rows
+      : Array.isArray(result?.items)
+        ? result.items
+        : [];
+
+  const sales = salesRaw.map(normalizeHistorySale).filter(Boolean);
+
+  const totalsSource =
+    result?.totals ||
+    result?.summary ||
+    result?.aggregate ||
+    result?.meta ||
+    {};
+
+  const rolled = sales.reduce(
+    (acc, row) => {
+      acc.salesCount += 1;
+      acc.salesTotalAmount += num(row.totalAmount);
+      acc.paymentsTotalAmount += num(row.paymentAmount);
+      acc.creditsTotalAmount += num(row.creditAmount);
+      acc.refundsTotalAmount += num(row.refundAmount);
+      return acc;
+    },
+    {
       salesCount: 0,
       salesTotalAmount: 0,
       paymentsTotalAmount: 0,
       creditsTotalAmount: 0,
       refundsTotalAmount: 0,
+    },
+  );
+
+  return {
+    sales,
+    totals: {
+      salesCount: num(
+        totalsSource.salesCount ??
+          totalsSource.sales_count ??
+          rolled.salesCount,
+      ),
+      salesTotalAmount: num(
+        totalsSource.salesTotalAmount ??
+          totalsSource.sales_total_amount ??
+          totalsSource.totalSalesAmount ??
+          totalsSource.total_sales_amount ??
+          rolled.salesTotalAmount,
+      ),
+      paymentsTotalAmount: num(
+        totalsSource.paymentsTotalAmount ??
+          totalsSource.payments_total_amount ??
+          totalsSource.paymentTotalAmount ??
+          totalsSource.payment_total_amount ??
+          totalsSource.amountPaid ??
+          totalsSource.amount_paid ??
+          rolled.paymentsTotalAmount,
+      ),
+      creditsTotalAmount: num(
+        totalsSource.creditsTotalAmount ??
+          totalsSource.credits_total_amount ??
+          totalsSource.creditTotalAmount ??
+          totalsSource.credit_total_amount ??
+          totalsSource.openCreditAmount ??
+          totalsSource.open_credit_amount ??
+          rolled.creditsTotalAmount,
+      ),
+      refundsTotalAmount: num(
+        totalsSource.refundsTotalAmount ??
+          totalsSource.refunds_total_amount ??
+          totalsSource.refundTotalAmount ??
+          totalsSource.refund_total_amount ??
+          rolled.refundsTotalAmount,
+      ),
     },
   };
 }
@@ -84,13 +184,36 @@ function displayBranch(row) {
   return "-";
 }
 
+function DetailMetricCard({ label, value, tone = "default", sub }) {
+  const toneCls =
+    tone === "danger"
+      ? "border-rose-200 bg-rose-50 dark:border-rose-900/40 dark:bg-rose-950/20"
+      : tone === "success"
+        ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/20"
+        : "border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-900";
+
+  return (
+    <div className={`rounded-2xl border p-4 ${toneCls}`}>
+      <p className="text-[11px] uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
+        {label}
+      </p>
+      <p className="mt-2 text-xl font-black text-stone-950 dark:text-stone-50">
+        {value}
+      </p>
+      {sub ? (
+        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">{sub}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function CustomerCard({ row, active, onSelect }) {
   return (
     <button
       type="button"
       onClick={() => onSelect?.(row)}
       className={
-        "group w-full overflow-hidden rounded-[28px] border text-left transition-all duration-200 " +
+        "group w-full overflow-hidden rounded-[26px] border text-left transition-all duration-200 " +
         (active
           ? "border-stone-900 bg-stone-900 text-white shadow-xl ring-1 ring-stone-700 dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950 dark:ring-stone-300"
           : "border-stone-200 bg-white hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700")
@@ -312,18 +435,6 @@ function CreateCustomerModal({ open, onClose, onSaved }) {
   });
   const [errorText, setErrorText] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
-    setForm({
-      name: "",
-      phone: "",
-      tin: "",
-      address: "",
-      notes: "",
-    });
-    setErrorText("");
-  }, [open]);
-
   if (!open) return null;
 
   async function handleSave() {
@@ -473,6 +584,7 @@ export default function OwnerCustomersTab({ locations = [] }) {
   const [q, setQ] = useState("");
   const [locationId, setLocationId] = useState("");
   const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [createModalKey, setCreateModalKey] = useState(0);
 
   const isSearchMode = q.trim().length > 0;
 
@@ -515,6 +627,28 @@ export default function OwnerCustomersTab({ locations = [] }) {
       withTinCount,
     };
   }, [customers]);
+
+  const selectedTotals = useMemo(() => {
+    const customerSalesTotal = num(selectedCustomer?.salesTotalAmount);
+    const customerOpenCredit = num(selectedCustomer?.openCreditAmount);
+
+    const historySalesTotal = num(history?.totals?.salesTotalAmount);
+    const historyPaymentsTotal = num(history?.totals?.paymentsTotalAmount);
+    const historyCreditsTotal = num(history?.totals?.creditsTotalAmount);
+    const historyRefundsTotal = num(history?.totals?.refundsTotalAmount);
+
+    return {
+      salesTotal:
+        customerSalesTotal > 0 ? customerSalesTotal : historySalesTotal,
+      paymentsTotal:
+        historyPaymentsTotal > 0
+          ? historyPaymentsTotal
+          : Math.max(0, customerSalesTotal - customerOpenCredit),
+      creditsTotal:
+        customerOpenCredit > 0 ? customerOpenCredit : historyCreditsTotal,
+      refundsTotal: historyRefundsTotal,
+    };
+  }, [selectedCustomer, history]);
 
   function resetHistory() {
     setHistory({
@@ -687,26 +821,35 @@ export default function OwnerCustomersTab({ locations = [] }) {
                 label="Loaded customers"
                 value={safeNumber(overview?.customersCount)}
                 sub={isSearchMode ? "Search results" : "Loaded in this view"}
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Sales count"
                 value={safeNumber(overview?.totalSalesCount)}
                 sub="Sales linked to loaded customers"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Sales total"
                 value={money(overview?.totalSalesAmount, "RWF")}
                 sub="Loaded customer purchase value"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Open credit"
                 value={money(overview?.totalOpenCredit, "RWF")}
                 sub="Loaded credit exposure"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="With TIN"
                 value={safeNumber(overview?.withTinCount)}
                 sub="Profiles with tax number"
+                valueClassName="text-[17px] leading-tight"
               />
             </div>
           </SectionCard>
@@ -719,7 +862,10 @@ export default function OwnerCustomersTab({ locations = [] }) {
                 idleText="Create customer"
                 loadingText="Opening..."
                 successText="Ready"
-                onClick={async () => setCreatingCustomer(true)}
+                onClick={async () => {
+                  setCreateModalKey((k) => k + 1);
+                  setCreatingCustomer(true);
+                }}
               />
             }
           >
@@ -751,7 +897,7 @@ export default function OwnerCustomersTab({ locations = [] }) {
             </div>
           </SectionCard>
 
-          <div className="grid gap-6 2xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="grid gap-6 2xl:grid-cols-[1.15fr_0.85fr]">
             <SectionCard
               title="Customer directory"
               subtitle="Select a customer to inspect profile, sales history, and credit exposure."
@@ -788,7 +934,7 @@ export default function OwnerCustomersTab({ locations = [] }) {
             {selectedCustomer ? (
               <SectionCard
                 title="Selected customer detail"
-                subtitle="Focused owner view of customer identity, credit, and transaction history."
+                subtitle="Focused owner view of customer identity, credit exposure, and transaction history."
                 right={
                   <div className="flex flex-wrap gap-2">
                     <span className="inline-flex rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-700 dark:bg-stone-800 dark:text-stone-300">
@@ -823,21 +969,28 @@ export default function OwnerCustomersTab({ locations = [] }) {
                         label="Customer"
                         value={safe(selectedCustomer?.name) || "-"}
                         sub={safe(selectedCustomer?.phone) || "No phone"}
+                        valueClassName="text-[17px] leading-tight"
                       />
+
                       <StatCard
                         label="Sales count"
                         value={safeNumber(selectedCustomer?.salesCount)}
                         sub="Recorded sales"
+                        valueClassName="text-[17px] leading-tight"
                       />
+
                       <StatCard
                         label="Sales total"
-                        value={money(selectedCustomer?.salesTotalAmount, "RWF")}
-                        sub="Purchase value"
+                        value={money(selectedTotals.salesTotal, "RWF")}
+                        sub="Stable owner total"
+                        valueClassName="text-[17px] leading-tight"
                       />
+
                       <StatCard
                         label="Open credit"
-                        value={money(selectedCustomer?.openCreditAmount, "RWF")}
+                        value={money(selectedTotals.creditsTotal, "RWF")}
                         sub="Current exposure"
+                        valueClassName="text-[17px] leading-tight"
                       />
                     </div>
 
@@ -849,62 +1002,38 @@ export default function OwnerCustomersTab({ locations = [] }) {
 
                         <div className="mt-4 grid gap-3">
                           <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                              <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                                Phone
-                              </p>
-                              <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                                {safe(selectedCustomer?.phone) || "-"}
-                              </p>
-                            </div>
-
-                            <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                              <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                                TIN
-                              </p>
-                              <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                                {safe(selectedCustomer?.tin) || "-"}
-                              </p>
-                            </div>
+                            <DetailMetricCard
+                              label="Phone"
+                              value={safe(selectedCustomer?.phone) || "-"}
+                            />
+                            <DetailMetricCard
+                              label="TIN"
+                              value={safe(selectedCustomer?.tin) || "-"}
+                            />
                           </div>
 
-                          <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                            <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                              Address
-                            </p>
-                            <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                              {safe(selectedCustomer?.address) || "-"}
-                            </p>
-                          </div>
+                          <DetailMetricCard
+                            label="Address"
+                            value={safe(selectedCustomer?.address) || "-"}
+                          />
 
-                          <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                            <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                              Notes
-                            </p>
-                            <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                              {safe(selectedCustomer?.notes) ||
-                                "No notes recorded"}
-                            </p>
-                          </div>
+                          <DetailMetricCard
+                            label="Notes"
+                            value={
+                              safe(selectedCustomer?.notes) ||
+                              "No notes recorded"
+                            }
+                          />
 
                           <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                              <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                                Created
-                              </p>
-                              <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                                {safeDate(selectedCustomer?.createdAt)}
-                              </p>
-                            </div>
-
-                            <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                              <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                                Updated
-                              </p>
-                              <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                                {safeDate(selectedCustomer?.updatedAt)}
-                              </p>
-                            </div>
+                            <DetailMetricCard
+                              label="Created"
+                              value={safeDate(selectedCustomer?.createdAt)}
+                            />
+                            <DetailMetricCard
+                              label="Updated"
+                              value={safeDate(selectedCustomer?.updatedAt)}
+                            />
                           </div>
                         </div>
                       </div>
@@ -915,38 +1044,30 @@ export default function OwnerCustomersTab({ locations = [] }) {
                         </p>
 
                         <div className="mt-4 grid gap-3">
-                          <div className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-                            <p className="text-xs uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
-                              Sales total
-                            </p>
-                            <p className="mt-2 text-2xl font-black text-stone-950 dark:text-stone-50">
-                              {money(history?.totals?.salesTotalAmount, "RWF")}
-                            </p>
-                          </div>
-
-                          <div className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-                            <p className="text-xs uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
-                              Payments total
-                            </p>
-                            <p className="mt-2 text-2xl font-black text-stone-950 dark:text-stone-50">
-                              {money(
-                                history?.totals?.paymentsTotalAmount,
-                                "RWF",
-                              )}
-                            </p>
-                          </div>
-
-                          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900/50 dark:bg-rose-950/20">
-                            <p className="text-xs uppercase tracking-[0.14em] text-rose-700 dark:text-rose-300">
-                              Credits total
-                            </p>
-                            <p className="mt-2 text-2xl font-black text-rose-900 dark:text-rose-100">
-                              {money(
-                                history?.totals?.creditsTotalAmount,
-                                "RWF",
-                              )}
-                            </p>
-                          </div>
+                          <DetailMetricCard
+                            label="Sales total"
+                            value={money(selectedTotals.salesTotal, "RWF")}
+                            tone="default"
+                            sub="Trusted from customer row first"
+                          />
+                          <DetailMetricCard
+                            label="Payments total"
+                            value={money(selectedTotals.paymentsTotal, "RWF")}
+                            tone="success"
+                            sub="History totals or stable fallback"
+                          />
+                          <DetailMetricCard
+                            label="Credit total"
+                            value={money(selectedTotals.creditsTotal, "RWF")}
+                            tone="danger"
+                            sub="Outstanding or historical credit"
+                          />
+                          <DetailMetricCard
+                            label="Refunds total"
+                            value={money(selectedTotals.refundsTotal, "RWF")}
+                            tone="default"
+                            sub="Recorded refunds"
+                          />
                         </div>
                       </div>
                     </div>
@@ -1046,6 +1167,7 @@ export default function OwnerCustomersTab({ locations = [] }) {
       )}
 
       <CreateCustomerModal
+        key={createModalKey}
         open={creatingCustomer}
         onClose={() => setCreatingCustomer(false)}
         onSaved={handleSaved}

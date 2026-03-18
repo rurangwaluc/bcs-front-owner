@@ -29,6 +29,10 @@ const SALE_STATUS_OPTIONS = [
   { value: "AWAITING_PAYMENT_RECORD", label: "Awaiting payment record" },
   { value: "COMPLETED", label: "Completed" },
   { value: "CANCELLED", label: "Cancelled" },
+  { value: "APPROVED", label: "Approved credits" },
+  { value: "PARTIALLY_PAID", label: "Partially paid credits" },
+  { value: "SETTLED", label: "Settled credits" },
+  { value: "REJECTED", label: "Rejected credits" },
 ];
 
 const MARK_STATUS_OPTIONS = [
@@ -41,28 +45,160 @@ const PAYMENT_METHOD_OPTIONS = [
   { value: "CASH", label: "Cash" },
   { value: "MOMO", label: "MoMo" },
   { value: "BANK", label: "Bank" },
+  { value: "CARD", label: "Card" },
+  { value: "OTHER", label: "Other" },
 ];
 
 function money(v) {
   return safeNumber(v).toLocaleString();
 }
 
-function saleStatusTone(status) {
-  const s = safe(status).toUpperCase();
+function normalizeUpper(v) {
+  return safe(v).toUpperCase();
+}
 
-  if (s === "COMPLETED") {
+function normalizeCreditMode(v) {
+  const out = normalizeUpper(v);
+  return out || "OPEN_BALANCE";
+}
+
+function normalizeCreditStatusLabel(creditLike) {
+  return (
+    safe(creditLike?.statusLabel) ||
+    safe(creditLike?.status_label) ||
+    safe(creditLike?.creditStatusLabel) ||
+    safe(creditLike?.credit_status_label) ||
+    ""
+  );
+}
+
+function deriveCreditStatusLabel(status, creditMode) {
+  const st = normalizeUpper(status);
+  const mode = normalizeCreditMode(creditMode);
+
+  if (st === "PENDING" || st === "PENDING_APPROVAL") {
+    return "Pending approval";
+  }
+
+  if (st === "APPROVED") {
+    return mode === "INSTALLMENT_PLAN"
+      ? "Approved as installment plan"
+      : "Approved as open balance";
+  }
+
+  if (st === "PARTIALLY_PAID") return "Partially paid";
+  if (st === "SETTLED") return "Settled";
+  if (st === "REJECTED") return "Credit request rejected";
+
+  return safe(status) || "";
+}
+
+function normalizeCreditRow(row) {
+  if (!row) return null;
+
+  const creditMode = normalizeCreditMode(
+    row.creditMode ??
+      row.credit_mode ??
+      row.mode ??
+      row.credit_mode_label ??
+      "OPEN_BALANCE",
+  );
+
+  const status = normalizeUpper(
+    row.status ?? row.creditStatus ?? row.credit_status,
+  );
+  const principalAmount = Number(
+    row.principalAmount ??
+      row.principal_amount ??
+      row.creditPrincipalAmount ??
+      row.credit_principal_amount ??
+      row.amount ??
+      row.creditAmount ??
+      row.credit_amount ??
+      0,
+  );
+
+  const paidAmount = Number(
+    row.paidAmount ??
+      row.paid_amount ??
+      row.creditPaidAmount ??
+      row.credit_paid_amount ??
+      0,
+  );
+
+  const remainingAmount = Number(
+    row.remainingAmount ??
+      row.remaining_amount ??
+      row.creditRemainingAmount ??
+      row.credit_remaining_amount ??
+      Math.max(0, principalAmount - paidAmount),
+  );
+
+  const statusLabel =
+    normalizeCreditStatusLabel(row) ||
+    deriveCreditStatusLabel(status, creditMode);
+
+  return {
+    id: row.id ?? row.creditId ?? row.credit_id ?? null,
+    status,
+    statusLabel,
+    creditMode,
+    principalAmount,
+    amount: principalAmount,
+    paidAmount,
+    remainingAmount,
+    dueDate: row.dueDate ?? row.due_date ?? null,
+    createdAt: row.createdAt ?? row.created_at ?? null,
+    approvedAt: row.approvedAt ?? row.approved_at ?? null,
+    rejectedAt: row.rejectedAt ?? row.rejected_at ?? null,
+    settledAt: row.settledAt ?? row.settled_at ?? null,
+    planSummary: safe(row.planSummary ?? row.plan_summary),
+    nextInstallmentDue:
+      row.nextInstallmentDue ?? row.next_installment_due ?? null,
+    remainingBalanceLabel: safe(
+      row.remainingBalanceLabel ?? row.remaining_balance_label,
+    ),
+    note: row.note ?? "",
+  };
+}
+
+function saleStatusTone(status, creditStatus) {
+  const credit = normalizeUpper(creditStatus);
+  const sale = normalizeUpper(status);
+
+  if (credit === "SETTLED") {
     return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300";
   }
-  if (s === "FULFILLED") {
+
+  if (credit === "PARTIALLY_PAID") {
     return "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300";
   }
-  if (s === "PENDING") {
+
+  if (credit === "APPROVED") {
+    return "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300";
+  }
+
+  if (credit === "PENDING" || credit === "PENDING_APPROVAL") {
     return "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300";
   }
-  if (s === "AWAITING_PAYMENT_RECORD") {
+
+  if (credit === "REJECTED") {
+    return "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300";
+  }
+
+  if (sale === "COMPLETED") {
+    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300";
+  }
+  if (sale === "FULFILLED") {
+    return "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300";
+  }
+  if (sale === "PENDING") {
+    return "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300";
+  }
+  if (sale === "AWAITING_PAYMENT_RECORD") {
     return "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300";
   }
-  if (s === "CANCELLED") {
+  if (sale === "CANCELLED") {
     return "bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300";
   }
   return "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300";
@@ -83,6 +219,35 @@ function amountPaidTone(totalAmount, amountPaid) {
   return "bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300";
 }
 
+function buildOwnerVisibleStatus(row) {
+  const credit = row?.credit || null;
+  if (credit?.statusLabel) return credit.statusLabel;
+  return safe(row?.status) || "-";
+}
+
+function buildOwnerVisibleSummary(row) {
+  const credit = row?.credit || null;
+  if (!credit) return "";
+
+  const parts = [];
+
+  if (safe(credit.planSummary)) {
+    parts.push(safe(credit.planSummary));
+  }
+
+  if (credit.nextInstallmentDue) {
+    parts.push(`Next installment due ${safeDate(credit.nextInstallmentDue)}`);
+  }
+
+  if (safe(credit.remainingBalanceLabel)) {
+    parts.push(safe(credit.remainingBalanceLabel));
+  } else if (safeNumber(credit.remainingAmount) > 0) {
+    parts.push(`Remaining balance ${money(credit.remainingAmount)} RWF`);
+  }
+
+  return parts.join(" • ");
+}
+
 function normalizeSaleRow(row) {
   if (!row) return null;
 
@@ -94,6 +259,35 @@ function normalizeSaleRow(row) {
           name: row.locationName ?? row.location_name ?? "",
           code: row.locationCode ?? row.location_code ?? "",
         };
+
+  const credit =
+    row.credit && typeof row.credit === "object"
+      ? normalizeCreditRow(row.credit)
+      : row.creditId || row.credit_id || row.creditStatus || row.credit_status
+        ? normalizeCreditRow({
+            id: row.creditId ?? row.credit_id ?? null,
+            status: row.creditStatus ?? row.credit_status ?? "",
+            statusLabel: row.creditStatusLabel ?? row.credit_status_label ?? "",
+            creditMode: row.creditMode ?? row.credit_mode ?? "OPEN_BALANCE",
+            principalAmount:
+              row.creditPrincipalAmount ??
+              row.credit_principal_amount ??
+              row.creditAmount ??
+              row.credit_amount ??
+              0,
+            paidAmount: row.creditPaidAmount ?? row.credit_paid_amount ?? 0,
+            remainingAmount:
+              row.creditRemainingAmount ?? row.credit_remaining_amount ?? 0,
+            createdAt: row.creditCreatedAt ?? row.credit_created_at ?? null,
+            settledAt: row.creditSettledAt ?? row.credit_settled_at ?? null,
+            dueDate: row.creditDueDate ?? row.credit_due_date ?? null,
+            planSummary: row.planSummary ?? row.plan_summary ?? "",
+            nextInstallmentDue:
+              row.nextInstallmentDue ?? row.next_installment_due ?? null,
+            remainingBalanceLabel:
+              row.remainingBalanceLabel ?? row.remaining_balance_label ?? "",
+          })
+        : null;
 
   return {
     id: Number(row.id ?? 0),
@@ -115,7 +309,7 @@ function normalizeSaleRow(row) {
     customerTin: row.customerTin ?? row.customer_tin ?? "",
     customerAddress: row.customerAddress ?? row.customer_address ?? "",
     amountPaid: Number(row.amountPaid ?? row.amount_paid ?? 0),
-    credit: row.credit ?? null,
+    credit,
     itemsPreview: Array.isArray(row.itemsPreview ?? row.items_preview)
       ? (row.itemsPreview ?? row.items_preview)
       : [],
@@ -144,6 +338,9 @@ function normalizeSaleDetail(row) {
 }
 
 function SaleListRow({ row, active, onSelect }) {
+  const displayStatus = buildOwnerVisibleStatus(row);
+  const displaySummary = buildOwnerVisibleSummary(row);
+
   return (
     <button
       type="button"
@@ -208,23 +405,40 @@ function SaleListRow({ row, active, onSelect }) {
       <div className="text-sm font-semibold">{money(row?.totalAmount)}</div>
       <div className="text-sm font-semibold">{money(row?.amountPaid)}</div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex min-w-0 flex-col gap-1">
         <span
           className={
-            "rounded-full px-2.5 py-1 text-xs font-semibold " +
+            "inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold " +
             (active
               ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
-              : saleStatusTone(row?.status))
+              : saleStatusTone(row?.status, row?.credit?.status))
           }
         >
-          {safe(row?.status) || "-"}
+          {displayStatus}
         </span>
+
+        {displaySummary ? (
+          <span
+            className={
+              "truncate text-[11px] " +
+              (active
+                ? "text-stone-300 dark:text-stone-600"
+                : "text-stone-500 dark:text-stone-400")
+            }
+            title={displaySummary}
+          >
+            {displaySummary}
+          </span>
+        ) : null}
       </div>
     </button>
   );
 }
 
 function SaleMobileRow({ row, active, onSelect }) {
+  const displayStatus = buildOwnerVisibleStatus(row);
+  const displaySummary = buildOwnerVisibleSummary(row);
+
   return (
     <button
       type="button"
@@ -270,10 +484,10 @@ function SaleMobileRow({ row, active, onSelect }) {
             "rounded-full px-2.5 py-1 text-xs font-semibold " +
             (active
               ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
-              : saleStatusTone(row?.status))
+              : saleStatusTone(row?.status, row?.credit?.status))
           }
         >
-          {safe(row?.status) || "-"}
+          {displayStatus}
         </span>
       </div>
 
@@ -299,6 +513,19 @@ function SaleMobileRow({ row, active, onSelect }) {
           </p>
         </div>
       </div>
+
+      {displaySummary ? (
+        <div
+          className={
+            "mt-3 text-[11px] leading-5 " +
+            (active
+              ? "text-stone-300 dark:text-stone-600"
+              : "text-stone-500 dark:text-stone-400")
+          }
+        >
+          {displaySummary}
+        </div>
+      ) : null}
     </button>
   );
 }
@@ -588,14 +815,17 @@ export default function OwnerSalesTab({ locations = [] }) {
     }
   }
 
-  const canFulfill = safe(selectedSale?.status).toUpperCase() === "DRAFT";
+  const selectedDisplayStatus = buildOwnerVisibleStatus(selectedSale);
+  const selectedDisplaySummary = buildOwnerVisibleSummary(selectedSale);
+
+  const canFulfill = normalizeUpper(selectedSale?.status) === "DRAFT";
 
   const canMark = ["FULFILLED", "PENDING", "AWAITING_PAYMENT_RECORD"].includes(
-    safe(selectedSale?.status).toUpperCase(),
+    normalizeUpper(selectedSale?.status),
   );
 
   const canCancel = !["COMPLETED", "CANCELLED"].includes(
-    safe(selectedSale?.status).toUpperCase(),
+    normalizeUpper(selectedSale?.status),
   );
 
   return (
@@ -775,9 +1005,10 @@ export default function OwnerSalesTab({ locations = [] }) {
                 <span
                   className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${saleStatusTone(
                     selectedSale?.status,
+                    selectedSale?.credit?.status,
                   )}`}
                 >
-                  {safe(selectedSale?.status) || "-"}
+                  {selectedDisplayStatus}
                 </span>
               }
             >
@@ -787,37 +1018,52 @@ export default function OwnerSalesTab({ locations = [] }) {
                     label="Sale"
                     value={`#${safe(selectedSale.id) || "-"}`}
                     sub={safeDate(selectedSale.createdAt)}
+                    valueClassName="text-[17px] leading-tight"
                   />
+
                   <StatCard
                     label="Branch"
                     value={safe(selectedSale.location?.name) || "-"}
-                    valueClassName="text-xl sm:text-lg leading-tight"
                     sub={safe(selectedSale.location?.code) || "-"}
+                    valueClassName="text-[17px] leading-tight"
                   />
+
                   <StatCard
                     label="Customer"
                     value={safe(selectedSale.customerName) || "Walk-in"}
-                    valueClassName="text-xl sm:text-lg leading-tight"
                     sub={safe(selectedSale.customerPhone) || "-"}
+                    valueClassName="text-[17px] leading-tight"
                   />
+
                   <StatCard
                     label="Seller"
                     value={safe(selectedSale.sellerName) || "-"}
                     sub="Recorded seller"
+                    valueClassName="text-[17px] leading-tight"
                   />
+
                   <StatCard
                     label="Total"
                     value={money(selectedSale.totalAmount)}
                     sub="Sale total"
+                    valueClassName="text-[17px] leading-tight"
                   />
+
                   <StatCard
                     label="Paid"
                     value={money(selectedSale.amountPaid)}
                     sub={
                       safe(selectedSale.paymentMethod) || "No payment method"
                     }
+                    valueClassName="text-[17px] leading-tight"
                   />
                 </div>
+
+                {selectedDisplaySummary ? (
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-700 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-300">
+                    {selectedDisplaySummary}
+                  </div>
+                ) : null}
 
                 <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
                   <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
@@ -849,9 +1095,10 @@ export default function OwnerSalesTab({ locations = [] }) {
                               <span
                                 className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${saleStatusTone(
                                   selectedSaleDetail.status,
+                                  selectedSaleDetail.credit?.status,
                                 )}`}
                               >
-                                {safe(selectedSaleDetail.status) || "-"}
+                                {buildOwnerVisibleStatus(selectedSaleDetail)}
                               </span>
                             </p>
                           </div>
@@ -872,6 +1119,65 @@ export default function OwnerSalesTab({ locations = [] }) {
                             </p>
                           </div>
                         </div>
+
+                        {selectedSaleDetail.credit ? (
+                          <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+                            <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
+                              Credit detail
+                            </p>
+
+                            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                              <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+                                <p className="text-[10px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                  Credit status
+                                </p>
+                                <p className="mt-1 text-sm font-bold text-stone-900 dark:text-stone-100">
+                                  {safe(
+                                    selectedSaleDetail.credit.statusLabel,
+                                  ) || "-"}
+                                </p>
+                              </div>
+
+                              <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+                                <p className="text-[10px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                  Credit mode
+                                </p>
+                                <p className="mt-1 text-sm font-bold text-stone-900 dark:text-stone-100">
+                                  {safe(selectedSaleDetail.credit.creditMode) ||
+                                    "-"}
+                                </p>
+                              </div>
+
+                              <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+                                <p className="text-[10px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                  Principal
+                                </p>
+                                <p className="mt-1 text-sm font-bold text-stone-900 dark:text-stone-100">
+                                  {money(
+                                    selectedSaleDetail.credit.principalAmount,
+                                  )}
+                                </p>
+                              </div>
+
+                              <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+                                <p className="text-[10px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                  Remaining
+                                </p>
+                                <p className="mt-1 text-sm font-bold text-stone-900 dark:text-stone-100">
+                                  {money(
+                                    selectedSaleDetail.credit.remainingAmount,
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+
+                            {buildOwnerVisibleSummary(selectedSaleDetail) ? (
+                              <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm text-stone-700 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-300">
+                                {buildOwnerVisibleSummary(selectedSaleDetail)}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
 
                         <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
                           <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">

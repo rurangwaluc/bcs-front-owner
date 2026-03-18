@@ -833,41 +833,56 @@ export default function OwnerSuppliersTab({ locations = [] }) {
                 label="Suppliers"
                 value={safeNumber(overview?.suppliersCount)}
                 sub="Directory size"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Active"
                 value={safeNumber(overview?.activeSuppliersCount)}
                 sub="Operational suppliers"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Local"
                 value={safeNumber(overview?.localSuppliersCount)}
                 sub="Rwanda-based suppliers"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Abroad"
                 value={safeNumber(overview?.abroadSuppliersCount)}
                 sub="Foreign suppliers"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Outstanding (RWF)"
                 value={money(overview?.outstandingRWF, "RWF")}
                 sub="Frontend grouped"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Outstanding (USD)"
                 value={money(overview?.outstandingUSD, "USD")}
                 sub="Frontend grouped"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Overdue (RWF)"
                 value={money(overview?.overdueRWF, "RWF")}
                 sub="Frontend grouped"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Overdue (USD)"
                 value={money(overview?.overdueUSD, "USD")}
                 sub="Frontend grouped"
+                valueClassName="text-[17px] leading-tight"
               />
             </div>
           </SectionCard>

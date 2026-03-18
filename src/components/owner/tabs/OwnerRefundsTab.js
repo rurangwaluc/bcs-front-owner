@@ -25,6 +25,18 @@ function money(v, currency = "RWF") {
   ).toLocaleString()}`;
 }
 
+function createRefundFormState() {
+  return {
+    locationId: "",
+    saleId: "",
+    reason: "",
+    method: "CASH",
+    reference: "",
+    useItemLines: false,
+    items: [{ saleItemId: "", qty: "" }],
+  };
+}
+
 function normalizeRefundsResponse(result) {
   if (Array.isArray(result)) return result;
   if (Array.isArray(result?.refunds)) return result.refunds;
@@ -58,13 +70,6 @@ function normalizeRefund(row) {
   };
 }
 
-function normalizeRefundDetail(result) {
-  return {
-    refund: result?.refund ? normalizeRefund(result.refund) : null,
-    items: Array.isArray(result?.items) ? result.items : [],
-  };
-}
-
 function normalizeRefundItem(row) {
   if (!row) return null;
 
@@ -73,8 +78,23 @@ function normalizeRefundItem(row) {
     refundId: row.refundId ?? row.refund_id ?? null,
     saleItemId: row.saleItemId ?? row.sale_item_id ?? null,
     productId: row.productId ?? row.product_id ?? null,
+    productName: row.productName ?? row.product_name ?? "",
+    sku: row.sku ?? "",
+    saleId: row.saleId ?? row.sale_id ?? null,
+    saleItemQty: Number(row.saleItemQty ?? row.sale_item_qty ?? 0),
     qty: Number(row.qty ?? 0),
+    unitPrice: Number(row.unitPrice ?? row.unit_price ?? 0),
+    lineTotal: Number(row.lineTotal ?? row.line_total ?? 0),
     amount: Number(row.amount ?? 0),
+  };
+}
+
+function normalizeRefundDetail(result) {
+  return {
+    refund: result?.refund ? normalizeRefund(result.refund) : null,
+    items: Array.isArray(result?.items)
+      ? result.items.map(normalizeRefundItem).filter(Boolean)
+      : [],
   };
 }
 
@@ -428,34 +448,9 @@ function RefundItemRow({ item, index, onChange, onRemove, canRemove }) {
   );
 }
 
-function CreateRefundModal({ open, locations, onClose, onSaved }) {
-  const [form, setForm] = useState({
-    locationId: "",
-    saleId: "",
-    reason: "",
-    method: "CASH",
-    reference: "",
-    useItemLines: false,
-    items: [{ saleItemId: "", qty: "" }],
-  });
+function CreateRefundModal({ locations, onClose, onSaved }) {
+  const [form, setForm] = useState(createRefundFormState);
   const [errorText, setErrorText] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-
-    setForm({
-      locationId: "",
-      saleId: "",
-      reason: "",
-      method: "CASH",
-      reference: "",
-      useItemLines: false,
-      items: [{ saleItemId: "", qty: "" }],
-    });
-    setErrorText("");
-  }, [open]);
-
-  if (!open) return null;
 
   function updateItem(index, key, value) {
     setForm((prev) => ({
@@ -587,9 +582,9 @@ function CreateRefundModal({ open, locations, onClose, onSaved }) {
               setForm((prev) => ({ ...prev, method: e.target.value }))
             }
           >
-            {REFUND_METHODS.map((method) => (
-              <option key={method} value={method}>
-                {method}
+            {REFUND_METHODS.map((methodValue) => (
+              <option key={methodValue} value={methodValue}>
+                {methodValue}
               </option>
             ))}
           </FormSelect>
@@ -863,7 +858,7 @@ export default function OwnerRefundsTab({ locations = [] }) {
 
       setRefundDetail({
         refund: detail.refund,
-        items: (detail.items || []).map(normalizeRefundItem).filter(Boolean),
+        items: detail.items,
       });
     } catch {
       setRefundDetail({ refund: null, items: [] });
@@ -883,14 +878,12 @@ export default function OwnerRefundsTab({ locations = [] }) {
 
   useEffect(() => {
     loadFirstPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, locationId, method, saleId, from, to]);
 
   useEffect(() => {
-    setRefundDetail({ refund: null, items: [] });
-  }, [selectedRefundId]);
-
-  useEffect(() => {
     loadDetail(selectedRefundId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRefundId]);
 
   async function handleSaved(result) {
@@ -937,31 +930,42 @@ export default function OwnerRefundsTab({ locations = [] }) {
                 label="Refunds"
                 value={safeNumber(overview?.totalCount)}
                 sub="Loaded refunds"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Refund total"
                 value={money(overview?.totalAmount, "RWF")}
                 sub="Loaded refunded amount"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Items"
                 value={safeNumber(overview?.totalItems)}
                 sub="Refunded line count"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Cash"
                 value={safeNumber(overview?.cashCount)}
                 sub="Cash refunds"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="MoMo"
                 value={safeNumber(overview?.momoCount)}
                 sub="Mobile money refunds"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Card / Bank"
                 value={safeNumber(overview?.cardBankCount)}
                 sub="Non-cash refunds"
+                valueClassName="text-[17px] leading-tight"
               />
             </div>
           </SectionCard>
@@ -1096,21 +1100,28 @@ export default function OwnerRefundsTab({ locations = [] }) {
                         label="Refund"
                         value={`#${safeNumber(selectedRefund?.id)}`}
                         sub={`Sale #${safe(selectedRefund?.saleId) || "-"}`}
+                        valueClassName="text-[17px] leading-tight"
                       />
+
                       <StatCard
                         label="Branch"
                         value={displayBranch(selectedRefund)}
                         sub={safe(selectedRefund?.locationCode) || "No code"}
+                        valueClassName="text-[17px] leading-tight"
                       />
+
                       <StatCard
                         label="Amount"
                         value={money(selectedRefund?.totalAmount, "RWF")}
                         sub={safe(selectedRefund?.method) || "CASH"}
+                        valueClassName="text-[17px] leading-tight"
                       />
+
                       <StatCard
                         label="Created by"
                         value={displayCreatedBy(selectedRefund)}
                         sub={safeDate(selectedRefund?.createdAt)}
+                        valueClassName="text-[17px] leading-tight"
                       />
                     </div>
 
@@ -1241,12 +1252,15 @@ export default function OwnerRefundsTab({ locations = [] }) {
                             >
                               <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-                                    Refund item #{safe(item?.id) || "-"}
+                                  <p className="truncate text-sm font-semibold text-stone-900 dark:text-stone-100">
+                                    {safe(item?.productName) ||
+                                      (item?.productId != null
+                                        ? `Product #${safe(item.productId)}`
+                                        : "Product")}
                                   </p>
                                   <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-                                    Sale item #{safe(item?.saleItemId) || "-"} ·
-                                    Product #{safe(item?.productId) || "-"}
+                                    SKU: {safe(item?.sku) || "-"} · Sale item #
+                                    {safe(item?.saleItemId) || "-"}
                                   </p>
                                 </div>
 
@@ -1255,10 +1269,10 @@ export default function OwnerRefundsTab({ locations = [] }) {
                                 </span>
                               </div>
 
-                              <div className="mt-3 grid grid-cols-2 gap-3">
+                              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                                 <div>
                                   <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                                    Qty
+                                    Refunded qty
                                   </p>
                                   <p className="mt-1 text-sm font-bold text-stone-950 dark:text-stone-50">
                                     {safeNumber(item?.qty)}
@@ -1267,7 +1281,34 @@ export default function OwnerRefundsTab({ locations = [] }) {
 
                                 <div>
                                   <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                                    Amount
+                                    Sold qty
+                                  </p>
+                                  <p className="mt-1 text-sm font-bold text-stone-950 dark:text-stone-50">
+                                    {safeNumber(item?.saleItemQty)}
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                    Unit price
+                                  </p>
+                                  <p className="mt-1 text-sm font-bold text-stone-950 dark:text-stone-50">
+                                    {money(item?.unitPrice, "RWF")}
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                    Original line
+                                  </p>
+                                  <p className="mt-1 text-sm font-bold text-stone-950 dark:text-stone-50">
+                                    {money(item?.lineTotal, "RWF")}
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                    Refund amount
                                   </p>
                                   <p className="mt-1 text-sm font-bold text-stone-950 dark:text-stone-50">
                                     {money(item?.amount, "RWF")}
@@ -1294,12 +1335,13 @@ export default function OwnerRefundsTab({ locations = [] }) {
         </>
       )}
 
-      <CreateRefundModal
-        open={creatingRefund}
-        locations={locationOptions}
-        onClose={() => setCreatingRefund(false)}
-        onSaved={handleSaved}
-      />
+      {creatingRefund ? (
+        <CreateRefundModal
+          locations={locationOptions}
+          onClose={() => setCreatingRefund(false)}
+          onSaved={handleSaved}
+        />
+      ) : null}
     </div>
   );
 }

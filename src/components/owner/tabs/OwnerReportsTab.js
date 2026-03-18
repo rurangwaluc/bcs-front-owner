@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "../../../lib/api";
 import {
   AlertBox,
   EmptyState,
@@ -12,6 +10,9 @@ import {
   safe,
   safeNumber,
 } from "../OwnerShared";
+import { useEffect, useMemo, useState } from "react";
+
+import { apiFetch } from "../../../lib/api";
 
 function money(v) {
   return safeNumber(v).toLocaleString();
@@ -509,43 +510,57 @@ export default function OwnerReportsTab({ locations = [] }) {
                 <StatCard
                   label="Branch"
                   value={safe(selectedBranch.locationName) || "-"}
-                  valueClassName="text-xl sm:text-2xl leading-tight"
+                  valueClassName="text-[17px] leading-tight"
                   sub={safe(selectedBranch.locationCode) || "-"}
                 />
+
                 <StatCard
                   label="Sales"
                   value={money(selectedBranch.salesTotal)}
                   sub={`${safeNumber(selectedBranch.salesCount)} sales`}
+                  valueClassName="text-[17px] leading-tight"
                 />
+
                 <StatCard
                   label="Payments"
                   value={money(selectedBranch.paymentsTotal)}
                   sub={`${safeNumber(selectedBranch.paymentsCount)} payment records`}
+                  valueClassName="text-[17px] leading-tight"
                 />
+
                 <StatCard
                   label="Credits"
                   value={money(selectedBranch.creditsTotal)}
                   sub={`${safeNumber(selectedBranch.creditsCount)} credit records`}
+                  valueClassName="text-[17px] leading-tight"
                 />
+
                 <StatCard
                   label="Refunds"
                   value={money(selectedBranch.refundsTotal)}
                   sub={`${safeNumber(selectedBranch.refundsCount)} refund records`}
+                  valueClassName="text-[17px] leading-tight"
                 />
+
                 <StatCard
                   label="Cash in"
                   value={money(selectedBranch.cashInTotal)}
                   sub="Recorded cash inflow"
+                  valueClassName="text-[17px] leading-tight"
                 />
+
                 <StatCard
                   label="Cash out"
                   value={money(selectedBranch.cashOutTotal)}
                   sub="Recorded cash outflow"
+                  valueClassName="text-[17px] leading-tight"
                 />
+
                 <StatCard
                   label="Payment coverage"
                   value={pct(selectedBranch.paymentCoverage)}
                   sub="Payments total divided by sales total"
+                  valueClassName="text-[17px] leading-tight"
                 />
               </div>
             </SectionCard>

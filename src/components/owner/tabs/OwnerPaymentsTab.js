@@ -419,23 +419,30 @@ export default function OwnerPaymentsTab({ locations = [] }) {
                 label="Branches"
                 value={safeNumber(summaryTotals.branchesCount)}
                 sub="Branches with visible payments"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Payments"
                 value={safeNumber(summaryTotals.paymentsCount)}
                 sub="Payment records in current filter"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Total amount"
                 value={money(summaryTotals.totalAmount)}
                 sub="Payment amount in current filter"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Method"
                 value={methodFilter || "ALL"}
-                valueClassName="text-xl sm:text-2xl leading-tight"
                 sub="Current method filter"
+                valueClassName="text-[17px] leading-tight"
               />
+
               <StatCard
                 label="Period"
                 value={
@@ -443,8 +450,8 @@ export default function OwnerPaymentsTab({ locations = [] }) {
                     ? `${dateFrom || "Start"} → ${dateTo || "Today"}`
                     : "All time"
                 }
-                valueClassName="text-lg sm:text-xl leading-tight"
                 sub="Current date filter"
+                valueClassName="text-[17px] leading-tight"
               />
             </div>
           </SectionCard>
