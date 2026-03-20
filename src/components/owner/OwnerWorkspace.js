@@ -1,7 +1,6 @@
 "use client";
 
 import { AlertBox, downloadCSV, safe } from "./OwnerShared";
-import { useEffect, useMemo, useState } from "react";
 
 import AppShell from "../AppShell";
 import AsyncButton from "../AsyncButton";
@@ -28,6 +27,7 @@ import OwnerStaffTab from "./tabs/OwnerStaffTab";
 import OwnerSupplierBillsTab from "./tabs/OwnerSupplierBillsTab";
 import OwnerSuppliersTab from "./tabs/OwnerSuppliersTab";
 import StaffModals from "./StaffModals";
+import { useMemo } from "react";
 
 function getTimeGreeting() {
   const hour = new Date().getHours();
@@ -72,14 +72,17 @@ export default function OwnerWorkspace({
   openCreateUserModal,
   openEditUserModal,
   openDeactivateUserModal,
+  onOpenResetPassword,
   branchModalProps,
   staffModalProps,
 }) {
-  const [greeting, setGreeting] = useState("Welcome back");
+  const greeting = useMemo(() => getTimeGreeting(), []);
 
-  useEffect(() => {
-    setGreeting(getTimeGreeting());
-  }, []);
+  const visibleStaffUsers = useMemo(
+    () =>
+      Array.isArray(users) ? users.filter((row) => row?.role !== "owner") : [],
+    [users],
+  );
 
   const tabMetaMap = useMemo(
     () => ({
@@ -96,7 +99,7 @@ export default function OwnerWorkspace({
       staff: {
         title: "Staff Management",
         subtitle:
-          "Create, edit, deactivate, and assign staff by active branch.",
+          "Create, edit, deactivate, reset passwords, and assign staff by active branch.",
       },
       inventory: {
         title: "Inventory",
@@ -170,7 +173,7 @@ export default function OwnerWorkspace({
           "Track what happened, where, and when, without leaving the workspace.",
       },
       notes: {
-        title: "Notes / Notifications",
+        title: "Notes / Alerts",
         subtitle: "Review notes, reminders, and business alerts.",
       },
     }),
@@ -218,7 +221,7 @@ export default function OwnerWorkspace({
     if (activeTab === "staff") {
       const rows = [
         ["Name", "Email", "Role", "Branch Name", "Branch Code", "Status"],
-        ...users.map((row) => [
+        ...visibleStaffUsers.map((row) => [
           row?.name ?? "",
           row?.email ?? "",
           row?.role ?? "",
@@ -250,7 +253,7 @@ export default function OwnerWorkspace({
     const rows = [
       ["Metric", "Value"],
       ["Branches", locations.length],
-      ["Users", summary?.totals?.usersCount ?? 0],
+      ["Users", visibleStaffUsers.length],
       ["Products", summary?.totals?.productsCount ?? 0],
       ["Sales", summary?.totals?.salesCount ?? 0],
       ["Payments", summary?.totals?.paymentsCount ?? 0],
@@ -281,7 +284,7 @@ export default function OwnerWorkspace({
   } else if (activeTab === "staff") {
     content = (
       <OwnerStaffTab
-        users={users}
+        users={visibleStaffUsers}
         locations={locations}
         activeLocations={activeLocations}
         selectedUserId={selectedUserId}
@@ -289,6 +292,7 @@ export default function OwnerWorkspace({
         onOpenCreate={openCreateUserModal}
         onOpenEdit={openEditUserModal}
         onOpenDeactivate={openDeactivateUserModal}
+        onOpenResetPassword={onOpenResetPassword}
         staffSearch={staffSearch}
         onChangeStaffSearch={setStaffSearch}
         staffStatusFilter={staffStatusFilter}
@@ -352,7 +356,7 @@ export default function OwnerWorkspace({
         navItems={[
           { key: "overview", label: "Dashboard" },
           { key: "branches", label: "Branches", badge: locations.length || 0 },
-          { key: "staff", label: "Team", badge: users.length || 0 },
+          { key: "staff", label: "Team", badge: visibleStaffUsers.length || 0 },
           { key: "inventory", label: "Inventory" },
           { key: "arrivals", label: "Arrivals" },
           { key: "products", label: "Products" },

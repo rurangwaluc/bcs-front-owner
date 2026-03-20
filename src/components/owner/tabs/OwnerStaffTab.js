@@ -31,6 +31,7 @@ export default function OwnerStaffTab({
   onOpenCreate,
   onOpenEdit,
   onOpenDeactivate,
+  onOpenResetPassword,
   staffSearch,
   onChangeStaffSearch,
   staffStatusFilter,
@@ -38,11 +39,15 @@ export default function OwnerStaffTab({
   staffLocationFilter,
   onChangeStaffLocationFilter,
 }) {
+  const visibleUsers = Array.isArray(users)
+    ? users.filter((row) => row?.role !== "owner")
+    : [];
+
   const locationOptions = Array.isArray(locations)
     ? locations.filter((row) => safe(row?.status).toUpperCase() !== "ARCHIVED")
     : [];
 
-  const filteredUsers = users.filter((row) => {
+  const filteredUsers = visibleUsers.filter((row) => {
     const query = safe(staffSearch).toLowerCase();
 
     const matchesSearch =
@@ -71,16 +76,17 @@ export default function OwnerStaffTab({
   const selected =
     selectedUserId == null
       ? null
-      : users.find((row) => String(row.id) === String(selectedUserId)) || null;
+      : visibleUsers.find((row) => String(row.id) === String(selectedUserId)) ||
+        null;
 
   const counts = {
-    ALL: users.length,
-    ACTIVE: users.filter((x) => !!x?.isActive).length,
-    INACTIVE: users.filter((x) => !x?.isActive).length,
+    ALL: visibleUsers.length,
+    ACTIVE: visibleUsers.filter((x) => !!x?.isActive).length,
+    INACTIVE: visibleUsers.filter((x) => !x?.isActive).length,
   };
 
   const branchSummary = locationOptions.map((location) => {
-    const branchUsers = users.filter(
+    const branchUsers = visibleUsers.filter(
       (user) =>
         String(user?.locationId ?? user?.location?.id ?? "") ===
         String(location?.id),
@@ -101,7 +107,7 @@ export default function OwnerStaffTab({
     <div className="space-y-6">
       <SectionCard
         title="Cross-branch staff directory"
-        subtitle="Search, filter, and manage staff across the full business."
+        subtitle="Search, filter, manage staff, and reset credentials without mixing the system owner into branch staffing."
         right={
           <AsyncButton
             idleText="Create user"
@@ -115,7 +121,7 @@ export default function OwnerStaffTab({
           <StatCard
             label="Total staff"
             value={counts.ALL}
-            sub="All visible user accounts"
+            sub="All visible branch staff accounts"
           />
           <StatCard
             label="Active staff"
@@ -272,7 +278,7 @@ export default function OwnerStaffTab({
       {selected ? (
         <SectionCard
           title="Selected staff detail"
-          subtitle="Focused user detail, branch assignment, and account control."
+          subtitle="Focused user detail, branch assignment, account control, and password reset."
           right={
             <span
               className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${userActiveTone(
@@ -397,6 +403,15 @@ export default function OwnerStaffTab({
                     className="w-full"
                   />
 
+                  <AsyncButton
+                    idleText="Reset password"
+                    loadingText="Opening..."
+                    successText="Ready"
+                    onClick={async () => onOpenResetPassword?.(selected)}
+                    variant="secondary"
+                    className="w-full"
+                  />
+
                   {selected?.isActive ? (
                     <AsyncButton
                       idleText="Deactivate user"
@@ -410,9 +425,9 @@ export default function OwnerStaffTab({
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-4 text-sm leading-6 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
-                  Owner control is cross-branch. Users can only be assigned to{" "}
-                  <strong>ACTIVE</strong> branches. Available active branches
-                  right now: {activeLocations.length}.
+                  Owner control is cross-branch. The system owner is not shown
+                  as branch staff here. Users can only be assigned to{" "}
+                  <strong>ACTIVE</strong> branches.
                 </div>
               </div>
             </div>

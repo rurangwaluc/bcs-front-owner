@@ -10,7 +10,6 @@ import {
 } from "./OwnerShared";
 
 const STAFF_ROLE_OPTIONS = [
-  "owner",
   "admin",
   "manager",
   "store_keeper",
@@ -18,10 +17,84 @@ const STAFF_ROLE_OPTIONS = [
   "cashier",
 ];
 
+function EyeIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 3l18 18" />
+      <path d="M10.58 10.58A2 2 0 0 0 12 14a2 2 0 0 0 1.42-.58" />
+      <path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-4.11 4.93" />
+      <path d="M6.61 6.61A17.32 17.32 0 0 0 2 12s3.5 7 10 7a10.8 10.8 0 0 0 5.39-1.39" />
+    </svg>
+  );
+}
+
+function PasswordField({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  show,
+  onToggle,
+}) {
+  return (
+    <div>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <div className="relative">
+        <FormInput
+          id={id}
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          className="pr-14"
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-stone-500 transition hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100"
+          aria-label={show ? "Hide password" : "Show password"}
+          title={show ? "Hide password" : "Show password"}
+        >
+          {show ? <EyeOffIcon /> : <EyeIcon />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function StaffModals({
   createUserModalOpen,
   editUserModalOpen,
   deactivateUserModalOpen,
+  resetPasswordModalOpen,
   closeAllUserModals,
   modalError,
   modalSubmitting,
@@ -29,18 +102,27 @@ export default function StaffModals({
   setCreateUserForm,
   editUserForm,
   setEditUserForm,
+  resetPasswordForm,
+  setResetPasswordForm,
   activeLocations,
   activeUser,
   createUser,
   updateUser,
   deactivateUser,
+  resetUserPassword,
+  createUserShowPassword,
+  setCreateUserShowPassword,
+  resetUserShowPassword,
+  setResetUserShowPassword,
+  resetUserShowConfirmPassword,
+  setResetUserShowConfirmPassword,
 }) {
   return (
     <>
       <OverlayModal
         open={createUserModalOpen}
         title="Create user"
-        subtitle="Create a staff account and assign it to an active branch."
+        subtitle="Create a new staff account under an active branch."
         onClose={closeAllUserModals}
         footer={
           <>
@@ -104,21 +186,20 @@ export default function StaffModals({
             />
           </div>
 
-          <div>
-            <FieldLabel htmlFor="create-user-password">Password</FieldLabel>
-            <FormInput
-              id="create-user-password"
-              type="password"
-              value={createUserForm.password}
-              onChange={(e) =>
-                setCreateUserForm((prev) => ({
-                  ...prev,
-                  password: e.target.value,
-                }))
-              }
-              placeholder="Minimum 8 characters"
-            />
-          </div>
+          <PasswordField
+            id="create-user-password"
+            label="Password"
+            value={createUserForm.password}
+            onChange={(e) =>
+              setCreateUserForm((prev) => ({
+                ...prev,
+                password: e.target.value,
+              }))
+            }
+            placeholder="Minimum 8 characters"
+            show={createUserShowPassword}
+            onToggle={() => setCreateUserShowPassword((prev) => !prev)}
+          />
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
@@ -289,6 +370,89 @@ export default function StaffModals({
           <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-stone-700 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-300">
             Branch reassignment is allowed only to <strong>ACTIVE</strong>{" "}
             branches.
+          </div>
+        </div>
+      </OverlayModal>
+
+      <OverlayModal
+        open={resetPasswordModalOpen}
+        title="Reset user password"
+        subtitle="Set a new password for this staff account in a controlled owner-only workflow."
+        onClose={closeAllUserModals}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeAllUserModals}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={resetUserPassword}
+              disabled={
+                modalSubmitting ||
+                !String(resetPasswordForm.password || "").trim() ||
+                String(resetPasswordForm.password || "") !==
+                  String(resetPasswordForm.confirmPassword || "")
+              }
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-stone-900 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-200"
+            >
+              {modalSubmitting ? "Resetting..." : "Reset password"}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-5">
+          <AlertBox message={modalError} />
+
+          <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-stone-700 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-300">
+            User: <strong>{safe(activeUser?.name)}</strong> —{" "}
+            {safe(activeUser?.email)}
+          </div>
+
+          <PasswordField
+            id="reset-user-password"
+            label="New password"
+            value={resetPasswordForm.password}
+            onChange={(e) =>
+              setResetPasswordForm((prev) => ({
+                ...prev,
+                password: e.target.value,
+              }))
+            }
+            placeholder="Minimum 8 characters"
+            show={resetUserShowPassword}
+            onToggle={() => setResetUserShowPassword((prev) => !prev)}
+          />
+
+          <PasswordField
+            id="reset-user-confirm-password"
+            label="Confirm new password"
+            value={resetPasswordForm.confirmPassword}
+            onChange={(e) =>
+              setResetPasswordForm((prev) => ({
+                ...prev,
+                confirmPassword: e.target.value,
+              }))
+            }
+            placeholder="Re-enter the new password"
+            show={resetUserShowConfirmPassword}
+            onToggle={() => setResetUserShowConfirmPassword((prev) => !prev)}
+          />
+
+          {String(resetPasswordForm.confirmPassword || "").trim() &&
+          String(resetPasswordForm.password || "") !==
+            String(resetPasswordForm.confirmPassword || "") ? (
+            <AlertBox message="Password confirmation does not match." />
+          ) : null}
+
+          <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-stone-700 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-300">
+            Use password reset only for a legitimate operational reason. The
+            user should be informed to sign in with the new password and change
+            it if your policy requires that.
           </div>
         </div>
       </OverlayModal>

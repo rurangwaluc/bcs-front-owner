@@ -78,12 +78,27 @@ export default function DashboardPage() {
   const [createUserModalOpen, setCreateUserModalOpen] = useState(false);
   const [editUserModalOpen, setEditUserModalOpen] = useState(false);
   const [deactivateUserModalOpen, setDeactivateUserModalOpen] = useState(false);
+  const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
 
   const [activeLocation, setActiveLocation] = useState(null);
   const [activeUser, setActiveUser] = useState(null);
 
-  const [createForm, setCreateForm] = useState({ name: "", code: "" });
-  const [editForm, setEditForm] = useState({ name: "", code: "" });
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    code: "",
+    phone: "",
+    website: "",
+    logoUrl: "",
+  });
+
+  const [editForm, setEditForm] = useState({
+    name: "",
+    code: "",
+    phone: "",
+    website: "",
+    logoUrl: "",
+  });
+
   const [closeReason, setCloseReason] = useState("");
   const [archiveReason, setArchiveReason] = useState("");
 
@@ -101,6 +116,16 @@ export default function DashboardPage() {
     locationId: "",
     isActive: true,
   });
+
+  const [resetPasswordForm, setResetPasswordForm] = useState({
+    password: "",
+    confirmPassword: "",
+  });
+
+  const [createUserShowPassword, setCreateUserShowPassword] = useState(false);
+  const [resetUserShowPassword, setResetUserShowPassword] = useState(false);
+  const [resetUserShowConfirmPassword, setResetUserShowConfirmPassword] =
+    useState(false);
 
   const [modalError, setModalError] = useState("");
   const [modalSubmitting, setModalSubmitting] = useState(false);
@@ -272,13 +297,27 @@ export default function DashboardPage() {
     setCreateUserModalOpen(false);
     setEditUserModalOpen(false);
     setDeactivateUserModalOpen(false);
+    setResetPasswordModalOpen(false);
     setActiveUser(null);
     setModalError("");
     setModalSubmitting(false);
+    setCreateUserShowPassword(false);
+    setResetUserShowPassword(false);
+    setResetUserShowConfirmPassword(false);
+    setResetPasswordForm({
+      password: "",
+      confirmPassword: "",
+    });
   }
 
   function openCreateBranchModal() {
-    setCreateForm({ name: "", code: "" });
+    setCreateForm({
+      name: "",
+      code: "",
+      phone: "",
+      website: "",
+      logoUrl: "",
+    });
     setModalError("");
     setCreateModalOpen(true);
   }
@@ -288,6 +327,9 @@ export default function DashboardPage() {
     setEditForm({
       name: safe(location?.name),
       code: safe(location?.code),
+      phone: safe(location?.phone),
+      website: safe(location?.website),
+      logoUrl: safe(location?.logoUrl),
     });
     setModalError("");
     setEditModalOpen(true);
@@ -311,6 +353,7 @@ export default function DashboardPage() {
     const defaultLocationId = activeLocations[0]?.id
       ? String(activeLocations[0].id)
       : "";
+
     setCreateUserForm({
       name: "",
       email: "",
@@ -318,6 +361,7 @@ export default function DashboardPage() {
       role: "admin",
       locationId: defaultLocationId,
     });
+    setCreateUserShowPassword(false);
     setModalError("");
     setCreateUserModalOpen(true);
   }
@@ -340,6 +384,18 @@ export default function DashboardPage() {
     setDeactivateUserModalOpen(true);
   }
 
+  function openResetPasswordModal(user) {
+    setActiveUser(user || null);
+    setResetPasswordForm({
+      password: "",
+      confirmPassword: "",
+    });
+    setResetUserShowPassword(false);
+    setResetUserShowConfirmPassword(false);
+    setModalError("");
+    setResetPasswordModalOpen(true);
+  }
+
   async function createBranch() {
     setModalSubmitting(true);
     setModalError("");
@@ -350,6 +406,9 @@ export default function DashboardPage() {
         body: {
           name: safe(createForm.name),
           code: safe(createForm.code).toUpperCase(),
+          phone: safe(createForm.phone) || undefined,
+          website: safe(createForm.website) || undefined,
+          logoUrl: safe(createForm.logoUrl) || undefined,
         },
       });
 
@@ -378,6 +437,9 @@ export default function DashboardPage() {
         body: {
           name: safe(editForm.name),
           code: safe(editForm.code).toUpperCase(),
+          phone: safe(editForm.phone) || undefined,
+          website: safe(editForm.website) || undefined,
+          logoUrl: safe(editForm.logoUrl) || undefined,
         },
       });
 
@@ -527,6 +589,49 @@ export default function DashboardPage() {
     }
   }
 
+  async function resetUserPassword() {
+    if (!activeUser?.id) return;
+
+    const password = String(resetPasswordForm.password || "");
+    const confirmPassword = String(resetPasswordForm.confirmPassword || "");
+
+    if (!password.trim()) {
+      setModalError("New password is required.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setModalError("New password must be at least 8 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setModalError("Password confirmation does not match.");
+      return;
+    }
+
+    setModalSubmitting(true);
+    setModalError("");
+
+    try {
+      await apiFetch(`/users/${activeUser.id}/reset-password`, {
+        method: "POST",
+        body: { password },
+      });
+
+      closeAllUserModals();
+      await loadWorkspace();
+      setSelectedUserId(activeUser.id);
+      setSuccessText("User password reset successfully.");
+    } catch (error) {
+      setModalError(
+        error?.data?.error || error?.message || "Failed to reset password",
+      );
+    } finally {
+      setModalSubmitting(false);
+    }
+  }
+
   async function deactivateUser() {
     if (!activeUser?.id) return;
 
@@ -578,6 +683,7 @@ export default function DashboardPage() {
     createUserModalOpen,
     editUserModalOpen,
     deactivateUserModalOpen,
+    resetPasswordModalOpen,
     closeAllUserModals,
     modalError,
     modalSubmitting,
@@ -585,11 +691,20 @@ export default function DashboardPage() {
     setCreateUserForm,
     editUserForm,
     setEditUserForm,
+    resetPasswordForm,
+    setResetPasswordForm,
     activeLocations,
     activeUser,
     createUser,
     updateUser,
     deactivateUser,
+    resetUserPassword,
+    createUserShowPassword,
+    setCreateUserShowPassword,
+    resetUserShowPassword,
+    setResetUserShowPassword,
+    resetUserShowConfirmPassword,
+    setResetUserShowConfirmPassword,
   };
 
   if (booting) {
@@ -638,6 +753,7 @@ export default function DashboardPage() {
       openCreateUserModal={openCreateUserModal}
       openEditUserModal={openEditUserModal}
       openDeactivateUserModal={openDeactivateUserModal}
+      onOpenResetPassword={openResetPasswordModal}
       branchModalProps={branchModalProps}
       staffModalProps={staffModalProps}
     />

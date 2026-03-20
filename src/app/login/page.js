@@ -254,18 +254,18 @@ export default function LoginPage() {
                       value={form.password}
                       onChange={(e) => updateField("password", e.target.value)}
                       placeholder="Enter your password"
-                      className="h-12 w-full rounded-2xl border border-stone-300 bg-white px-4 pr-12 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-stone-500 focus:ring-2 focus:ring-stone-200 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-stone-500 dark:focus:ring-stone-800"
+                      className="h-12 w-full rounded-2xl border border-stone-300 bg-white px-4 pr-14 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-stone-500 focus:ring-2 focus:ring-stone-200 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-stone-500 dark:focus:ring-stone-800"
                       required
                     />
 
                     <button
                       type="button"
                       onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-stone-500 transition hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100"
                       aria-label={
                         showPassword ? "Hide password" : "Show password"
                       }
                       title={showPassword ? "Hide password" : "Show password"}
-                      className="absolute inset-y-0 right-0 inline-flex w-12 items-center justify-center text-stone-500 transition hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
                     >
                       {showPassword ? <EyeOffIcon /> : <EyeIcon />}
                     </button>
@@ -280,21 +280,16 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={submitting}
-                  className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-stone-900 px-5 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-200"
+                  disabled={
+                    submitting ||
+                    !String(form.email || "").trim() ||
+                    !String(form.password || "").trim()
+                  }
+                  className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-stone-900 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-200"
                 >
                   {submitting ? "Signing in..." : "Sign in"}
                 </button>
               </form>
-
-              <div className="mt-6 rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                  Access note
-                </p>
-                <p className="mt-2 text-sm leading-6 text-stone-700 dark:text-stone-300">
-                  This area is intended for authorized business access only.
-                </p>
-              </div>
             </div>
           </div>
         </div>

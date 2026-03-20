@@ -8,6 +8,187 @@ import {
   OverlayModal,
   safe,
 } from "./OwnerShared";
+import { resolveAssetUrl, uploadFiles } from "../../lib/apiUpload";
+import { useMemo, useRef, useState } from "react";
+
+function BranchLogoPicker({
+  value,
+  onChange,
+  disabled = false,
+  label = "Branch logo",
+}) {
+  const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  const previewUrl = useMemo(() => {
+    const clean = safe(value);
+    return clean ? resolveAssetUrl(clean) : "";
+  }, [value]);
+
+  async function handleUpload(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    setUploading(true);
+    setUploadError("");
+
+    try {
+      const result = await uploadFiles(files);
+      const uploaded = Array.isArray(result?.urls) ? result.urls[0] : "";
+      if (!uploaded) throw new Error("No uploaded file URL returned");
+      onChange(uploaded);
+    } catch (error) {
+      setUploadError(
+        error?.data?.error || error?.message || "Failed to upload logo",
+      );
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <FieldLabel htmlFor="branch-logo-url">{label}</FieldLabel>
+
+      <FormInput
+        id="branch-logo-url"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="/uploads/your-logo.png or https://..."
+        disabled={disabled || uploading}
+      />
+
+      <div className="flex flex-wrap gap-3">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleUpload}
+          className="hidden"
+          disabled={disabled || uploading}
+        />
+
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={disabled || uploading}
+          className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          {uploading ? "Uploading..." : "Upload logo"}
+        </button>
+
+        {safe(value) ? (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            disabled={disabled || uploading}
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+          >
+            Remove logo
+          </button>
+        ) : null}
+      </div>
+
+      {uploadError ? <AlertBox message={uploadError} /> : null}
+
+      <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+          Logo preview
+        </div>
+
+        {previewUrl ? (
+          <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-stone-200 bg-white p-3 dark:border-stone-700 dark:bg-stone-900">
+            <img
+              src={previewUrl}
+              alt="Branch logo preview"
+              className="h-full w-full object-contain"
+            />
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-stone-300 px-4 py-8 text-sm text-stone-500 dark:border-stone-700 dark:text-stone-400">
+            No logo selected yet.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BranchIdentityFields({ form, setForm, disabled = false }) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <FieldLabel htmlFor="branch-name">Branch name</FieldLabel>
+        <FormInput
+          id="branch-name"
+          value={form.name}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, name: e.target.value }))
+          }
+          placeholder="e.g. GRAPE HARDWARE"
+          disabled={disabled}
+        />
+      </div>
+
+      <div>
+        <FieldLabel htmlFor="branch-code">Branch code</FieldLabel>
+        <FormInput
+          id="branch-code"
+          value={form.code}
+          onChange={(e) =>
+            setForm((prev) => ({
+              ...prev,
+              code: e.target.value.toUpperCase(),
+            }))
+          }
+          placeholder="e.g. GRAPE"
+          disabled={disabled}
+        />
+      </div>
+
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <FieldLabel htmlFor="branch-phone">Phone</FieldLabel>
+          <FormInput
+            id="branch-phone"
+            value={form.phone}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, phone: e.target.value }))
+            }
+            placeholder="+2507..."
+            disabled={disabled}
+          />
+        </div>
+
+        <div>
+          <FieldLabel htmlFor="branch-website">Website</FieldLabel>
+          <FormInput
+            id="branch-website"
+            value={form.website}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, website: e.target.value }))
+            }
+            placeholder="https://example.com"
+            disabled={disabled}
+          />
+        </div>
+      </div>
+
+      <BranchLogoPicker
+        value={form.logoUrl}
+        onChange={(logoUrl) =>
+          setForm((prev) => ({
+            ...prev,
+            logoUrl,
+          }))
+        }
+        disabled={disabled}
+      />
+    </div>
+  );
+}
 
 export default function BranchModals({
   createModalOpen,
@@ -36,7 +217,7 @@ export default function BranchModals({
       <OverlayModal
         open={createModalOpen}
         title="Create branch"
-        subtitle="Create a new business branch with a serious branch identity."
+        subtitle="Create a new business branch with identity, contact detail, and document branding."
         onClose={closeAllBranchModals}
         footer={
           <>
@@ -65,36 +246,17 @@ export default function BranchModals({
       >
         <div className="space-y-5">
           <AlertBox message={modalError} />
-          <div>
-            <FieldLabel htmlFor="create-name">Branch name</FieldLabel>
-            <FormInput
-              id="create-name"
-              value={createForm.name}
-              onChange={(e) =>
-                setCreateForm((prev) => ({ ...prev, name: e.target.value }))
-              }
-              placeholder="e.g. Kigali City Center"
-            />
-          </div>
 
-          <div>
-            <FieldLabel htmlFor="create-code">Branch code</FieldLabel>
-            <FormInput
-              id="create-code"
-              value={createForm.code}
-              onChange={(e) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  code: e.target.value.toUpperCase(),
-                }))
-              }
-              placeholder="e.g. KCC"
-            />
-          </div>
+          <BranchIdentityFields
+            form={createForm}
+            setForm={setCreateForm}
+            disabled={modalSubmitting}
+          />
 
           <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-stone-700 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-300">
             New branches are created as <strong>ACTIVE</strong>. This means the
-            owner can immediately assign staff and operate the branch.
+            owner can immediately assign staff, brand the branch properly, and
+            operate the branch with the right printed identity.
           </div>
         </div>
       </OverlayModal>
@@ -102,7 +264,7 @@ export default function BranchModals({
       <OverlayModal
         open={editModalOpen}
         title="Edit branch"
-        subtitle="Update the branch identity without touching business history."
+        subtitle="Update branch identity, contact detail, and document branding without touching business history."
         onClose={closeAllBranchModals}
         footer={
           <>
@@ -129,32 +291,12 @@ export default function BranchModals({
       >
         <div className="space-y-5">
           <AlertBox message={modalError} />
-          <div>
-            <FieldLabel htmlFor="edit-name">Branch name</FieldLabel>
-            <FormInput
-              id="edit-name"
-              value={editForm.name}
-              onChange={(e) =>
-                setEditForm((prev) => ({ ...prev, name: e.target.value }))
-              }
-              placeholder="Branch name"
-            />
-          </div>
 
-          <div>
-            <FieldLabel htmlFor="edit-code">Branch code</FieldLabel>
-            <FormInput
-              id="edit-code"
-              value={editForm.code}
-              onChange={(e) =>
-                setEditForm((prev) => ({
-                  ...prev,
-                  code: e.target.value.toUpperCase(),
-                }))
-              }
-              placeholder="Branch code"
-            />
-          </div>
+          <BranchIdentityFields
+            form={editForm}
+            setForm={setEditForm}
+            disabled={modalSubmitting}
+          />
         </div>
       </OverlayModal>
 
