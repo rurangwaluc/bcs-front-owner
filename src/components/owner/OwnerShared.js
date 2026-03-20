@@ -331,73 +331,155 @@ export function LocationCard({ row, active, onSelect }) {
 }
 
 export function StaffRowCard({ row, active, onSelect }) {
+  const name = safe(row?.name);
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((x) => x[0])
+    .join("")
+    .toUpperCase();
+
+  const role = safe(row?.role || "-").replaceAll("_", " ");
+  const roleLabel = role ? role.charAt(0).toUpperCase() + role.slice(1) : "-";
+
+  function roleTone(roleValue) {
+    const value = safe(roleValue).toUpperCase();
+
+    if (value.includes("MANAGER")) {
+      return "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300";
+    }
+
+    if (value.includes("CASH")) {
+      return "bg-violet-100 text-violet-800 dark:bg-violet-950/60 dark:text-violet-300";
+    }
+
+    if (value.includes("STORE")) {
+      return "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300";
+    }
+
+    if (value.includes("SELL")) {
+      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300";
+    }
+
+    return "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300";
+  }
+
   return (
     <button
       type="button"
       onClick={() => onSelect?.(row)}
       className={
-        "w-full rounded-[24px] border p-4 text-left transition " +
+        "w-full rounded-[28px] border p-5 text-left shadow-sm transition " +
         (active
           ? "border-stone-900 bg-stone-900 text-white dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950"
           : "border-stone-200 bg-white hover:border-stone-300 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700")
       }
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p
-            className={
-              "text-lg font-bold break-words " +
-              (active
-                ? "text-white dark:text-stone-950"
-                : "text-stone-950 dark:text-stone-50")
-            }
-          >
-            {safe(row?.name) || "-"}
-          </p>
-          <p
-            className={
-              "mt-1 text-sm break-words " +
-              (active
-                ? "text-stone-200 dark:text-stone-700"
-                : "text-stone-600 dark:text-stone-300")
-            }
-          >
-            {safe(row?.email) || "-"}
-          </p>
-          <p
-            className={
-              "mt-2 text-sm " +
-              (active
-                ? "text-stone-200 dark:text-stone-700"
-                : "text-stone-600 dark:text-stone-300")
-            }
-          >
-            {safe(row?.location?.name || "-")}
-            {safe(row?.location?.code) ? ` (${safe(row.location.code)})` : ""}
-          </p>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-4">
+            <div
+              className={
+                "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border text-sm font-black tracking-[0.12em] " +
+                (active
+                  ? "border-white/10 bg-white/10 text-white dark:border-stone-300 dark:bg-stone-200 dark:text-stone-950"
+                  : "border-stone-200 bg-stone-50 text-stone-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200")
+              }
+            >
+              {initials || "U"}
+            </div>
+
+            <div className="min-w-0">
+              <p
+                className={
+                  "truncate text-lg font-black " +
+                  (active
+                    ? "text-white dark:text-stone-950"
+                    : "text-stone-950 dark:text-stone-50")
+                }
+              >
+                {name || "-"}
+              </p>
+
+              <p
+                className={
+                  "mt-1 break-all text-sm " +
+                  (active
+                    ? "text-stone-200 dark:text-stone-700"
+                    : "text-stone-600 dark:text-stone-300")
+                }
+              >
+                {safe(row?.email) || "-"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span
+              className={
+                "rounded-full px-3 py-1 text-xs font-semibold " +
+                (active
+                  ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
+                  : roleTone(row?.role))
+              }
+            >
+              {roleLabel}
+            </span>
+
+            <span
+              className={
+                "rounded-full px-3 py-1 text-xs font-semibold " +
+                (active
+                  ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
+                  : userActiveTone(!!row?.isActive))
+              }
+            >
+              {row?.isActive ? "Active" : "Inactive"}
+            </span>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <span
-            className={
-              "rounded-full px-3 py-1 text-xs font-semibold " +
-              (active
-                ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
-                : "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300")
-            }
-          >
-            {safe(row?.role || "-")}
-          </span>
-          <span
-            className={
-              "rounded-full px-3 py-1 text-xs font-semibold " +
-              (active
-                ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
-                : userActiveTone(!!row?.isActive))
-            }
-          >
-            {row?.isActive ? "Active" : "Inactive"}
-          </span>
+        <div
+          className={
+            "grid gap-3 rounded-[22px] border p-4 sm:grid-cols-2 " +
+            (active
+              ? "border-white/10 bg-white/5 dark:border-stone-300 dark:bg-stone-200"
+              : "border-stone-200 bg-stone-50 dark:border-stone-800 dark:bg-stone-950")
+          }
+        >
+          <div>
+            <p
+              className={
+                "text-[11px] uppercase tracking-[0.14em] " +
+                (active
+                  ? "text-stone-300 dark:text-stone-600"
+                  : "text-stone-500 dark:text-stone-400")
+              }
+            >
+              Branch
+            </p>
+            <p className="mt-2 break-words text-sm font-semibold">
+              {safe(row?.location?.name || "-")}
+              {safe(row?.location?.code) ? ` (${safe(row.location.code)})` : ""}
+            </p>
+          </div>
+
+          <div>
+            <p
+              className={
+                "text-[11px] uppercase tracking-[0.14em] " +
+                (active
+                  ? "text-stone-300 dark:text-stone-600"
+                  : "text-stone-500 dark:text-stone-400")
+              }
+            >
+              Last seen
+            </p>
+            <p className="mt-2 text-sm font-semibold">
+              {safeDate(row?.lastSeenAt)}
+            </p>
+          </div>
         </div>
       </div>
     </button>
