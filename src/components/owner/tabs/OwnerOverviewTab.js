@@ -21,6 +21,11 @@ export default function OwnerOverviewTab(props) {
     productsCount: 0,
     salesCount: 0,
     paymentsCount: 0,
+    inventoryValue: 0,
+    totalQtyOnHand: 0,
+    lowStockCount: 0,
+    outOfStockCount: 0,
+    branchesCount: 0,
   };
 
   const salesTotal = sales.reduce((sum, row) => {
@@ -29,6 +34,10 @@ export default function OwnerOverviewTab(props) {
 
   const topBranch = [...locations].sort((a, b) => {
     return safeNumber(b?.salesCount) - safeNumber(a?.salesCount);
+  })[0];
+
+  const topInventoryBranch = [...(summary?.byLocation || [])].sort((a, b) => {
+    return safeNumber(b?.inventoryValue) - safeNumber(a?.inventoryValue);
   })[0];
 
   const recentAudit = [...audit]
@@ -41,26 +50,31 @@ export default function OwnerOverviewTab(props) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Branches"
-          value={locations.length}
+          value={safeNumber(totals.branchesCount || locations.length)}
           sub="Visible business locations"
         />
         <StatCard
           label="Users"
-          value={totals.usersCount}
+          value={safeNumber(totals.usersCount)}
           sub="Staff accounts across branches"
         />
         <StatCard
           label="Products"
-          value={totals.productsCount}
+          value={safeNumber(totals.productsCount)}
           sub="Tracked stock records"
         />
         <StatCard
           label="Sales total"
           value={money(salesTotal)}
           sub="Loaded from current sales data"
+        />
+        <StatCard
+          label="Inventory value"
+          value={money(totals.inventoryValue)}
+          sub={`${safeNumber(totals.totalQtyOnHand)} total qty on hand`}
         />
       </div>
 
@@ -83,12 +97,28 @@ export default function OwnerOverviewTab(props) {
 
             <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
               <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-                Staff footprint
+                Inventory capital
               </p>
               <p className="mt-2 text-sm leading-6 text-stone-700 dark:text-stone-300">
-                The system currently sees {safeNumber(totals.usersCount)} staff
-                account{safeNumber(totals.usersCount) === 1 ? "" : "s"} across
-                all branches.
+                Total visible inventory value is{" "}
+                <b>{money(totals.inventoryValue)}</b> RWF across{" "}
+                <b>{safeNumber(totals.totalQtyOnHand)}</b> units.
+                {topInventoryBranch
+                  ? ` Highest branch inventory value is in ${safe(topInventoryBranch.locationName)} (${safe(topInventoryBranch.locationCode)}) at ${money(topInventoryBranch.inventoryValue)} RWF.`
+                  : ""}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+              <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+                Stock risk
+              </p>
+              <p className="mt-2 text-sm leading-6 text-stone-700 dark:text-stone-300">
+                {safeNumber(totals.lowStockCount)} low-stock item
+                {safeNumber(totals.lowStockCount) === 1 ? "" : "s"} and{" "}
+                {safeNumber(totals.outOfStockCount)} out-of-stock item
+                {safeNumber(totals.outOfStockCount) === 1 ? "" : "s"} are
+                currently visible in the owner inventory summary.
               </p>
             </div>
 

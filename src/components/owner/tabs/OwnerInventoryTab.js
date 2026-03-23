@@ -74,6 +74,7 @@ function normalizeInventoryRow(row) {
         ? row.is_active !== false
         : row.isActive !== false,
     qtyOnHand: Number(row.qtyOnHand ?? row.qty_on_hand ?? 0),
+    inventoryValue: Number(row.inventoryValue ?? row.inventory_value ?? 0),
     updatedAt: row.updatedAt ?? row.updated_at ?? null,
   };
 }
@@ -93,6 +94,9 @@ function normalizeProductInventoryDetail(row) {
           locationCode: branch.locationCode ?? branch.location_code ?? "",
           locationStatus: branch.locationStatus ?? branch.location_status ?? "",
           qtyOnHand: Number(branch.qtyOnHand ?? branch.qty_on_hand ?? 0),
+          inventoryValue: Number(
+            branch.inventoryValue ?? branch.inventory_value ?? 0,
+          ),
           sellingPrice: Number(
             branch.sellingPrice ?? branch.selling_price ?? 0,
           ),
@@ -118,7 +122,7 @@ function InventoryListRow({ row, active, onSelect }) {
       type="button"
       onClick={() => onSelect?.(row)}
       className={
-        "hidden w-full grid-cols-[minmax(220px,2fr)_120px_160px_90px_120px_120px_110px] items-center gap-3 border-b border-stone-200 px-4 py-3 text-left transition last:border-b-0 lg:grid " +
+        "hidden w-full grid-cols-[minmax(220px,2fr)_120px_150px_90px_120px_120px_140px_110px] items-center gap-3 border-b border-stone-200 px-4 py-3 text-left transition last:border-b-0 lg:grid " +
         (active
           ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-950"
           : "bg-white hover:bg-stone-50 dark:bg-stone-900 dark:hover:bg-stone-800/70")
@@ -163,6 +167,7 @@ function InventoryListRow({ row, active, onSelect }) {
       <div className="text-sm font-bold">{safeNumber(row?.qtyOnHand)}</div>
       <div className="text-sm font-semibold">{money(row?.sellingPrice)}</div>
       <div className="text-sm font-semibold">{money(row?.purchasePrice)}</div>
+      <div className="text-sm font-bold">{money(row?.inventoryValue)}</div>
 
       <div className="flex flex-wrap gap-2 justify-start">
         <span
@@ -242,7 +247,7 @@ function InventoryMobileRow({ row, active, onSelect }) {
         </span>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-2">
+      <div className="mt-3 grid grid-cols-2 gap-2">
         <div className="rounded-xl border border-stone-200 bg-stone-50 p-2 dark:border-stone-800 dark:bg-stone-950">
           <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Sell
@@ -254,6 +259,12 @@ function InventoryMobileRow({ row, active, onSelect }) {
             Buy
           </p>
           <p className="mt-1 text-sm font-bold">{money(row?.purchasePrice)}</p>
+        </div>
+        <div className="rounded-xl border border-stone-200 bg-stone-50 p-2 dark:border-stone-800 dark:bg-stone-950">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Value
+          </p>
+          <p className="mt-1 text-sm font-bold">{money(row?.inventoryValue)}</p>
         </div>
         <div className="rounded-xl border border-stone-200 bg-stone-50 p-2 dark:border-stone-800 dark:bg-stone-950">
           <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
@@ -291,7 +302,7 @@ function BranchBreakdownCard({ branch }) {
         </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
         <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
           <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
             Qty
@@ -303,10 +314,81 @@ function BranchBreakdownCard({ branch }) {
 
         <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
           <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
+            Value
+          </p>
+          <p className="mt-2 text-base font-bold text-stone-950 dark:text-stone-50">
+            {money(branch?.inventoryValue)}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900 col-span-2 lg:col-span-1">
+          <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
             Updated
           </p>
           <p className="mt-2 text-sm font-semibold text-stone-900 dark:text-stone-100">
             {safeDate(branch?.updatedAt)}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BranchValueRow({ row }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+            {safe(row?.locationName) || "-"}
+          </p>
+          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+            {safe(row?.locationCode) || "-"} ·{" "}
+            {safe(row?.locationStatus) || "-"}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-right dark:border-stone-800 dark:bg-stone-900">
+          <p className="text-[11px] uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
+            Inventory value
+          </p>
+          <p className="mt-1 text-base font-black text-stone-950 dark:text-stone-50">
+            {money(row?.inventoryValue)} RWF
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
+          <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
+            Products
+          </p>
+          <p className="mt-2 text-base font-bold text-stone-950 dark:text-stone-50">
+            {safeNumber(row?.productsCount)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
+          <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
+            Qty on hand
+          </p>
+          <p className="mt-2 text-base font-bold text-stone-950 dark:text-stone-50">
+            {safeNumber(row?.totalQtyOnHand)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
+          <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
+            Low stock
+          </p>
+          <p className="mt-2 text-base font-bold text-stone-950 dark:text-stone-50">
+            {safeNumber(row?.lowStockCount)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
+          <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
+            Out of stock
+          </p>
+          <p className="mt-2 text-base font-bold text-stone-950 dark:text-stone-50">
+            {safeNumber(row?.outOfStockCount)}
           </p>
         </div>
       </div>
@@ -469,9 +551,14 @@ export default function OwnerInventoryTab({ locations = [] }) {
     branchesCount: 0,
     productsCount: 0,
     totalQtyOnHand: 0,
+    inventoryValue: 0,
     lowStockCount: 0,
     outOfStockCount: 0,
   };
+
+  const byLocation = Array.isArray(summary?.byLocation)
+    ? summary.byLocation
+    : [];
 
   return (
     <div className="space-y-6">
@@ -497,33 +584,62 @@ export default function OwnerInventoryTab({ locations = [] }) {
             title="Cross-branch inventory summary"
             subtitle="Owner-wide inventory visibility across all branches."
           >
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               <StatCard
                 label="Branches"
                 value={safeNumber(summaryTotals.branchesCount)}
                 sub="Branches with inventory visibility"
+                valueClassName="text-[20px] font-bold"
               />
               <StatCard
                 label="Products"
                 value={safeNumber(summaryTotals.productsCount)}
                 sub="Visible product records"
+                valueClassName="text-[20px] font-bold"
               />
               <StatCard
                 label="Qty on hand"
                 value={safeNumber(summaryTotals.totalQtyOnHand)}
                 sub="Total stock across visible branches"
+                valueClassName="text-[20px] font-bold"
+              />
+              <StatCard
+                label="Inventory value"
+                value={money(summaryTotals.inventoryValue)}
+                sub="Total cost-based inventory value"
+                valueClassName="text-[20px] font-bold"
               />
               <StatCard
                 label="Low stock"
                 value={safeNumber(summaryTotals.lowStockCount)}
                 sub="Items at risk soon"
+                valueClassName="text-[20px] font-bold"
               />
               <StatCard
                 label="Out of stock"
                 value={safeNumber(summaryTotals.outOfStockCount)}
                 sub="Immediate stock issue items"
+                valueClassName="text-[20px] font-bold"
               />
             </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Per-branch inventory value"
+            subtitle="Cost-based inventory value and stock signal for each branch."
+          >
+            {byLocation.length === 0 ? (
+              <EmptyState text="No branch inventory totals available." />
+            ) : (
+              <div className="grid gap-3">
+                {byLocation.map((row) => (
+                  <BranchValueRow
+                    key={`branch-value-${row.locationId}`}
+                    row={row}
+                  />
+                ))}
+              </div>
+            )}
           </SectionCard>
 
           <SectionCard
@@ -579,13 +695,14 @@ export default function OwnerInventoryTab({ locations = [] }) {
             </div>
 
             <div className="mt-5 overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-800">
-              <div className="hidden grid-cols-[minmax(220px,2fr)_120px_160px_90px_120px_120px_110px] gap-3 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:bg-stone-950 dark:text-stone-400 lg:grid">
+              <div className="hidden grid-cols-[minmax(220px,2fr)_120px_150px_90px_120px_120px_140px_110px] gap-3 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:bg-stone-950 dark:text-stone-400 lg:grid">
                 <div>Product</div>
                 <div>SKU</div>
                 <div>Branch</div>
                 <div>Qty</div>
                 <div>Selling</div>
                 <div>Purchase</div>
+                <div>Value</div>
                 <div>Status</div>
               </div>
 
@@ -666,7 +783,7 @@ export default function OwnerInventoryTab({ locations = [] }) {
               }
             >
               <div className="space-y-5">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
                   <StatCard
                     label="Product"
                     value={safe(selectedRow.name) || "-"}
@@ -693,6 +810,11 @@ export default function OwnerInventoryTab({ locations = [] }) {
                     label="Purchase price"
                     value={money(selectedRow.purchasePrice)}
                     sub="Current purchase price"
+                  />
+                  <StatCard
+                    label="Inventory value"
+                    value={money(selectedRow.inventoryValue)}
+                    sub="Qty × purchase price"
                   />
                 </div>
 
@@ -764,6 +886,15 @@ export default function OwnerInventoryTab({ locations = [] }) {
 
                       <div className="flex justify-between gap-4">
                         <span className="text-stone-500 dark:text-stone-400">
+                          Inventory value
+                        </span>
+                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                          {money(selectedRow.inventoryValue)} RWF
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-stone-500 dark:text-stone-400">
                           Updated
                         </span>
                         <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
@@ -779,10 +910,9 @@ export default function OwnerInventoryTab({ locations = [] }) {
                     </p>
 
                     <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-4 text-sm leading-6 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
-                      Inventory here is an owner visibility view. Stock changes
-                      should be recorded through inventory arrivals, sales,
-                      purchase flows, approved stock movement, or dedicated
-                      backend adjustment endpoints once those are implemented.
+                      Inventory value is calculated from quantity on hand
+                      multiplied by product purchase price. This gives an owner
+                      capital view, not a projected sales revenue view.
                     </div>
                   </div>
                 </div>
