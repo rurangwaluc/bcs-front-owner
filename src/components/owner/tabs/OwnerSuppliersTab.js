@@ -5,8 +5,6 @@ import {
   EmptyState,
   FormInput,
   FormSelect,
-  SectionCard,
-  StatCard,
   safe,
   safeDate,
   safeNumber,
@@ -17,6 +15,10 @@ import AsyncButton from "../../AsyncButton";
 import { apiFetch } from "../../../lib/api";
 
 const PAGE_SIZE = 20;
+
+function cx(...classes) {
+  return classes.filter(Boolean).join(" ");
+}
 
 function normalizeCurrency(v) {
   const s = String(v || "RWF")
@@ -67,255 +69,6 @@ function normalizeSupplier(row) {
   };
 }
 
-function supplierTone(sourceType) {
-  const v = safe(sourceType).toUpperCase();
-  if (v === "ABROAD") {
-    return "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-300";
-  }
-  return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300";
-}
-
-function activeTone(isActive) {
-  return isActive
-    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300"
-    : "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
-}
-
-function neutralBadgeTone() {
-  return "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
-}
-
-function Badge({ children, className = "" }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold ${className}`}
-    >
-      {children}
-    </span>
-  );
-}
-
-function SmallStat({ label, value, tone = "default", active = false }) {
-  const classes =
-    tone === "danger"
-      ? active
-        ? "border-rose-300/20 bg-rose-400/10 text-white dark:border-rose-900/20 dark:bg-rose-900/10 dark:text-stone-950"
-        : "border-rose-200 bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/20"
-      : active
-        ? "border-white/10 bg-white/5 dark:border-stone-900/10 dark:bg-stone-900/5"
-        : "border-stone-200 bg-stone-50 dark:border-stone-800 dark:bg-stone-950";
-
-  const labelClass =
-    tone === "danger"
-      ? active
-        ? "text-rose-100 dark:text-rose-800"
-        : "text-rose-700 dark:text-rose-300"
-      : active
-        ? "text-stone-300 dark:text-stone-600"
-        : "text-stone-500 dark:text-stone-400";
-
-  return (
-    <div className={`rounded-2xl border p-4 ${classes}`}>
-      <p className={`text-[11px] uppercase tracking-[0.14em] ${labelClass}`}>
-        {label}
-      </p>
-      <p className="mt-2 text-lg font-bold">{value}</p>
-    </div>
-  );
-}
-
-function InfoTile({ label, value }) {
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-      <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-        {label}
-      </p>
-      <p className="mt-2 break-words text-sm font-semibold text-stone-950 dark:text-stone-50">
-        {value || "-"}
-      </p>
-    </div>
-  );
-}
-
-function SupplierCard({ row, active, onSelect }) {
-  const currency = normalizeCurrency(row?.defaultCurrency);
-
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect?.(row)}
-      className={
-        "group w-full overflow-hidden rounded-[28px] border text-left transition-all duration-200 " +
-        (active
-          ? "border-stone-900 bg-stone-900 text-white shadow-lg dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950"
-          : "border-stone-200 bg-white hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700 dark:hover:bg-stone-900")
-      }
-    >
-      <div className="p-4 sm:p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="truncate text-base font-bold sm:text-lg">
-                {safe(row?.name) || "-"}
-              </h3>
-
-              <Badge
-                className={
-                  active
-                    ? "border-white/10 bg-white/10 text-white dark:border-stone-900/10 dark:bg-stone-900/10 dark:text-stone-950"
-                    : supplierTone(row?.sourceType)
-                }
-              >
-                {safe(row?.sourceType) || "LOCAL"}
-              </Badge>
-
-              <Badge
-                className={
-                  active
-                    ? "border-white/10 bg-white/10 text-white dark:border-stone-900/10 dark:bg-stone-900/10 dark:text-stone-950"
-                    : neutralBadgeTone()
-                }
-              >
-                Default {currency}
-              </Badge>
-
-              <Badge
-                className={
-                  active
-                    ? "border-white/10 bg-white/10 text-white dark:border-stone-900/10 dark:bg-stone-900/10 dark:text-stone-950"
-                    : activeTone(!!row?.isActive)
-                }
-              >
-                {row?.isActive ? "Active" : "Inactive"}
-              </Badge>
-            </div>
-
-            <div
-              className={
-                "mt-3 grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4 " +
-                (active
-                  ? "text-stone-200 dark:text-stone-700"
-                  : "text-stone-600 dark:text-stone-400")
-              }
-            >
-              <p className="truncate">
-                <span className="font-medium">Contact:</span>{" "}
-                {safe(row?.contactName) || "-"}
-              </p>
-              <p className="truncate">
-                <span className="font-medium">Phone:</span>{" "}
-                {safe(row?.phone) || "-"}
-              </p>
-              <p className="truncate">
-                <span className="font-medium">Email:</span>{" "}
-                {safe(row?.email) || "-"}
-              </p>
-              <p className="truncate">
-                <span className="font-medium">Country:</span>{" "}
-                {safe(row?.country) || "-"}
-              </p>
-            </div>
-          </div>
-
-          <div
-            className={
-              "rounded-2xl border px-4 py-3 xl:min-w-[220px] " +
-              (active
-                ? "border-white/10 bg-white/5 dark:border-stone-900/10 dark:bg-stone-900/5"
-                : "border-stone-200 bg-stone-50 dark:border-stone-800 dark:bg-stone-950")
-            }
-          >
-            <p
-              className={
-                "text-[11px] font-semibold uppercase tracking-[0.18em] " +
-                (active
-                  ? "text-stone-300 dark:text-stone-600"
-                  : "text-stone-500 dark:text-stone-400")
-              }
-            >
-              Current debt
-            </p>
-            <p className="mt-2 text-xl font-black sm:text-2xl">
-              {money(row?.balanceDue, currency)}
-            </p>
-            <p
-              className={
-                "mt-1 text-xs " +
-                (active
-                  ? "text-stone-300 dark:text-stone-600"
-                  : "text-stone-500 dark:text-stone-400")
-              }
-            >
-              Based on current backend totals
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <SmallStat
-            label="Bills"
-            value={safeNumber(row?.billsCount)}
-            active={active}
-          />
-          <SmallStat
-            label={`Billed (${currency})`}
-            value={money(row?.totalBilled, currency)}
-            active={active}
-          />
-          <SmallStat
-            label={`Paid (${currency})`}
-            value={money(row?.totalPaid, currency)}
-            active={active}
-          />
-          <SmallStat
-            label="Overdue bills"
-            value={safeNumber(row?.overdueBillsCount)}
-            tone="danger"
-            active={active}
-          />
-          <SmallStat
-            label={`Overdue (${currency})`}
-            value={money(row?.overdueAmount, currency)}
-            tone="danger"
-            active={active}
-          />
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function ModalShell({ title, subtitle, onClose, children }) {
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[28px] border border-stone-200 bg-white p-5 shadow-2xl dark:border-stone-800 dark:bg-stone-900 sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-xl font-bold text-stone-950 dark:text-stone-50">
-              {title}
-            </h3>
-            {subtitle ? (
-              <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
-                {subtitle}
-              </p>
-            ) : null}
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-stone-300 text-stone-600 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
-          >
-            ×
-          </button>
-        </div>
-
-        <div className="mt-5">{children}</div>
-      </div>
-    </div>
-  );
-}
-
 function supplierFormDefaults(supplier) {
   return {
     name: safe(supplier?.name) || "",
@@ -330,6 +83,245 @@ function supplierFormDefaults(supplier) {
     notes: safe(supplier?.notes) || "",
     isActive: supplier?.isActive ?? true,
   };
+}
+
+function Pill({ tone = "neutral", children }) {
+  const cls =
+    tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300"
+      : tone === "warn"
+        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300"
+        : tone === "danger"
+          ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300"
+          : tone === "info"
+            ? "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-300"
+            : "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
+
+  return (
+    <span
+      className={cx(
+        "inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em]",
+        cls,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function SectionShell({ title, hint, right, children }) {
+  return (
+    <section className="overflow-hidden rounded-[30px] border border-stone-200 bg-white shadow-[0_10px_30px_rgba(2,6,23,0.04)] dark:border-stone-800 dark:bg-stone-900 dark:shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone-200 p-5 dark:border-stone-800">
+        <div className="min-w-0">
+          <div className="text-base font-black tracking-[-0.02em] text-stone-950 dark:text-stone-50">
+            {title}
+          </div>
+          {hint ? (
+            <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+              {hint}
+            </div>
+          ) : null}
+        </div>
+        {right ? <div className="shrink-0">{right}</div> : null}
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function Surface({ children, className = "" }) {
+  return (
+    <div
+      className={cx(
+        "rounded-[24px] border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function MetricCard({ label, value, sub, tone = "default" }) {
+  const valueClass =
+    tone === "danger"
+      ? "text-rose-700 dark:text-rose-300"
+      : "text-stone-950 dark:text-stone-50";
+
+  return (
+    <div className="rounded-[22px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+      <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+        {label}
+      </div>
+      <div className={cx("mt-2 text-lg font-black", valueClass)}>{value}</div>
+      {sub ? (
+        <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+          {sub}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function InfoTile({ label, value }) {
+  return (
+    <div className="rounded-[20px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+      <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+        {label}
+      </div>
+      <div className="mt-2 break-words text-sm font-semibold text-stone-950 dark:text-stone-50">
+        {value || "-"}
+      </div>
+    </div>
+  );
+}
+
+function SupplierCard({ row, active, onSelect }) {
+  const currency = normalizeCurrency(row?.defaultCurrency);
+  const sourceType = String(row?.sourceType || "LOCAL").toUpperCase();
+  const activeTone = row?.isActive ? "success" : "danger";
+  const sourceTone = sourceType === "ABROAD" ? "info" : "neutral";
+  const locationLabel = [safe(row?.city), safe(row?.country)]
+    .filter(Boolean)
+    .join(", ");
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect?.(row)}
+      className={cx(
+        "w-full rounded-[24px] border p-4 text-left transition",
+        active
+          ? "border-stone-400 bg-stone-50 dark:border-stone-700 dark:bg-stone-950"
+          : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700 dark:hover:bg-stone-950",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="truncate text-sm font-black text-stone-950 dark:text-stone-50">
+              {safe(row?.name) || "-"}
+            </div>
+            <Pill tone={sourceTone}>{sourceType}</Pill>
+            <Pill tone={activeTone}>
+              {row?.isActive ? "ACTIVE" : "INACTIVE"}
+            </Pill>
+            <Pill tone="neutral">DEFAULT {currency}</Pill>
+          </div>
+
+          <div className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+            Contact:{" "}
+            <b className="text-stone-900 dark:text-stone-100">
+              {safe(row?.contactName) || "-"}
+            </b>
+            {safe(row?.phone) ? (
+              <>
+                {" "}
+                • Phone:{" "}
+                <b className="text-stone-900 dark:text-stone-100">
+                  {safe(row?.phone)}
+                </b>
+              </>
+            ) : null}
+            {safe(row?.email) ? (
+              <>
+                {" "}
+                • Email:{" "}
+                <b className="text-stone-900 dark:text-stone-100">
+                  {safe(row?.email)}
+                </b>
+              </>
+            ) : null}
+          </div>
+
+          <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+            Location:{" "}
+            <b className="text-stone-900 dark:text-stone-100">
+              {locationLabel || "-"}
+            </b>
+          </div>
+
+          {safe(row?.notes) ? (
+            <div className="mt-2 line-clamp-2 text-xs text-stone-500 dark:text-stone-400">
+              <b className="text-stone-900 dark:text-stone-100">Notes:</b>{" "}
+              {safe(row?.notes)}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="shrink-0 text-right">
+          <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Current debt
+          </div>
+          <div className="mt-1 text-lg font-black text-stone-950 dark:text-stone-50">
+            {money(row?.balanceDue, currency)}
+          </div>
+          <div className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
+            {safeNumber(row?.billsCount)} bill(s)
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="rounded-[18px] border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+          <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Total billed
+          </div>
+          <div className="mt-2 text-sm font-bold text-stone-950 dark:text-stone-50">
+            {money(row?.totalBilled, currency)}
+          </div>
+        </div>
+        <div className="rounded-[18px] border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+          <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Total paid
+          </div>
+          <div className="mt-2 text-sm font-bold text-stone-950 dark:text-stone-50">
+            {money(row?.totalPaid, currency)}
+          </div>
+        </div>
+        <div className="rounded-[18px] border border-rose-200 bg-rose-50 p-3 dark:border-rose-900/40 dark:bg-rose-950/20">
+          <div className="text-[11px] font-black uppercase tracking-[0.12em] text-rose-700 dark:text-rose-300">
+            Overdue
+          </div>
+          <div className="mt-2 text-sm font-bold text-rose-700 dark:text-rose-300">
+            {money(row?.overdueAmount, currency)}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function ModalShell({ title, subtitle, onClose, children }) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/50 p-4 backdrop-blur-[2px]">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[30px] border border-stone-200 bg-white shadow-[0_30px_80px_rgba(2,6,23,0.22)] dark:border-stone-800 dark:bg-stone-900">
+        <div className="flex items-start justify-between gap-4 border-b border-stone-200 p-5 dark:border-stone-800">
+          <div>
+            <h3 className="text-xl font-black text-stone-950 dark:text-stone-50">
+              {title}
+            </h3>
+            {subtitle ? (
+              <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-stone-300 text-stone-600 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
 }
 
 function SupplierFormModal({ open, supplier, onClose, onSaved }) {
@@ -399,7 +391,7 @@ function SupplierFormModalInner({ supplier, onClose, onSaved }) {
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Supplier name
           </label>
           <FormInput
@@ -412,7 +404,7 @@ function SupplierFormModalInner({ supplier, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Contact person
           </label>
           <FormInput
@@ -425,7 +417,7 @@ function SupplierFormModalInner({ supplier, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Phone
           </label>
           <FormInput
@@ -438,7 +430,7 @@ function SupplierFormModalInner({ supplier, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Email
           </label>
           <FormInput
@@ -451,7 +443,7 @@ function SupplierFormModalInner({ supplier, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Country
           </label>
           <FormInput
@@ -464,7 +456,7 @@ function SupplierFormModalInner({ supplier, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             City
           </label>
           <FormInput
@@ -477,7 +469,7 @@ function SupplierFormModalInner({ supplier, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Source type
           </label>
           <FormSelect
@@ -492,7 +484,7 @@ function SupplierFormModalInner({ supplier, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Default currency
           </label>
           <FormSelect
@@ -507,7 +499,7 @@ function SupplierFormModalInner({ supplier, onClose, onSaved }) {
         </div>
 
         <div className="md:col-span-2">
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Address
           </label>
           <textarea
@@ -516,13 +508,13 @@ function SupplierFormModalInner({ supplier, onClose, onSaved }) {
               setForm((prev) => ({ ...prev, address: e.target.value }))
             }
             rows={3}
-            className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
+            className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
             placeholder="Supplier address"
           />
         </div>
 
         <div className="md:col-span-2">
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Notes
           </label>
           <textarea
@@ -531,14 +523,14 @@ function SupplierFormModalInner({ supplier, onClose, onSaved }) {
               setForm((prev) => ({ ...prev, notes: e.target.value }))
             }
             rows={4}
-            className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
+            className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
             placeholder="Supplier notes"
           />
         </div>
 
         {isEdit ? (
           <div className="md:col-span-2">
-            <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+            <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
               Status
             </label>
             <FormSelect
@@ -561,7 +553,7 @@ function SupplierFormModalInner({ supplier, onClose, onSaved }) {
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+          className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
         >
           Cancel
         </button>
@@ -629,28 +621,30 @@ function SupplierStatusModalInner({ supplier, mode, onClose, onSaved }) {
     <ModalShell title={title} subtitle={subtitle} onClose={onClose}>
       <AlertBox message={errorText} />
 
-      <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-700 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-300">
-        Supplier: <strong>{safe(supplier?.name) || "-"}</strong>
-        <br />
-        Default currency:{" "}
-        <strong>{normalizeCurrency(supplier?.defaultCurrency)}</strong>
-        <br />
-        Current debt:{" "}
-        <strong>
-          {money(supplier?.balanceDue, supplier?.defaultCurrency)}
-        </strong>
-      </div>
+      <Surface className="bg-stone-50 dark:bg-stone-950">
+        <div className="text-sm text-stone-700 dark:text-stone-300">
+          Supplier: <strong>{safe(supplier?.name) || "-"}</strong>
+          <br />
+          Default currency:{" "}
+          <strong>{normalizeCurrency(supplier?.defaultCurrency)}</strong>
+          <br />
+          Current debt:{" "}
+          <strong>
+            {money(supplier?.balanceDue, supplier?.defaultCurrency)}
+          </strong>
+        </div>
+      </Surface>
 
       {isDeactivate ? (
         <div className="mt-4">
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Reason
           </label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={4}
-            className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
+            className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
             placeholder="Why is this supplier being deactivated?"
           />
         </div>
@@ -660,7 +654,7 @@ function SupplierStatusModalInner({ supplier, mode, onClose, onSaved }) {
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+          className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
         >
           Cancel
         </button>
@@ -686,7 +680,7 @@ export default function OwnerSuppliersTab() {
   const [successText, setSuccessText] = useState("");
 
   const [suppliers, setSuppliers] = useState([]);
-  const [selectedSupplierId, setSelectedSupplierId] = useState(null);
+  const [selectedSupplierId, setSelectedSupplierId] = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState(null);
 
   const [q, setQ] = useState("");
@@ -718,9 +712,11 @@ export default function OwnerSuppliersTab() {
       const overdue = Number(row?.overdueAmount || 0);
 
       if (row?.isActive) activeSuppliersCount += 1;
-      if (safe(row?.sourceType).toUpperCase() === "ABROAD")
+      if (safe(row?.sourceType).toUpperCase() === "ABROAD") {
         abroadSuppliersCount += 1;
-      else localSuppliersCount += 1;
+      } else {
+        localSuppliersCount += 1;
+      }
 
       if (currency === "USD") {
         outstandingUSD += outstanding;
@@ -768,14 +764,18 @@ export default function OwnerSuppliersTab() {
         : [];
 
       setSuppliers(rows);
-      setSelectedSupplierId((prev) =>
-        prev && rows.some((x) => String(x.id) === String(prev))
-          ? prev
-          : (rows[0]?.id ?? null),
-      );
+      setSelectedSupplierId((prev) => {
+        const next =
+          prev && rows.some((x) => String(x.id) === String(prev))
+            ? String(prev)
+            : rows[0]?.id != null
+              ? String(rows[0].id)
+              : "";
+        return next;
+      });
     } catch (e) {
       setSuppliers([]);
-      setSelectedSupplierId(null);
+      setSelectedSupplierId("");
       setSelectedSupplier(null);
       setErrorText(e?.data?.error || e?.message || "Failed to load suppliers");
     } finally {
@@ -818,7 +818,7 @@ export default function OwnerSuppliersTab() {
     setSuccessText(actionText);
 
     const nextId =
-      result?.supplier?.id ?? result?.id ?? selectedSupplierId ?? null;
+      result?.supplier?.id ?? result?.id ?? selectedSupplierId ?? "";
 
     setCreatingSupplier(false);
     setEditingSupplier(null);
@@ -827,8 +827,8 @@ export default function OwnerSuppliersTab() {
     await load();
 
     if (nextId) {
-      setSelectedSupplierId(nextId);
-      await loadDetail(nextId);
+      setSelectedSupplierId(String(nextId));
+      await loadDetail(String(nextId));
     }
 
     setTimeout(() => setSuccessText(""), 2500);
@@ -836,426 +836,491 @@ export default function OwnerSuppliersTab() {
 
   const visibleRows = suppliers.slice(0, visibleCount);
 
+  const headerRight = (
+    <div className="flex flex-wrap items-center gap-2">
+      <AsyncButton
+        variant="secondary"
+        state={loading || detailLoading ? "loading" : "idle"}
+        idleText="Reload"
+        loadingText="Loading..."
+        successText="Done"
+        onClick={async () => {
+          await Promise.all([load(), loadDetail(selectedSupplierId)]);
+        }}
+      />
+
+      <AsyncButton
+        idleText="Create supplier"
+        loadingText="Opening..."
+        successText="Ready"
+        onClick={async () => setCreatingSupplier(true)}
+      />
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="grid gap-4">
       <AlertBox message={errorText} />
       <AlertBox message={successText} tone="success" />
 
-      {loading ? (
-        <SectionCard
-          title="Suppliers"
-          subtitle="Loading owner-wide supplier visibility."
-        >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
+      <SectionShell
+        title="Suppliers"
+        hint="Supplier master records, contact detail, and liability context."
+        right={headerRight}
+      >
+        {loading ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="h-32 animate-pulse rounded-3xl border border-stone-200 bg-stone-100 dark:border-stone-800 dark:bg-stone-800"
+                className="h-28 animate-pulse rounded-[24px] bg-stone-100 dark:bg-stone-800"
               />
             ))}
           </div>
-        </SectionCard>
-      ) : (
-        <>
-          <SectionCard
-            title="Supplier overview"
-            subtitle="Owner-wide supplier master view and liability context."
-          >
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
-              <StatCard
-                label="Suppliers"
-                value={safeNumber(overview?.suppliersCount)}
-                sub="Directory size"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Active"
-                value={safeNumber(overview?.activeSuppliersCount)}
-                sub="Operational suppliers"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Local"
-                value={safeNumber(overview?.localSuppliersCount)}
-                sub="Rwanda-based suppliers"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Abroad"
-                value={safeNumber(overview?.abroadSuppliersCount)}
-                sub="Foreign suppliers"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Outstanding (RWF)"
-                value={money(overview?.outstandingRWF, "RWF")}
-                sub="Frontend grouped"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Outstanding (USD)"
-                value={money(overview?.outstandingUSD, "USD")}
-                sub="Frontend grouped"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Overdue (RWF)"
-                value={money(overview?.overdueRWF, "RWF")}
-                sub="Frontend grouped"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Overdue (USD)"
-                value={money(overview?.overdueUSD, "USD")}
-                sub="Frontend grouped"
-                valueClassName="text-[17px] leading-tight"
-              />
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Supplier filters"
-            subtitle="Filter the supplier master by search, source type, and activity state."
-            right={
-              <AsyncButton
-                idleText="Create supplier"
-                loadingText="Opening..."
-                successText="Ready"
-                onClick={async () => setCreatingSupplier(true)}
-              />
-            }
-          >
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <FormInput
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search supplier, contact, phone, email, country"
-              />
-
-              <FormSelect
-                value={sourceType}
-                onChange={(e) => setSourceType(e.target.value)}
-              >
-                <option value="">All source types</option>
-                <option value="LOCAL">Local</option>
-                <option value="ABROAD">Abroad</option>
-              </FormSelect>
-
-              <FormSelect
-                value={active}
-                onChange={(e) => setActive(e.target.value)}
-              >
-                <option value="">All activity states</option>
-                <option value="true">Active only</option>
-                <option value="false">Inactive only</option>
-              </FormSelect>
-            </div>
-          </SectionCard>
-
-          <div className="grid gap-6 2xl:grid-cols-[1.15fr_0.85fr]">
-            <SectionCard
-              title="Supplier directory"
-              subtitle="Select a supplier to inspect supplier master detail."
-            >
-              {suppliers.length === 0 ? (
-                <EmptyState text="No suppliers match the current owner filters." />
-              ) : (
-                <div className="space-y-4">
-                  {visibleRows.map((row) => (
-                    <SupplierCard
-                      key={row.id}
-                      row={row}
-                      active={String(row.id) === String(selectedSupplierId)}
-                      onSelect={(picked) => setSelectedSupplierId(picked?.id)}
-                    />
-                  ))}
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
+              <Surface>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Supplier overview
                 </div>
-              )}
 
-              {visibleCount < suppliers.length ? (
-                <div className="mt-5 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <MetricCard
+                    label="Suppliers"
+                    value={safeNumber(overview?.suppliersCount)}
+                    sub="Directory size"
+                  />
+                  <MetricCard
+                    label="Active"
+                    value={safeNumber(overview?.activeSuppliersCount)}
+                    sub="Operational suppliers"
+                  />
+                  <MetricCard
+                    label="Local"
+                    value={safeNumber(overview?.localSuppliersCount)}
+                    sub="Rwanda-based suppliers"
+                  />
+                  <MetricCard
+                    label="Abroad"
+                    value={safeNumber(overview?.abroadSuppliersCount)}
+                    sub="Foreign suppliers"
+                  />
+                  <MetricCard
+                    label="Outstanding (RWF)"
+                    value={money(overview?.outstandingRWF, "RWF")}
+                    sub="Grouped totals"
+                  />
+                  <MetricCard
+                    label="Outstanding (USD)"
+                    value={money(overview?.outstandingUSD, "USD")}
+                    sub="Grouped totals"
+                  />
+                  <MetricCard
+                    label="Overdue (RWF)"
+                    value={money(overview?.overdueRWF, "RWF")}
+                    sub="Late bills"
+                    tone="danger"
+                  />
+                  <MetricCard
+                    label="Overdue (USD)"
+                    value={money(overview?.overdueUSD, "USD")}
+                    sub="Late bills"
+                    tone="danger"
+                  />
+                </div>
+              </Surface>
+
+              <Surface>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Supplier filters
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <FormInput
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Search supplier, contact, phone, email, country"
+                  />
+
+                  <FormSelect
+                    value={sourceType}
+                    onChange={(e) => setSourceType(e.target.value)}
                   >
-                    Load 20 more
-                  </button>
+                    <option value="">All source types</option>
+                    <option value="LOCAL">Local</option>
+                    <option value="ABROAD">Abroad</option>
+                  </FormSelect>
+
+                  <FormSelect
+                    value={active}
+                    onChange={(e) => setActive(e.target.value)}
+                  >
+                    <option value="">All activity states</option>
+                    <option value="true">Active only</option>
+                    <option value="false">Inactive only</option>
+                  </FormSelect>
                 </div>
-              ) : null}
-            </SectionCard>
 
-            {selectedSupplier ? (
-              <SectionCard
-                title="Selected supplier detail"
-                subtitle="Focused owner view of supplier identity and liability only."
-                right={
-                  <div className="flex flex-wrap items-center gap-2">
-                    <AsyncButton
-                      idleText="Edit supplier"
-                      loadingText="Opening..."
-                      successText="Ready"
-                      onClick={async () => setEditingSupplier(selectedSupplier)}
-                      variant="secondary"
-                    />
+                <div className="mt-4 rounded-[22px] border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+                  <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                    Current supplier
+                  </div>
 
-                    {selectedSupplier?.isActive ? (
-                      <AsyncButton
-                        idleText="Deactivate"
-                        loadingText="Opening..."
-                        successText="Ready"
-                        onClick={async () => {
-                          setStatusMode("deactivate");
-                          setStatusSupplier(selectedSupplier);
-                        }}
-                        variant="secondary"
-                      />
-                    ) : (
-                      <AsyncButton
-                        idleText="Reactivate"
-                        loadingText="Opening..."
-                        successText="Ready"
-                        onClick={async () => {
-                          setStatusMode("reactivate");
-                          setStatusSupplier(selectedSupplier);
-                        }}
-                        variant="secondary"
-                      />
-                    )}
-
-                    <Badge
-                      className={supplierTone(selectedSupplier?.sourceType)}
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <FormSelect
+                      value={selectedSupplierId}
+                      onChange={(e) => setSelectedSupplierId(e.target.value)}
                     >
-                      {safe(selectedSupplier?.sourceType) || "LOCAL"}
-                    </Badge>
+                      <option value="">All suppliers</option>
+                      {suppliers
+                        .slice()
+                        .sort((a, b) =>
+                          String(a?.name || "").localeCompare(
+                            String(b?.name || ""),
+                          ),
+                        )
+                        .map((s) => (
+                          <option key={s.id} value={String(s.id)}>
+                            {safe(s?.name) || `Supplier #${s.id}`}
+                          </option>
+                        ))}
+                    </FormSelect>
 
-                    <Badge className={neutralBadgeTone()}>
-                      Default{" "}
-                      {normalizeCurrency(selectedSupplier?.defaultCurrency)}
-                    </Badge>
+                    <div className="rounded-[18px] border border-stone-200 bg-white px-3 py-3 text-sm text-stone-900 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100">
+                      Current debt:{" "}
+                      <b>
+                        {detailLoading
+                          ? "..."
+                          : selectedSupplier
+                            ? money(
+                                selectedSupplier.balanceDue,
+                                selectedSupplier.defaultCurrency,
+                              )
+                            : "—"}
+                      </b>
+                    </div>
+                  </div>
 
-                    <Badge className={activeTone(!!selectedSupplier?.isActive)}>
-                      {selectedSupplier?.isActive ? "Active" : "Inactive"}
-                    </Badge>
+                  <div className="mt-2 text-[11px] text-stone-500 dark:text-stone-400">
+                    Bills:{" "}
+                    <b>
+                      {selectedSupplier ? selectedSupplier.billsCount : "—"}
+                    </b>{" "}
+                    • Total billed:{" "}
+                    <b>
+                      {selectedSupplier
+                        ? money(
+                            selectedSupplier.totalBilled,
+                            selectedSupplier.defaultCurrency,
+                          )
+                        : "—"}
+                    </b>{" "}
+                    • Total paid:{" "}
+                    <b>
+                      {selectedSupplier
+                        ? money(
+                            selectedSupplier.totalPaid,
+                            selectedSupplier.defaultCurrency,
+                          )
+                        : "—"}
+                    </b>
                   </div>
-                }
-              >
-                {detailLoading ? (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div
-                        key={i}
-                        className="h-28 animate-pulse rounded-3xl border border-stone-200 bg-stone-100 dark:border-stone-800 dark:bg-stone-800"
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                      <StatCard
-                        label="Supplier"
-                        value={safe(selectedSupplier?.name) || "-"}
-                        sub={
-                          safe(selectedSupplier?.contactName) ||
-                          "No contact name"
+                </div>
+              </Surface>
+            </div>
+
+            <div className="mt-4 grid gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
+              <Surface>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Supplier directory
+                </div>
+                <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                  Select a supplier to inspect supplier master detail.
+                </div>
+
+                <div className="mt-4">
+                  {suppliers.length === 0 ? (
+                    <EmptyState text="No suppliers match the current owner filters." />
+                  ) : (
+                    <div className="grid gap-3">
+                      {visibleRows.map((row) => (
+                        <SupplierCard
+                          key={row.id}
+                          row={row}
+                          active={String(row.id) === String(selectedSupplierId)}
+                          onSelect={(picked) =>
+                            setSelectedSupplierId(String(picked?.id || ""))
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {visibleCount < suppliers.length ? (
+                    <div className="mt-5 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setVisibleCount((prev) => prev + PAGE_SIZE)
                         }
-                      />
-                      <StatCard
-                        label={`Outstanding (${normalizeCurrency(
-                          selectedSupplier?.defaultCurrency,
-                        )})`}
-                        value={money(
-                          selectedSupplier?.balanceDue,
-                          selectedSupplier?.defaultCurrency,
-                        )}
-                        sub="Current unpaid amount"
-                      />
-                      <StatCard
-                        label={`Overdue (${normalizeCurrency(
-                          selectedSupplier?.defaultCurrency,
-                        )})`}
-                        value={money(
-                          selectedSupplier?.overdueAmount,
-                          selectedSupplier?.defaultCurrency,
-                        )}
-                        sub={`${safeNumber(selectedSupplier?.overdueBillsCount)} overdue bills`}
-                      />
-                      <StatCard
-                        label="Bills"
-                        value={safeNumber(selectedSupplier?.billsCount)}
-                        sub="Current supplier bills"
-                      />
+                        className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+                      >
+                        Load 20 more
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </Surface>
+
+              {selectedSupplier ? (
+                <Surface>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                        Selected supplier detail
+                      </div>
+                      <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                        Focused owner view of supplier identity and liability
+                        context.
+                      </div>
                     </div>
 
-                    <div className="mt-5 grid gap-4 xl:grid-cols-2">
-                      <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                          Supplier master
-                        </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <AsyncButton
+                        idleText="Edit supplier"
+                        loadingText="Opening..."
+                        successText="Ready"
+                        onClick={async () =>
+                          setEditingSupplier(selectedSupplier)
+                        }
+                        variant="secondary"
+                      />
 
-                        <div className="mt-4 grid gap-3">
+                      {selectedSupplier?.isActive ? (
+                        <AsyncButton
+                          idleText="Deactivate"
+                          loadingText="Opening..."
+                          successText="Ready"
+                          onClick={async () => {
+                            setStatusMode("deactivate");
+                            setStatusSupplier(selectedSupplier);
+                          }}
+                          variant="secondary"
+                        />
+                      ) : (
+                        <AsyncButton
+                          idleText="Reactivate"
+                          loadingText="Opening..."
+                          successText="Ready"
+                          onClick={async () => {
+                            setStatusMode("reactivate");
+                            setStatusSupplier(selectedSupplier);
+                          }}
+                          variant="secondary"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {detailLoading ? (
+                    <div className="mt-4 grid gap-3">
+                      {[1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="h-24 animate-pulse rounded-[22px] bg-stone-100 dark:bg-stone-800"
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <Pill
+                          tone={
+                            String(
+                              selectedSupplier?.sourceType || "",
+                            ).toUpperCase() === "ABROAD"
+                              ? "info"
+                              : "neutral"
+                          }
+                        >
+                          {safe(selectedSupplier?.sourceType) || "LOCAL"}
+                        </Pill>
+                        <Pill tone="neutral">
+                          DEFAULT{" "}
+                          {normalizeCurrency(selectedSupplier?.defaultCurrency)}
+                        </Pill>
+                        <Pill
+                          tone={
+                            selectedSupplier?.isActive ? "success" : "danger"
+                          }
+                        >
+                          {selectedSupplier?.isActive ? "ACTIVE" : "INACTIVE"}
+                        </Pill>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <MetricCard
+                          label="Supplier"
+                          value={safe(selectedSupplier?.name) || "-"}
+                          sub={
+                            safe(selectedSupplier?.contactName) ||
+                            "No contact person"
+                          }
+                        />
+                        <MetricCard
+                          label={`Current debt (${normalizeCurrency(
+                            selectedSupplier?.defaultCurrency,
+                          )})`}
+                          value={money(
+                            selectedSupplier?.balanceDue,
+                            selectedSupplier?.defaultCurrency,
+                          )}
+                          sub="Current unpaid amount"
+                          tone="danger"
+                        />
+                        <MetricCard
+                          label="Supplier bills"
+                          value={safeNumber(selectedSupplier?.billsCount)}
+                          sub="Current recorded bills"
+                        />
+                        <MetricCard
+                          label="Overdue bills"
+                          value={safeNumber(
+                            selectedSupplier?.overdueBillsCount,
+                          )}
+                          sub="Late supplier bills"
+                          tone="danger"
+                        />
+                      </div>
+
+                      <div className="mt-4 grid gap-3">
+                        <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                          Supplier master
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <InfoTile
                             label="Contact person"
                             value={safe(selectedSupplier?.contactName) || "-"}
                           />
-
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <InfoTile
-                              label="Phone"
-                              value={safe(selectedSupplier?.phone) || "-"}
-                            />
-                            <InfoTile
-                              label="Email"
-                              value={safe(selectedSupplier?.email) || "-"}
-                            />
-                          </div>
-
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <InfoTile
-                              label="Country / City"
-                              value={
-                                [
-                                  safe(selectedSupplier?.country),
-                                  safe(selectedSupplier?.city),
-                                ]
-                                  .filter(Boolean)
-                                  .join(" / ") || "-"
-                              }
-                            />
-                            <InfoTile
-                              label="Default currency"
-                              value={normalizeCurrency(
-                                selectedSupplier?.defaultCurrency,
-                              )}
-                            />
-                          </div>
-
+                          <InfoTile
+                            label="Phone"
+                            value={safe(selectedSupplier?.phone) || "-"}
+                          />
+                          <InfoTile
+                            label="Email"
+                            value={safe(selectedSupplier?.email) || "-"}
+                          />
+                          <InfoTile
+                            label="Country / City"
+                            value={
+                              [
+                                safe(selectedSupplier?.country),
+                                safe(selectedSupplier?.city),
+                              ]
+                                .filter(Boolean)
+                                .join(" / ") || "-"
+                            }
+                          />
+                          <InfoTile
+                            label="Default currency"
+                            value={normalizeCurrency(
+                              selectedSupplier?.defaultCurrency,
+                            )}
+                          />
                           <InfoTile
                             label="Address"
                             value={safe(selectedSupplier?.address) || "-"}
                           />
-
                           <InfoTile
-                            label="Notes"
-                            value={
-                              safe(selectedSupplier?.notes) ||
-                              "No notes recorded"
-                            }
+                            label="Created"
+                            value={safeDate(selectedSupplier?.createdAt)}
                           />
-
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <InfoTile
-                              label="Created"
-                              value={safeDate(selectedSupplier?.createdAt)}
-                            />
-                            <InfoTile
-                              label="Updated"
-                              value={safeDate(selectedSupplier?.updatedAt)}
-                            />
-                          </div>
+                          <InfoTile
+                            label="Updated"
+                            value={safeDate(selectedSupplier?.updatedAt)}
+                          />
                         </div>
+
+                        <InfoTile
+                          label="Notes"
+                          value={
+                            safe(selectedSupplier?.notes) || "No notes recorded"
+                          }
+                        />
                       </div>
 
-                      <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                      <div className="mt-4 grid gap-3">
+                        <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                           Liability context
-                        </p>
+                        </div>
 
-                        <div className="mt-4 grid gap-3">
-                          <div className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-                            <p className="text-xs uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
-                              Total billed (
-                              {normalizeCurrency(
-                                selectedSupplier?.defaultCurrency,
-                              )}
-                              )
-                            </p>
-                            <p className="mt-2 text-2xl font-black text-stone-950 dark:text-stone-50">
-                              {money(
-                                selectedSupplier?.totalBilled,
-                                selectedSupplier?.defaultCurrency,
-                              )}
-                            </p>
-                          </div>
-
-                          <div className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-                            <p className="text-xs uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
-                              Total paid (
-                              {normalizeCurrency(
-                                selectedSupplier?.defaultCurrency,
-                              )}
-                              )
-                            </p>
-                            <p className="mt-2 text-2xl font-black text-stone-950 dark:text-stone-50">
-                              {money(
-                                selectedSupplier?.totalPaid,
-                                selectedSupplier?.defaultCurrency,
-                              )}
-                            </p>
-                          </div>
-
-                          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900/50 dark:bg-rose-950/20">
-                            <p className="text-xs uppercase tracking-[0.14em] text-rose-700 dark:text-rose-300">
-                              Current debt (
-                              {normalizeCurrency(
-                                selectedSupplier?.defaultCurrency,
-                              )}
-                              )
-                            </p>
-                            <p className="mt-2 text-2xl font-black text-rose-900 dark:text-rose-100">
-                              {money(
-                                selectedSupplier?.balanceDue,
-                                selectedSupplier?.defaultCurrency,
-                              )}
-                            </p>
-                          </div>
-
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <InfoTile
-                              label="Open bills"
-                              value={String(
-                                selectedSupplier?.openBillsCount ?? 0,
-                              )}
-                            />
-                            <InfoTile
-                              label="Partially paid"
-                              value={String(
-                                selectedSupplier?.partiallyPaidCount ?? 0,
-                              )}
-                            />
-                          </div>
-
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <InfoTile
-                              label="Paid bills"
-                              value={String(
-                                selectedSupplier?.paidBillsCount ?? 0,
-                              )}
-                            />
-                            <InfoTile
-                              label="Overdue bills"
-                              value={String(
-                                selectedSupplier?.overdueBillsCount ?? 0,
-                              )}
-                            />
-                          </div>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <InfoTile
+                            label={`Total billed (${normalizeCurrency(
+                              selectedSupplier?.defaultCurrency,
+                            )})`}
+                            value={money(
+                              selectedSupplier?.totalBilled,
+                              selectedSupplier?.defaultCurrency,
+                            )}
+                          />
+                          <InfoTile
+                            label={`Total paid (${normalizeCurrency(
+                              selectedSupplier?.defaultCurrency,
+                            )})`}
+                            value={money(
+                              selectedSupplier?.totalPaid,
+                              selectedSupplier?.defaultCurrency,
+                            )}
+                          />
+                          <InfoTile
+                            label="Open bills"
+                            value={String(
+                              selectedSupplier?.openBillsCount ?? 0,
+                            )}
+                          />
+                          <InfoTile
+                            label="Partially paid"
+                            value={String(
+                              selectedSupplier?.partiallyPaidCount ?? 0,
+                            )}
+                          />
+                          <InfoTile
+                            label="Paid bills"
+                            value={String(
+                              selectedSupplier?.paidBillsCount ?? 0,
+                            )}
+                          />
+                          <InfoTile
+                            label="Overdue bills"
+                            value={String(
+                              selectedSupplier?.overdueBillsCount ?? 0,
+                            )}
+                          />
                         </div>
                       </div>
-                    </div>
-                  </>
-                )}
-              </SectionCard>
-            ) : (
-              <SectionCard
-                title="Selected supplier detail"
-                subtitle="This section appears after a supplier is selected."
-              >
-                <EmptyState text="Select a supplier card above to inspect supplier master detail." />
-              </SectionCard>
-            )}
-          </div>
-        </>
-      )}
+                    </>
+                  )}
+                </Surface>
+              ) : (
+                <Surface>
+                  <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                    Selected supplier detail
+                  </div>
+                  <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                    This section appears after a supplier is selected.
+                  </div>
+                  <div className="mt-4">
+                    <EmptyState text="Select a supplier card above to inspect supplier master detail." />
+                  </div>
+                </Surface>
+              )}
+            </div>
+          </>
+        )}
+      </SectionShell>
 
       <SupplierFormModal
         open={creatingSupplier || !!editingSupplier}

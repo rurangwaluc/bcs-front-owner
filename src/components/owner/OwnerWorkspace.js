@@ -20,8 +20,8 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { useMemo, useState } from "react";
 
+import BranchModals from "./BranchModals";
 import OwnerAuditTab from "./tabs/OwnerAuditTab";
 import OwnerBranchesTab from "./tabs/OwnerBranchesTab";
 import OwnerCashTab from "./tabs/OwnerCashTab";
@@ -41,6 +41,13 @@ import OwnerSupplierBillsTab from "./tabs/OwnerSupplierBillsTab";
 import OwnerSupplierEvaluationsTab from "./tabs/OwnerSupplierEvaluationsTab";
 import OwnerSupplierProfilesTab from "./tabs/OwnerSupplierProfilesTab";
 import OwnerSuppliersTab from "./tabs/OwnerSuppliersTab";
+import StaffModals from "./StaffModals";
+import ThemeToggle from "../ThemeToggle";
+import { useMemo } from "react";
+
+function safe(v) {
+  return String(v ?? "").trim();
+}
 
 function sectionTitle(activeTab) {
   switch (activeTab) {
@@ -92,39 +99,39 @@ function sectionSubtitle(activeTab) {
     case "overview":
       return "Business-wide performance, problems, and decisions in one place.";
     case "branches":
-      return "Control branch lifecycle, visibility, and operational status.";
+      return "Branch structure, status, identity, and operational control.";
     case "staff":
-      return "Manage people, access, branch assignment, and accountability.";
+      return "People, permissions, branch assignment, and staff discipline.";
     case "inventory":
-      return "Track stock position, movement, and branch-level inventory truth.";
+      return "Stock truth, movement, and branch-level inventory visibility.";
     case "products":
-      return "Manage catalog structure, selling units, and product readiness.";
+      return "Catalog structure, pricing readiness, and product control.";
     case "sales":
-      return "Inspect sales flow, operational bottlenecks, and daily output.";
+      return "Sales flow, output, and operational execution visibility.";
     case "payments":
-      return "See payment records, collection methods, and settlement behavior.";
+      return "Recorded customer payments, methods, and settlement behavior.";
     case "credits":
-      return "Monitor customer credit exposure, approval, and repayment.";
+      return "Customer credit exposure, control, and repayment visibility.";
     case "suppliers":
-      return "Supplier master records, contact detail, and relationship visibility.";
+      return "Supplier master records, contact detail, and liability context.";
     case "supplier-profiles":
-      return "Payment setup, terms, bank details, MoMo details, and supplier instructions.";
+      return "Supplier payment setup, terms, bank details, and instructions.";
     case "supplier-evaluations":
-      return "Owner scoring, preferred suppliers, watchlist, risk, and performance judgment.";
+      return "Owner evaluation, preferred suppliers, watchlist, and risk.";
     case "supplier-bills":
-      return "Supplier liabilities, due dates, installments, and unpaid balances.";
+      return "Supplier liabilities, due dates, installments, and balances.";
     case "cash":
-      return "Cash sessions, cash movement, and reconciliation visibility.";
+      return "Cash movement, sessions, and reconciliation visibility.";
     case "refunds":
-      return "Track refunds, reasons, approval discipline, and financial impact.";
+      return "Refund discipline, reasons, and financial impact visibility.";
     case "expenses":
-      return "Monitor operating expenses and branch-level cost discipline.";
+      return "Operating expenses and branch-level cost discipline.";
     case "customers":
-      return "See customer records, activity, balances, and business relationships.";
+      return "Customer records, activity, balances, and relationships.";
     case "reports":
-      return "Owner-grade reporting across branches, money, stock, and staff.";
+      return "Owner-grade reporting across branches, stock, money, and staff.";
     case "audit":
-      return "Evidence trail for critical actions, sensitive changes, and control.";
+      return "Evidence trail for critical actions and sensitive changes.";
     case "notes":
       return "Internal notes, follow-ups, and management attention points.";
     default:
@@ -138,7 +145,7 @@ function NavButton({ item, active, onClick }) {
   return (
     <button
       type="button"
-      onClick={() => onClick(item.key)}
+      onClick={() => onClick?.(item.key)}
       className={
         "group flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 " +
         (active
@@ -179,12 +186,49 @@ function NavButton({ item, active, onClick }) {
 }
 
 export default function OwnerWorkspace({
-  ownerName = "",
-  locations = [],
-  defaultTab = "overview",
-}) {
-  const [activeTab, setActiveTab] = useState(defaultTab);
+  me = null,
+  activeTab = "overview",
+  onNavigate,
+  onLogout,
+  onRefresh,
 
+  summary = null,
+  locations = [],
+  users = [],
+  sales = [],
+  audit = [],
+
+  selectedLocationId = null,
+  setSelectedLocationId,
+  selectedUserId = null,
+  setSelectedUserId,
+
+  branchStatusFilter = "ALL",
+  setBranchStatusFilter,
+
+  staffSearch = "",
+  setStaffSearch,
+  staffStatusFilter = "ALL",
+  setStaffStatusFilter,
+  staffLocationFilter = "",
+  setStaffLocationFilter,
+
+  activeLocations = [],
+
+  openCreateBranchModal,
+  openEditBranchModal,
+  openCloseBranchModal,
+  reopenBranch,
+  openArchiveBranchModal,
+
+  openCreateUserModal,
+  openEditUserModal,
+  openDeactivateUserModal,
+  onOpenResetPassword,
+
+  branchModalProps = {},
+  staffModalProps = {},
+}) {
   const navGroups = useMemo(
     () => [
       {
@@ -341,11 +385,54 @@ export default function OwnerWorkspace({
   function renderActiveTab() {
     switch (activeTab) {
       case "overview":
-        return <OwnerOverviewTab ownerName={ownerName} locations={locations} />;
+        return (
+          <OwnerOverviewTab
+            ownerName={safe(me?.name) || safe(me?.email) || "Owner"}
+            locations={locations}
+            summary={summary}
+            users={users}
+            sales={sales}
+            audit={audit}
+          />
+        );
+
       case "branches":
-        return <OwnerBranchesTab locations={locations} />;
+        return (
+          <OwnerBranchesTab
+            locations={locations}
+            selectedLocationId={selectedLocationId}
+            onSelectLocation={setSelectedLocationId}
+            branchStatusFilter={branchStatusFilter}
+            onChangeBranchStatusFilter={setBranchStatusFilter}
+            onOpenCreate={openCreateBranchModal}
+            onOpenEdit={openEditBranchModal}
+            onOpenClose={openCloseBranchModal}
+            onOpenReopen={reopenBranch}
+            onOpenArchive={openArchiveBranchModal}
+          />
+        );
+
       case "staff":
-        return <OwnerStaffTab locations={locations} />;
+        return (
+          <OwnerStaffTab
+            users={users}
+            locations={locations}
+            activeLocations={activeLocations}
+            selectedUserId={selectedUserId}
+            onSelectUser={setSelectedUserId}
+            onOpenCreate={openCreateUserModal}
+            onOpenEdit={openEditUserModal}
+            onOpenDeactivate={openDeactivateUserModal}
+            onOpenResetPassword={onOpenResetPassword}
+            staffSearch={staffSearch}
+            onChangeStaffSearch={setStaffSearch}
+            staffStatusFilter={staffStatusFilter}
+            onChangeStaffStatusFilter={setStaffStatusFilter}
+            staffLocationFilter={staffLocationFilter}
+            onChangeStaffLocationFilter={setStaffLocationFilter}
+          />
+        );
+
       case "inventory":
         return <OwnerInventoryTab locations={locations} />;
       case "products":
@@ -379,103 +466,173 @@ export default function OwnerWorkspace({
       case "notes":
         return <OwnerNotesTab locations={locations} />;
       default:
-        return <OwnerOverviewTab ownerName={ownerName} locations={locations} />;
+        return (
+          <OwnerOverviewTab
+            ownerName={safe(me?.name) || safe(me?.email) || "Owner"}
+            locations={locations}
+            summary={summary}
+            users={users}
+            sales={sales}
+            audit={audit}
+          />
+        );
     }
   }
 
   return (
-    <div className="grid gap-5 xl:h-[calc(100vh-32px)] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-6">
-      <aside className="hidden xl:block xl:min-h-0">
-        <div className="sticky top-4 h-[calc(100vh-48px)] overflow-hidden">
-          <div className="h-full overflow-y-auto pr-2">
-            <div className="space-y-5">
-              {navGroups.map((group) => (
-                <div
-                  key={group.title}
-                  className="rounded-[28px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950"
-                >
-                  <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                    {group.title}
-                  </p>
+    <>
+      <div className="grid gap-5 xl:h-[calc(100vh-32px)] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-6">
+        <aside className="hidden xl:block xl:min-h-0">
+          <div className="sticky top-4 h-[calc(100vh-48px)] overflow-hidden">
+            <div className="h-full overflow-y-auto pr-2">
+              <div className="space-y-5">
+                {navGroups.map((group) => (
+                  <div
+                    key={group.title}
+                    className="rounded-[28px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950"
+                  >
+                    <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                      {group.title}
+                    </p>
 
-                  <div className="mt-3 space-y-2">
-                    {group.items.map((item) => (
-                      <NavButton
-                        key={item.key}
-                        item={item}
-                        active={activeTab === item.key}
-                        onClick={setActiveTab}
-                      />
-                    ))}
+                    <div className="mt-3 space-y-2">
+                      {group.items.map((item) => (
+                        <NavButton
+                          key={item.key}
+                          item={item}
+                          active={activeTab === item.key}
+                          onClick={onNavigate}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section className="min-w-0 space-y-5 xl:min-h-0 xl:overflow-y-auto xl:pr-2">
+          <div className="sticky top-0 z-20 bg-white p-4 pb-5 dark:bg-stone-950">
+            <div className="rounded-[24px] border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900 sm:rounded-[28px] sm:p-5 lg:p-6">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                      Current section
+                    </p>
+                    <h1 className="mt-1 truncate text-xl font-black tracking-tight text-stone-950 dark:text-stone-50 sm:text-2xl">
+                      {activeTabMeta?.label || sectionTitle(activeTab)}
+                    </h1>
+                    <p className="mt-2 max-w-3xl text-sm text-stone-600 dark:text-stone-400">
+                      {sectionSubtitle(activeTab)}
+                    </p>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    {onRefresh ? (
+                      <button
+                        type="button"
+                        onClick={onRefresh}
+                        className="hidden h-10 items-center justify-center rounded-xl border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800 sm:inline-flex"
+                        title="Refresh"
+                      >
+                        Refresh
+                      </button>
+                    ) : null}
+
+                    <ThemeToggle />
+
+                    {onLogout ? (
+                      <button
+                        type="button"
+                        onClick={onLogout}
+                        className="hidden h-10 items-center justify-center rounded-xl bg-stone-900 px-3 text-sm font-semibold text-white transition hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-200 sm:inline-flex"
+                        title="Logout"
+                      >
+                        Logout
+                      </button>
+                    ) : null}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </aside>
 
-      <section className="min-w-0 space-y-5 xl:min-h-0 xl:overflow-y-auto xl:pr-2">
-        <div className="rounded-[24px] border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900 sm:rounded-[28px] sm:p-5 lg:p-6">
-          <div className="flex flex-col gap-4">
-            <div className="xl:hidden">
-              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                Workspace section
-              </label>
+                <div className="xl:hidden">
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                    Workspace section
+                  </label>
 
-              <div className="relative">
-                <select
-                  value={activeTab}
-                  onChange={(e) => setActiveTab(e.target.value)}
-                  className="h-12 w-full appearance-none rounded-2xl border border-stone-300 bg-white pl-4 pr-12 text-sm font-semibold text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-                >
-                  {navGroups.map((group) => (
-                    <optgroup key={group.title} label={group.title}>
-                      {group.items.map((item) => (
-                        <option key={item.key} value={item.key}>
-                          {item.label}
-                        </option>
+                  <div className="relative">
+                    <select
+                      value={activeTab}
+                      onChange={(e) => onNavigate?.(e.target.value)}
+                      className="h-12 w-full appearance-none rounded-2xl border border-stone-300 bg-white pl-4 pr-12 text-sm font-semibold text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
+                    >
+                      {navGroups.map((group) => (
+                        <optgroup key={group.title} label={group.title}>
+                          {group.items.map((item) => (
+                            <option key={item.key} value={item.key}>
+                              {item.label}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
-                    </optgroup>
-                  ))}
-                </select>
+                    </select>
 
-                <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-stone-500 dark:text-stone-400">
-                  <ChevronDown className="h-5 w-5" />
-                </span>
-              </div>
+                    <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-stone-500 dark:text-stone-400">
+                      <ChevronDown className="h-5 w-5" />
+                    </span>
+                  </div>
 
-              <div className="mt-3 flex items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200">
-                  {activeTabMeta?.icon ? (
-                    <activeTabMeta.icon className="h-5 w-5" />
-                  ) : null}
-                </span>
+                  <div className="mt-3 flex items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200">
+                      {activeTabMeta?.icon ? (
+                        <activeTabMeta.icon className="h-5 w-5" />
+                      ) : null}
+                    </span>
 
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-stone-950 dark:text-stone-50">
-                    {activeTabMeta?.label || sectionTitle(activeTab)}
-                  </p>
-                  <p className="truncate text-xs text-stone-500 dark:text-stone-400">
-                    {activeTabMeta?.description || sectionSubtitle(activeTab)}
-                  </p>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-stone-950 dark:text-stone-50">
+                        {activeTabMeta?.label || sectionTitle(activeTab)}
+                      </p>
+                      <p className="truncate text-xs text-stone-500 dark:text-stone-400">
+                        {activeTabMeta?.description ||
+                          sectionSubtitle(activeTab)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2 sm:hidden">
+                    {onRefresh ? (
+                      <button
+                        type="button"
+                        onClick={onRefresh}
+                        className="inline-flex h-10 items-center justify-center rounded-xl border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+                      >
+                        Refresh
+                      </button>
+                    ) : null}
+
+                    {onLogout ? (
+                      <button
+                        type="button"
+                        onClick={onLogout}
+                        className="inline-flex h-10 items-center justify-center rounded-xl bg-stone-900 px-3 text-sm font-semibold text-white transition hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-200"
+                      >
+                        Logout
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </div>
-
-            <div className="hidden xl:block">
-              <h1 className="text-2xl font-black tracking-tight text-stone-950 dark:text-stone-50">
-                {sectionTitle(activeTab)}
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm text-stone-600 dark:text-stone-400">
-                {sectionSubtitle(activeTab)}
-              </p>
-            </div>
           </div>
-        </div>
 
-        {renderActiveTab()}
-      </section>
-    </div>
+          {renderActiveTab()}
+        </section>
+      </div>
+
+      <BranchModals {...branchModalProps} />
+      <StaffModals {...staffModalProps} />
+    </>
   );
 }

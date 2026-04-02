@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 
 const STORAGE_KEY = "bcs-owner-theme";
 
@@ -46,41 +46,53 @@ function MoonIcon() {
   );
 }
 
-export default function ThemeToggle() {
-  const [mounted, setMounted] = useState(false);
-  const [theme, setTheme] = useState("light");
+function getInitialTheme() {
+  if (typeof window === "undefined") return "light";
 
-  useEffect(() => {
-    setMounted(true);
-
-    try {
-      const root = document.documentElement;
-      const current = root.classList.contains("dark") ? "dark" : "light";
-      setTheme(current);
-    } catch {
-      setTheme("light");
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored === "dark" || stored === "light") {
+      return stored;
     }
-  }, []);
+
+    const root = document.documentElement;
+    return root.classList.contains("dark") ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
+export default function ThemeToggle() {
+  const [theme, setTheme] = useState(getInitialTheme);
+
+  const isDark = theme === "dark";
+
+  const label = useMemo(
+    () => (isDark ? "Switch to light mode" : "Switch to dark mode"),
+    [isDark],
+  );
 
   function applyTheme(nextTheme) {
-    const root = document.documentElement;
+    try {
+      const root = document.documentElement;
 
-    if (nextTheme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
+      if (nextTheme === "dark") {
+        root.classList.add("dark");
+      } else {
+        root.classList.remove("dark");
+      }
+
+      window.localStorage.setItem(STORAGE_KEY, nextTheme);
+    } catch {
+      // no-op
     }
 
-    localStorage.setItem(STORAGE_KEY, nextTheme);
     setTheme(nextTheme);
   }
 
   function toggleTheme() {
-    applyTheme(theme === "dark" ? "light" : "dark");
+    applyTheme(isDark ? "light" : "dark");
   }
-
-  const isDark = theme === "dark";
-  const label = isDark ? "Switch to light mode" : "Switch to dark mode";
 
   return (
     <button
@@ -90,7 +102,7 @@ export default function ThemeToggle() {
       title={label}
       className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
     >
-      {mounted ? isDark ? <SunIcon /> : <MoonIcon /> : <MoonIcon />}
+      {isDark ? <SunIcon /> : <MoonIcon />}
     </button>
   );
 }

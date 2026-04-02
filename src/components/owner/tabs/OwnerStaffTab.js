@@ -119,6 +119,55 @@ export default function OwnerStaffTab({
     setDrawerOpen(false);
   }
 
+  function runAfterDrawerCloses(callback) {
+    setDrawerOpen(false);
+
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => {
+        callback?.();
+      }, 180);
+      return;
+    }
+
+    callback?.();
+  }
+
+  function handleOpenEdit(user) {
+    const picked = user || drawerUser || null;
+    if (!picked) return;
+
+    setDrawerUser(picked);
+    onSelectUser?.(picked?.id ?? null);
+
+    runAfterDrawerCloses(() => {
+      onOpenEdit?.(picked);
+    });
+  }
+
+  function handleOpenResetPassword(user) {
+    const picked = user || drawerUser || null;
+    if (!picked) return;
+
+    setDrawerUser(picked);
+    onSelectUser?.(picked?.id ?? null);
+
+    runAfterDrawerCloses(() => {
+      onOpenResetPassword?.(picked);
+    });
+  }
+
+  function handleOpenDeactivate(user) {
+    const picked = user || drawerUser || null;
+    if (!picked) return;
+
+    setDrawerUser(picked);
+    onSelectUser?.(picked?.id ?? null);
+
+    runAfterDrawerCloses(() => {
+      onOpenDeactivate?.(picked);
+    });
+  }
+
   return (
     <>
       <div className="space-y-6">
@@ -297,9 +346,9 @@ export default function OwnerStaffTab({
         open={drawerOpen}
         user={drawerUser}
         onClose={closeDetails}
-        onOpenEdit={onOpenEdit}
-        onOpenResetPassword={onOpenResetPassword}
-        onOpenDeactivate={onOpenDeactivate}
+        onOpenEdit={handleOpenEdit}
+        onOpenResetPassword={handleOpenResetPassword}
+        onOpenDeactivate={handleOpenDeactivate}
       />
     </>
   );

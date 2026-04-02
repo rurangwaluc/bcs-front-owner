@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import ThemeToggle from "./ThemeToggle";
 
@@ -47,10 +47,6 @@ export default function AppShell({
   const mobileNavRef = useRef(null);
 
   useEffect(() => {
-    setMobileNavOpen(false);
-  }, [activeKey]);
-
-  useEffect(() => {
     function handleClickOutside(event) {
       if (!mobileNavRef.current) return;
       if (!mobileNavRef.current.contains(event.target)) {
@@ -73,8 +69,15 @@ export default function AppShell({
     };
   }, []);
 
-  const activeNavItem =
-    navItems.find((n) => String(n.key) === String(activeKey)) || null;
+  const activeNavItem = useMemo(
+    () => navItems.find((n) => String(n.key) === String(activeKey)) || null,
+    [navItems, activeKey],
+  );
+
+  function handleNavigate(nextKey) {
+    onNavigate?.(nextKey);
+    setMobileNavOpen(false);
+  }
 
   return (
     <div className="min-h-screen bg-stone-100 dark:bg-stone-950">
@@ -141,10 +144,7 @@ export default function AppShell({
                           <button
                             key={n.key}
                             type="button"
-                            onClick={() => {
-                              onNavigate?.(n.key);
-                              setMobileNavOpen(false);
-                            }}
+                            onClick={() => handleNavigate(n.key)}
                             className={
                               "flex min-h-[48px] w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm font-medium transition " +
                               (active

@@ -16,13 +16,17 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../lib/api";
 
 const STOCK_FILTERS = [
-  { value: "ALL", label: "All" },
+  { value: "ALL", label: "All stock" },
   { value: "LOW", label: "Low stock" },
   { value: "OUT", label: "Out of stock" },
   { value: "IN_STOCK", label: "In stock" },
 ];
 
 const PAGE_SIZE = 20;
+
+function cx(...classes) {
+  return classes.filter(Boolean).join(" ");
+}
 
 function money(v) {
   return safeNumber(v).toLocaleString();
@@ -31,12 +35,12 @@ function money(v) {
 function qtyTone(qty) {
   const n = safeNumber(qty);
   if (n <= 0) {
-    return "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300";
+    return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300";
   }
   if (n <= 5) {
-    return "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300";
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300";
   }
-  return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300";
+  return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300";
 }
 
 function qtyLabel(qty) {
@@ -48,12 +52,33 @@ function qtyLabel(qty) {
 
 function activeTone(isActive) {
   return isActive
-    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-    : "bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300";
+    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300"
+    : "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
+}
+
+function locationTone(status) {
+  const value = safe(status).toUpperCase();
+
+  if (value === "ACTIVE") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300";
+  }
+
+  if (value === "CLOSED") {
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300";
+  }
+
+  if (value === "ARCHIVED") {
+    return "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
+  }
+
+  return "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
 }
 
 function normalizeInventoryRow(row) {
   if (!row) return null;
+
+  const qtyOnHand = Number(row.qtyOnHand ?? row.qty_on_hand ?? 0);
+  const purchasePrice = Number(row.purchasePrice ?? row.purchase_price ?? 0);
 
   return {
     productId: Number(row.productId ?? row.product_id ?? 0),
@@ -65,7 +90,7 @@ function normalizeInventoryRow(row) {
     sku: row.sku ?? "",
     unit: row.unit ?? "",
     sellingPrice: Number(row.sellingPrice ?? row.selling_price ?? 0),
-    purchasePrice: Number(row.purchasePrice ?? row.purchase_price ?? 0),
+    purchasePrice,
     maxDiscountPercent: Number(
       row.maxDiscountPercent ?? row.max_discount_percent ?? 0,
     ),
@@ -73,8 +98,10 @@ function normalizeInventoryRow(row) {
       row.isActive === undefined || row.isActive === null
         ? row.is_active !== false
         : row.isActive !== false,
-    qtyOnHand: Number(row.qtyOnHand ?? row.qty_on_hand ?? 0),
-    inventoryValue: Number(row.inventoryValue ?? row.inventory_value ?? 0),
+    qtyOnHand,
+    inventoryValue: Number(
+      row.inventoryValue ?? row.inventory_value ?? qtyOnHand * purchasePrice,
+    ),
     updatedAt: row.updatedAt ?? row.updated_at ?? null,
   };
 }
@@ -116,164 +143,237 @@ function normalizeProductInventoryDetail(row) {
   };
 }
 
-function InventoryListRow({ row, active, onSelect }) {
+function Badge({ className = "", children }) {
   return (
-    <button
-      type="button"
-      onClick={() => onSelect?.(row)}
-      className={
-        "hidden w-full grid-cols-[minmax(220px,2fr)_120px_150px_90px_120px_120px_140px_110px] items-center gap-3 border-b border-stone-200 px-4 py-3 text-left transition last:border-b-0 lg:grid " +
-        (active
-          ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-950"
-          : "bg-white hover:bg-stone-50 dark:bg-stone-900 dark:hover:bg-stone-800/70")
-      }
+    <span
+      className={cx(
+        "inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em]",
+        className,
+      )}
     >
-      <div className="min-w-0">
-        <p className="truncate text-[13px] font-semibold leading-5">
-          {safe(row?.name) || "-"}
-        </p>
-        <p
-          className={
-            "mt-1 truncate text-[11px] leading-5 " +
-            (active
-              ? "text-stone-300 dark:text-stone-600"
-              : "text-stone-500 dark:text-stone-400")
-          }
-        >
-          Unit: {safe(row?.unit) || "-"}
-        </p>
-      </div>
-
-      <div className="truncate text-sm font-medium">
-        {safe(row?.sku) || "-"}
-      </div>
-
-      <div className="min-w-0">
-        <p className="truncate text-[13px] font-semibold leading-5">
-          {safe(row?.locationName) || "-"}
-        </p>
-        <p
-          className={
-            "mt-1 truncate text-[11px] leading-5 " +
-            (active
-              ? "text-stone-300 dark:text-stone-600"
-              : "text-stone-500 dark:text-stone-400")
-          }
-        >
-          {safe(row?.locationCode) || "-"}
-        </p>
-      </div>
-
-      <div className="text-sm font-bold">{safeNumber(row?.qtyOnHand)}</div>
-      <div className="text-sm font-semibold">{money(row?.sellingPrice)}</div>
-      <div className="text-sm font-semibold">{money(row?.purchasePrice)}</div>
-      <div className="text-sm font-bold">{money(row?.inventoryValue)}</div>
-
-      <div className="flex flex-wrap gap-2 justify-start">
-        <span
-          className={
-            "rounded-full px-2.5 py-1 text-xs font-semibold " +
-            (active
-              ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
-              : qtyTone(row?.qtyOnHand))
-          }
-        >
-          {qtyLabel(row?.qtyOnHand)}
-        </span>
-        <span
-          className={
-            "rounded-full px-2.5 py-1 text-xs font-semibold " +
-            (active
-              ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
-              : activeTone(row?.isActive !== false))
-          }
-        >
-          {row?.isActive === false ? "Archived" : "Active"}
-        </span>
-      </div>
-    </button>
+      {children}
+    </span>
   );
 }
 
-function InventoryMobileRow({ row, active, onSelect }) {
+function FilterShell({ children }) {
+  return (
+    <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+      {children}
+    </div>
+  );
+}
+
+function MetricTile({ label, value, sub, tone = "default" }) {
+  return (
+    <div
+      className={cx(
+        "rounded-[22px] border p-4",
+        tone === "danger"
+          ? "border-rose-200 bg-rose-50 dark:border-rose-900/40 dark:bg-rose-950/20"
+          : "border-stone-200 bg-stone-50 dark:border-stone-800 dark:bg-stone-950",
+      )}
+    >
+      <div
+        className={cx(
+          "text-[11px] font-black uppercase tracking-[0.12em]",
+          tone === "danger"
+            ? "text-rose-700 dark:text-rose-300"
+            : "text-stone-500 dark:text-stone-400",
+        )}
+      >
+        {label}
+      </div>
+      <div
+        className={cx(
+          "mt-2 text-lg font-black",
+          tone === "danger"
+            ? "text-rose-700 dark:text-rose-300"
+            : "text-stone-950 dark:text-stone-50",
+        )}
+      >
+        {value}
+      </div>
+      {sub ? (
+        <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+          {sub}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function InfoTile({ label, value }) {
+  return (
+    <div className="rounded-[20px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+      <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+        {label}
+      </div>
+      <div className="mt-2 break-words text-sm font-semibold text-stone-950 dark:text-stone-50">
+        {value || "-"}
+      </div>
+    </div>
+  );
+}
+
+function InventoryCard({ row, active, onSelect }) {
   return (
     <button
       type="button"
       onClick={() => onSelect?.(row)}
-      className={
-        "w-full rounded-2xl border p-4 text-left transition lg:hidden " +
-        (active
-          ? "border-stone-900 bg-stone-900 text-white dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950"
-          : "border-stone-200 bg-white hover:border-stone-300 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700")
-      }
+      className={cx(
+        "w-full rounded-[26px] border p-4 text-left transition-all duration-200",
+        active
+          ? "border-stone-900 bg-stone-900 text-white shadow-lg dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950"
+          : "border-stone-200 bg-white hover:-translate-y-0.5 hover:border-stone-300 hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700 dark:hover:bg-stone-950",
+      )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-[13px] font-semibold leading-5">
-            {safe(row?.name) || "-"}
-          </p>
-          <p
-            className={
-              "mt-1 truncate text-[11px] leading-5 " +
-              (active
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="truncate text-sm font-black sm:text-base">
+              {safe(row?.name) || "-"}
+            </div>
+
+            <Badge
+              className={
+                active
+                  ? "border-white/10 bg-white/10 text-white dark:border-stone-900/10 dark:bg-stone-900/10 dark:text-stone-950"
+                  : qtyTone(row?.qtyOnHand)
+              }
+            >
+              {qtyLabel(row?.qtyOnHand)}
+            </Badge>
+
+            <Badge
+              className={
+                active
+                  ? "border-white/10 bg-white/10 text-white dark:border-stone-900/10 dark:bg-stone-900/10 dark:text-stone-950"
+                  : activeTone(row?.isActive !== false)
+              }
+            >
+              {row?.isActive === false ? "Archived" : "Active"}
+            </Badge>
+
+            <Badge
+              className={
+                active
+                  ? "border-white/10 bg-white/10 text-white dark:border-stone-900/10 dark:bg-stone-900/10 dark:text-stone-950"
+                  : locationTone(row?.locationStatus)
+              }
+            >
+              {safe(row?.locationStatus) || "Branch"}
+            </Badge>
+          </div>
+
+          <div
+            className={cx(
+              "mt-2 text-xs",
+              active
                 ? "text-stone-300 dark:text-stone-600"
-                : "text-stone-500 dark:text-stone-400")
-            }
+                : "text-stone-500 dark:text-stone-400",
+            )}
           >
-            SKU: {safe(row?.sku) || "-"}
-          </p>
-          <p
-            className={
-              "mt-1 truncate text-[11px] leading-5 " +
-              (active
+            SKU:{" "}
+            <b
+              className={
+                active
+                  ? "text-white dark:text-stone-950"
+                  : "text-stone-900 dark:text-stone-100"
+              }
+            >
+              {safe(row?.sku) || "-"}
+            </b>
+            {" • "}
+            Unit:{" "}
+            <b
+              className={
+                active
+                  ? "text-white dark:text-stone-950"
+                  : "text-stone-900 dark:text-stone-100"
+              }
+            >
+              {safe(row?.unit) || "-"}
+            </b>
+          </div>
+
+          <div
+            className={cx(
+              "mt-1 text-xs",
+              active
                 ? "text-stone-300 dark:text-stone-600"
-                : "text-stone-500 dark:text-stone-400")
-            }
+                : "text-stone-500 dark:text-stone-400",
+            )}
           >
-            {safe(row?.locationName) || "-"}
-            {safe(row?.locationCode) ? ` (${safe(row.locationCode)})` : ""}
-          </p>
+            Branch:{" "}
+            <b
+              className={
+                active
+                  ? "text-white dark:text-stone-950"
+                  : "text-stone-900 dark:text-stone-100"
+              }
+            >
+              {safe(row?.locationName) || "-"}
+              {safe(row?.locationCode) ? ` (${safe(row.locationCode)})` : ""}
+            </b>
+          </div>
         </div>
 
-        <span
-          className={
-            "rounded-full px-2.5 py-1 text-xs font-semibold " +
-            (active
-              ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
-              : qtyTone(row?.qtyOnHand))
-          }
+        <div
+          className={cx(
+            "rounded-[22px] border px-4 py-3 xl:min-w-[220px]",
+            active
+              ? "border-white/10 bg-white/5 dark:border-stone-900/10 dark:bg-stone-900/5"
+              : "border-stone-200 bg-stone-50 dark:border-stone-800 dark:bg-stone-950",
+          )}
         >
-          {safeNumber(row?.qtyOnHand)}
-        </span>
+          <div
+            className={cx(
+              "text-[11px] font-black uppercase tracking-[0.12em]",
+              active
+                ? "text-stone-300 dark:text-stone-600"
+                : "text-stone-500 dark:text-stone-400",
+            )}
+          >
+            Inventory value
+          </div>
+          <div className="mt-2 text-xl font-black">
+            {money(row?.inventoryValue)}
+          </div>
+          <div
+            className={cx(
+              "mt-1 text-xs",
+              active
+                ? "text-stone-300 dark:text-stone-600"
+                : "text-stone-500 dark:text-stone-400",
+            )}
+          >
+            Cost-based owner view
+          </div>
+        </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <div className="rounded-xl border border-stone-200 bg-stone-50 p-2 dark:border-stone-800 dark:bg-stone-950">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Sell
-          </p>
-          <p className="mt-1 text-sm font-bold">{money(row?.sellingPrice)}</p>
-        </div>
-        <div className="rounded-xl border border-stone-200 bg-stone-50 p-2 dark:border-stone-800 dark:bg-stone-950">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Buy
-          </p>
-          <p className="mt-1 text-sm font-bold">{money(row?.purchasePrice)}</p>
-        </div>
-        <div className="rounded-xl border border-stone-200 bg-stone-50 p-2 dark:border-stone-800 dark:bg-stone-950">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Value
-          </p>
-          <p className="mt-1 text-sm font-bold">{money(row?.inventoryValue)}</p>
-        </div>
-        <div className="rounded-xl border border-stone-200 bg-stone-50 p-2 dark:border-stone-800 dark:bg-stone-950">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Status
-          </p>
-          <p className="mt-1 text-sm font-bold">
-            {row?.isActive === false ? "Archived" : "Active"}
-          </p>
-        </div>
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <MetricTile
+          label="Qty on hand"
+          value={safeNumber(row?.qtyOnHand)}
+          sub="Current branch stock"
+        />
+        <MetricTile
+          label="Selling price"
+          value={money(row?.sellingPrice)}
+          sub="Per unit"
+        />
+        <MetricTile
+          label="Purchase price"
+          value={money(row?.purchasePrice)}
+          sub="Per unit"
+        />
+        <MetricTile
+          label="Max discount %"
+          value={safeNumber(row?.maxDiscountPercent)}
+          sub="Allowed ceiling"
+        />
       </div>
     </button>
   );
@@ -281,54 +381,55 @@ function InventoryMobileRow({ row, active, onSelect }) {
 
 function BranchBreakdownCard({ branch }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
-      <div className="flex items-start justify-between gap-3">
+    <div className="rounded-[22px] border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
-            {safe(branch?.locationName) || "-"}
-          </p>
-          <p className="mt-1 text-[11px] leading-5 text-stone-500 dark:text-stone-400">
-            {safe(branch?.locationCode) || "-"} ·{" "}
-            {safe(branch?.locationStatus) || "-"}
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-bold text-stone-950 dark:text-stone-50">
+              {safe(branch?.locationName) || "-"}
+            </p>
+
+            <Badge className={qtyTone(branch?.qtyOnHand)}>
+              {qtyLabel(branch?.qtyOnHand)}
+            </Badge>
+
+            <Badge className={locationTone(branch?.locationStatus)}>
+              {safe(branch?.locationStatus) || "Branch"}
+            </Badge>
+          </div>
+
+          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+            {safe(branch?.locationCode) || "-"}
           </p>
         </div>
 
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold ${qtyTone(
-            branch?.qtyOnHand,
-          )}`}
-        >
-          {qtyLabel(branch?.qtyOnHand)}
-        </span>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
-          <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
-            Qty
+        <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-stone-800 dark:bg-stone-950">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
+            Last updated
           </p>
-          <p className="mt-2 text-base font-bold text-stone-950 dark:text-stone-50">
-            {safeNumber(branch?.qtyOnHand)}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
-          <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
-            Value
-          </p>
-          <p className="mt-2 text-base font-bold text-stone-950 dark:text-stone-50">
-            {money(branch?.inventoryValue)}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900 col-span-2 lg:col-span-1">
-          <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
-            Updated
-          </p>
-          <p className="mt-2 text-sm font-semibold text-stone-900 dark:text-stone-100">
+          <p className="mt-1 text-sm font-semibold text-stone-950 dark:text-stone-50">
             {safeDate(branch?.updatedAt)}
           </p>
         </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <InfoTile
+          label="Qty on hand"
+          value={String(safeNumber(branch?.qtyOnHand))}
+        />
+        <InfoTile
+          label="Selling price"
+          value={`${money(branch?.sellingPrice)} RWF`}
+        />
+        <InfoTile
+          label="Purchase price"
+          value={`${money(branch?.purchasePrice)} RWF`}
+        />
+        <InfoTile
+          label="Inventory value"
+          value={`${money(branch?.inventoryValue)} RWF`}
+        />
       </div>
     </div>
   );
@@ -336,10 +437,10 @@ function BranchBreakdownCard({ branch }) {
 
 function BranchValueRow({ row }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="rounded-[24px] border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+          <p className="text-sm font-bold text-stone-950 dark:text-stone-50">
             {safe(row?.locationName) || "-"}
           </p>
           <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
@@ -348,49 +449,39 @@ function BranchValueRow({ row }) {
           </p>
         </div>
 
-        <div className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-right dark:border-stone-800 dark:bg-stone-900">
-          <p className="text-[11px] uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
+        <div className="rounded-[20px] border border-stone-200 bg-stone-50 px-4 py-3 dark:border-stone-800 dark:bg-stone-950">
+          <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Inventory value
-          </p>
-          <p className="mt-1 text-base font-black text-stone-950 dark:text-stone-50">
+          </div>
+          <div className="mt-2 text-lg font-black text-stone-950 dark:text-stone-50">
             {money(row?.inventoryValue)} RWF
-          </p>
+          </div>
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
-          <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
-            Products
-          </p>
-          <p className="mt-2 text-base font-bold text-stone-950 dark:text-stone-50">
-            {safeNumber(row?.productsCount)}
-          </p>
-        </div>
-        <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
-          <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
-            Qty on hand
-          </p>
-          <p className="mt-2 text-base font-bold text-stone-950 dark:text-stone-50">
-            {safeNumber(row?.totalQtyOnHand)}
-          </p>
-        </div>
-        <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
-          <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
-            Low stock
-          </p>
-          <p className="mt-2 text-base font-bold text-stone-950 dark:text-stone-50">
-            {safeNumber(row?.lowStockCount)}
-          </p>
-        </div>
-        <div className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
-          <p className="text-xs uppercase tracking-[0.15em] text-stone-500 dark:text-stone-400">
-            Out of stock
-          </p>
-          <p className="mt-2 text-base font-bold text-stone-950 dark:text-stone-50">
-            {safeNumber(row?.outOfStockCount)}
-          </p>
-        </div>
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <MetricTile
+          label="Products"
+          value={safeNumber(row?.productsCount)}
+          sub="Visible records"
+        />
+        <MetricTile
+          label="Qty on hand"
+          value={safeNumber(row?.totalQtyOnHand)}
+          sub="Branch stock"
+        />
+        <MetricTile
+          label="Low stock"
+          value={safeNumber(row?.lowStockCount)}
+          sub="Needs attention"
+          tone={safeNumber(row?.lowStockCount) > 0 ? "danger" : "default"}
+        />
+        <MetricTile
+          label="Out of stock"
+          value={safeNumber(row?.outOfStockCount)}
+          sub="Immediate issue"
+          tone={safeNumber(row?.outOfStockCount) > 0 ? "danger" : "default"}
+        />
       </div>
     </div>
   );
@@ -402,15 +493,23 @@ export default function OwnerInventoryTab({ locations = [] }) {
 
   const [summary, setSummary] = useState(null);
   const [inventoryRows, setInventoryRows] = useState([]);
+  const [inventoryMeta, setInventoryMeta] = useState({
+    total: 0,
+    limit: PAGE_SIZE,
+    offset: 0,
+    hasMore: false,
+  });
+
   const [selectedRowKey, setSelectedRowKey] = useState(null);
   const [selectedProductDetail, setSelectedProductDetail] = useState(null);
   const [productDetailLoading, setProductDetailLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [stockStatus, setStockStatus] = useState("ALL");
   const [includeArchived, setIncludeArchived] = useState(false);
   const [locationId, setLocationId] = useState("");
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const locationOptions = useMemo(() => {
     return Array.isArray(locations)
@@ -420,11 +519,18 @@ export default function OwnerInventoryTab({ locations = [] }) {
       : [];
   }, [locations]);
 
-  async function loadInventory() {
-    setLoading(true);
-    setErrorText("");
+  async function loadInventory({ append = false, offsetOverride = 0 } = {}) {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setErrorText("");
+    }
 
     const inventoryParams = new URLSearchParams();
+    inventoryParams.set("limit", String(PAGE_SIZE));
+    inventoryParams.set("offset", String(offsetOverride));
+
     if (locationId) inventoryParams.set("locationId", locationId);
     if (search.trim()) inventoryParams.set("search", search.trim());
     if (stockStatus && stockStatus !== "ALL") {
@@ -435,83 +541,108 @@ export default function OwnerInventoryTab({ locations = [] }) {
     const summaryParams = new URLSearchParams();
     if (includeArchived) summaryParams.set("includeInactive", "1");
 
-    const inventoryUrl = `/owner/inventory${
-      inventoryParams.toString() ? `?${inventoryParams.toString()}` : ""
-    }`;
+    const inventoryUrl = `/owner/inventory?${inventoryParams.toString()}`;
     const summaryUrl = `/owner/inventory/summary${
       summaryParams.toString() ? `?${summaryParams.toString()}` : ""
     }`;
 
-    const [summaryRes, inventoryRes] = await Promise.allSettled([
-      apiFetch(summaryUrl, { method: "GET" }),
-      apiFetch(inventoryUrl, { method: "GET" }),
-    ]);
+    const requests = append
+      ? [
+          Promise.resolve({ status: "skipped" }),
+          apiFetch(inventoryUrl, { method: "GET" }),
+        ]
+      : [
+          apiFetch(summaryUrl, { method: "GET" }),
+          apiFetch(inventoryUrl, { method: "GET" }),
+        ];
+
+    const [summaryRaw, inventoryRaw] = await Promise.allSettled(requests);
 
     let firstError = "";
 
-    if (summaryRes.status === "fulfilled") {
-      setSummary(summaryRes.value?.summary || null);
-    } else {
-      setSummary(null);
-      firstError =
-        firstError ||
-        summaryRes.reason?.data?.error ||
-        summaryRes.reason?.message ||
-        "Failed to load inventory summary";
+    if (!append) {
+      if (summaryRaw.status === "fulfilled") {
+        setSummary(summaryRaw.value?.summary || null);
+      } else if (summaryRaw.status !== "skipped") {
+        setSummary(null);
+        firstError =
+          firstError ||
+          summaryRaw.reason?.data?.error ||
+          summaryRaw.reason?.message ||
+          "Failed to load inventory summary";
+      }
     }
 
-    if (inventoryRes.status === "fulfilled") {
-      const rows = Array.isArray(inventoryRes.value?.inventory)
-        ? inventoryRes.value.inventory
+    if (inventoryRaw.status === "fulfilled") {
+      const rows = Array.isArray(inventoryRaw.value?.inventory)
+        ? inventoryRaw.value.inventory
             .map(normalizeInventoryRow)
             .filter(Boolean)
         : [];
 
-      setInventoryRows(rows);
-      setSelectedRowKey((prev) =>
-        prev && rows.some((x) => `${x.productId}-${x.locationId}` === prev)
-          ? prev
-          : rows[0]
-            ? `${rows[0].productId}-${rows[0].locationId}`
-            : null,
-      );
+      const meta = inventoryRaw.value?.meta || {
+        total: rows.length,
+        limit: PAGE_SIZE,
+        offset: offsetOverride,
+        hasMore: false,
+      };
+
+      setInventoryRows((prev) => (append ? [...prev, ...rows] : rows));
+      setInventoryMeta({
+        total: Number(meta.total ?? 0),
+        limit: Number(meta.limit ?? PAGE_SIZE),
+        offset: Number(meta.offset ?? offsetOverride),
+        hasMore: !!meta.hasMore,
+      });
+
+      if (!append) {
+        setSelectedRowKey((prev) =>
+          prev && rows.some((x) => `${x.productId}-${x.locationId}` === prev)
+            ? prev
+            : rows[0]
+              ? `${rows[0].productId}-${rows[0].locationId}`
+              : null,
+        );
+      }
     } else {
-      setInventoryRows([]);
+      if (!append) {
+        setInventoryRows([]);
+        setInventoryMeta({
+          total: 0,
+          limit: PAGE_SIZE,
+          offset: 0,
+          hasMore: false,
+        });
+      }
+
       firstError =
         firstError ||
-        inventoryRes.reason?.data?.error ||
-        inventoryRes.reason?.message ||
+        inventoryRaw.reason?.data?.error ||
+        inventoryRaw.reason?.message ||
         "Failed to load owner inventory";
     }
 
-    setErrorText(firstError);
-    setLoading(false);
+    if (!append) {
+      setErrorText(firstError);
+      setLoading(false);
+    } else {
+      if (firstError) setErrorText(firstError);
+      setLoadingMore(false);
+    }
   }
 
   useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [locationId, stockStatus, includeArchived, search]);
-
-  useEffect(() => {
-    loadInventory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationId, stockStatus, includeArchived]);
-
-  useEffect(() => {
     const timeout = setTimeout(() => {
-      loadInventory();
+      setSearch(searchInput);
     }, 300);
 
     return () => clearTimeout(timeout);
+  }, [searchInput]);
+
+  useEffect(() => {
+    loadInventory({ append: false, offsetOverride: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
-
-  const visibleRows = useMemo(
-    () => inventoryRows.slice(0, visibleCount),
-    [inventoryRows, visibleCount],
-  );
-
-  const hasMoreRows = visibleCount < inventoryRows.length;
+  }, [locationId, stockStatus, includeArchived, search]);
 
   const selectedRow =
     selectedRowKey == null
@@ -560,6 +691,14 @@ export default function OwnerInventoryTab({ locations = [] }) {
     ? summary.byLocation
     : [];
 
+  async function handleLoadMore() {
+    if (loadingMore || !inventoryMeta.hasMore) return;
+    await loadInventory({
+      append: true,
+      offsetOverride: inventoryRows.length,
+    });
+  }
+
   return (
     <div className="space-y-6">
       <AlertBox message={errorText} />
@@ -584,7 +723,7 @@ export default function OwnerInventoryTab({ locations = [] }) {
             title="Cross-branch inventory summary"
             subtitle="Owner-wide inventory visibility across all branches."
           >
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
               <StatCard
                 label="Branches"
                 value={safeNumber(summaryTotals.branchesCount)}
@@ -646,114 +785,119 @@ export default function OwnerInventoryTab({ locations = [] }) {
             title="Inventory directory"
             subtitle="Search, filter, and inspect inventory across branches."
           >
-            <div className="grid gap-3 lg:grid-cols-4">
-              <FormInput
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search product, SKU, unit, branch, code"
-              />
-
-              <FormSelect
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-              >
-                <option value="">All branches</option>
-                {locationOptions.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {safe(row.name)}{" "}
-                    {safe(row.code) ? `(${safe(row.code)})` : ""}
-                  </option>
-                ))}
-              </FormSelect>
-
-              <FormSelect
-                value={stockStatus}
-                onChange={(e) => setStockStatus(e.target.value)}
-              >
-                {STOCK_FILTERS.map((row) => (
-                  <option key={row.value} value={row.value}>
-                    {row.label}
-                  </option>
-                ))}
-              </FormSelect>
-
-              <label className="inline-flex h-12 items-center gap-2 rounded-2xl border border-stone-300 bg-white px-4 text-sm text-stone-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200">
-                <input
-                  type="checkbox"
-                  checked={includeArchived}
-                  onChange={(e) => setIncludeArchived(e.target.checked)}
-                />
-                <span>Include archived</span>
-              </label>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between gap-3 text-sm text-stone-600 dark:text-stone-300">
-              <p>
-                Showing {Math.min(visibleRows.length, inventoryRows.length)} of{" "}
-                {inventoryRows.length}
-              </p>
-            </div>
-
-            <div className="mt-5 overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-800">
-              <div className="hidden grid-cols-[minmax(220px,2fr)_120px_150px_90px_120px_120px_140px_110px] gap-3 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:bg-stone-950 dark:text-stone-400 lg:grid">
-                <div>Product</div>
-                <div>SKU</div>
-                <div>Branch</div>
-                <div>Qty</div>
-                <div>Selling</div>
-                <div>Purchase</div>
-                <div>Value</div>
-                <div>Status</div>
-              </div>
-
-              {inventoryRows.length === 0 ? (
-                <div className="p-4">
-                  <EmptyState text="No inventory rows match the current owner filters." />
+            <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+              <FilterShell>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Inventory filters
                 </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-2">
+                  <FormInput
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="Search product, SKU, unit, branch, code"
+                  />
+
+                  <FormSelect
+                    value={locationId}
+                    onChange={(e) => setLocationId(e.target.value)}
+                  >
+                    <option value="">All branches</option>
+                    {locationOptions.map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {safe(row.name)}{" "}
+                        {safe(row.code) ? `(${safe(row.code)})` : ""}
+                      </option>
+                    ))}
+                  </FormSelect>
+
+                  <FormSelect
+                    value={stockStatus}
+                    onChange={(e) => setStockStatus(e.target.value)}
+                  >
+                    {STOCK_FILTERS.map((row) => (
+                      <option key={row.value} value={row.value}>
+                        {row.label}
+                      </option>
+                    ))}
+                  </FormSelect>
+
+                  <label className="inline-flex min-h-[48px] items-center gap-3 rounded-2xl border border-stone-300 bg-white px-4 text-sm text-stone-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200">
+                    <input
+                      type="checkbox"
+                      checked={includeArchived}
+                      onChange={(e) => setIncludeArchived(e.target.checked)}
+                    />
+                    <span>Include archived products</span>
+                  </label>
+                </div>
+              </FilterShell>
+
+              <FilterShell>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Inventory status
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <MetricTile
+                    label="Total matched"
+                    value={safeNumber(inventoryMeta.total)}
+                    sub="Server-side filtered"
+                  />
+                  <MetricTile
+                    label="Loaded now"
+                    value={safeNumber(inventoryRows.length)}
+                    sub="Currently rendered"
+                  />
+                  <MetricTile
+                    label="Selected branch"
+                    value={locationId ? "Filtered" : "All"}
+                    sub={locationId ? "One branch only" : "Cross-branch"}
+                  />
+                  <MetricTile
+                    label="Stock mode"
+                    value={
+                      STOCK_FILTERS.find((x) => x.value === stockStatus)
+                        ?.label || "All stock"
+                    }
+                    sub="Current stock lens"
+                  />
+                </div>
+              </FilterShell>
+            </div>
+
+            <div className="mt-5">
+              {inventoryRows.length === 0 ? (
+                <EmptyState text="No inventory rows match the current owner filters." />
               ) : (
-                <div>
-                  {visibleRows.map((row) => (
-                    <div key={`${row.productId}-${row.locationId}`}>
-                      <InventoryListRow
-                        row={row}
-                        active={
-                          `${row.productId}-${row.locationId}` ===
-                          selectedRowKey
-                        }
-                        onSelect={(picked) =>
-                          setSelectedRowKey(
-                            `${picked?.productId}-${picked?.locationId}`,
-                          )
-                        }
-                      />
-                      <div className="p-3 lg:hidden">
-                        <InventoryMobileRow
-                          row={row}
-                          active={
-                            `${row.productId}-${row.locationId}` ===
-                            selectedRowKey
-                          }
-                          onSelect={(picked) =>
-                            setSelectedRowKey(
-                              `${picked?.productId}-${picked?.locationId}`,
-                            )
-                          }
-                        />
-                      </div>
-                    </div>
+                <div className="grid gap-4">
+                  {inventoryRows.map((row) => (
+                    <InventoryCard
+                      key={`${row.productId}-${row.locationId}`}
+                      row={row}
+                      active={
+                        `${row.productId}-${row.locationId}` === selectedRowKey
+                      }
+                      onSelect={(picked) =>
+                        setSelectedRowKey(
+                          `${picked?.productId}-${picked?.locationId}`,
+                        )
+                      }
+                    />
                   ))}
                 </div>
               )}
             </div>
 
-            {hasMoreRows ? (
-              <div className="mt-4 flex justify-center">
+            {inventoryMeta.hasMore ? (
+              <div className="mt-5 flex justify-center">
                 <button
                   type="button"
-                  onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
-                  className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
                 >
-                  Load 20 more
+                  {loadingMore ? "Loading..." : "Load 20 more"}
                 </button>
               </div>
             ) : null}
@@ -765,25 +909,20 @@ export default function OwnerInventoryTab({ locations = [] }) {
               subtitle="Selected row detail plus cross-branch product visibility."
               right={
                 <div className="flex flex-wrap gap-2">
-                  <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${qtyTone(
-                      selectedRow.qtyOnHand,
-                    )}`}
-                  >
+                  <Badge className={qtyTone(selectedRow.qtyOnHand)}>
                     {qtyLabel(selectedRow.qtyOnHand)}
-                  </span>
-                  <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${activeTone(
-                      selectedRow.isActive !== false,
-                    )}`}
-                  >
+                  </Badge>
+                  <Badge className={activeTone(selectedRow.isActive !== false)}>
                     {selectedRow.isActive === false ? "Archived" : "Active"}
-                  </span>
+                  </Badge>
+                  <Badge className={locationTone(selectedRow.locationStatus)}>
+                    {safe(selectedRow.locationStatus) || "Branch"}
+                  </Badge>
                 </div>
               }
             >
               <div className="space-y-5">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
                   <StatCard
                     label="Product"
                     value={safe(selectedRow.name) || "-"}
@@ -818,109 +957,93 @@ export default function OwnerInventoryTab({ locations = [] }) {
                   />
                 </div>
 
-                <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+                <div className="grid gap-4 xl:grid-cols-2">
                   <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
                       Selected branch detail
-                    </p>
+                    </div>
 
-                    <div className="mt-4 space-y-3 text-sm">
-                      <div className="flex justify-between gap-4">
-                        <span className="text-stone-500 dark:text-stone-400">
-                          Branch
-                        </span>
-                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
-                          {safe(selectedRow.locationName) || "-"}{" "}
-                          {safe(selectedRow.locationCode)
-                            ? `(${safe(selectedRow.locationCode)})`
-                            : ""}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between gap-4">
-                        <span className="text-stone-500 dark:text-stone-400">
-                          Branch status
-                        </span>
-                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
-                          {safe(selectedRow.locationStatus) || "-"}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between gap-4">
-                        <span className="text-stone-500 dark:text-stone-400">
-                          Product status
-                        </span>
-                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
-                          {selectedRow.isActive === false
-                            ? "Archived"
-                            : "Active"}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between gap-4">
-                        <span className="text-stone-500 dark:text-stone-400">
-                          Qty on hand
-                        </span>
-                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
-                          {safeNumber(selectedRow.qtyOnHand)}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between gap-4">
-                        <span className="text-stone-500 dark:text-stone-400">
-                          Unit
-                        </span>
-                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
-                          {safe(selectedRow.unit) || "-"}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between gap-4">
-                        <span className="text-stone-500 dark:text-stone-400">
-                          Max discount %
-                        </span>
-                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
-                          {safeNumber(selectedRow.maxDiscountPercent)}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between gap-4">
-                        <span className="text-stone-500 dark:text-stone-400">
-                          Inventory value
-                        </span>
-                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
-                          {money(selectedRow.inventoryValue)} RWF
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between gap-4">
-                        <span className="text-stone-500 dark:text-stone-400">
-                          Updated
-                        </span>
-                        <span className="text-right text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
-                          {safeDate(selectedRow.updatedAt)}
-                        </span>
-                      </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <InfoTile
+                        label="Branch"
+                        value={`${safe(selectedRow.locationName) || "-"}${
+                          safe(selectedRow.locationCode)
+                            ? ` (${safe(selectedRow.locationCode)})`
+                            : ""
+                        }`}
+                      />
+                      <InfoTile
+                        label="Branch status"
+                        value={safe(selectedRow.locationStatus) || "-"}
+                      />
+                      <InfoTile
+                        label="Product status"
+                        value={
+                          selectedRow.isActive === false ? "Archived" : "Active"
+                        }
+                      />
+                      <InfoTile
+                        label="Qty on hand"
+                        value={String(safeNumber(selectedRow.qtyOnHand))}
+                      />
+                      <InfoTile
+                        label="Unit"
+                        value={safe(selectedRow.unit) || "-"}
+                      />
+                      <InfoTile
+                        label="Max discount %"
+                        value={String(
+                          safeNumber(selectedRow.maxDiscountPercent),
+                        )}
+                      />
+                      <InfoTile
+                        label="Inventory value"
+                        value={`${money(selectedRow.inventoryValue)} RWF`}
+                      />
+                      <InfoTile
+                        label="Updated"
+                        value={safeDate(selectedRow.updatedAt)}
+                      />
                     </div>
                   </div>
 
                   <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
                       Owner guidance
-                    </p>
+                    </div>
 
                     <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-4 text-sm leading-6 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
                       Inventory value is calculated from quantity on hand
-                      multiplied by product purchase price. This gives an owner
-                      capital view, not a projected sales revenue view.
+                      multiplied by purchase price. This is an owner capital
+                      view, not projected sales revenue. Use this section to see
+                      where capital is tied up, where shortages are forming, and
+                      which branches need rebalancing.
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <MetricTile
+                        label="Stock health"
+                        value={qtyLabel(selectedRow.qtyOnHand)}
+                        sub="Based on selected row qty"
+                        tone={
+                          safeNumber(selectedRow.qtyOnHand) <= 5
+                            ? "danger"
+                            : "default"
+                        }
+                      />
+                      <MetricTile
+                        label="Branch view"
+                        value={safe(selectedRow.locationName) || "-"}
+                        sub="Current selected branch"
+                      />
                     </div>
                   </div>
                 </div>
 
                 <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
                     Cross-branch product view
-                  </p>
+                  </div>
 
                   {productDetailLoading ? (
                     <div className="mt-4 space-y-3">
@@ -936,15 +1059,15 @@ export default function OwnerInventoryTab({ locations = [] }) {
                       <EmptyState text="No cross-branch product detail available." />
                     </div>
                   ) : (
-                    <div className="mt-4 space-y-3">
-                      <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                        <p className="text-[13px] font-semibold leading-5 text-stone-900 dark:text-stone-100">
+                    <div className="mt-4 space-y-4">
+                      <div className="rounded-[22px] border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+                        <div className="text-sm font-bold text-stone-950 dark:text-stone-50">
                           {safe(selectedProductDetail.name) || "-"}
-                        </p>
-                        <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">
+                        </div>
+                        <div className="mt-1 text-sm text-stone-600 dark:text-stone-300">
                           SKU: {safe(selectedProductDetail.sku) || "-"} · Unit:{" "}
                           {safe(selectedProductDetail.unit) || "-"}
-                        </p>
+                        </div>
                       </div>
 
                       <div className="grid gap-3">

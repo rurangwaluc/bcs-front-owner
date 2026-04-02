@@ -8,6 +8,11 @@ import { resolveAssetUrl } from "../../../lib/apiUpload";
 
 const BRANCH_STATUS_FILTERS = ["ALL", "ACTIVE", "CLOSED", "ARCHIVED"];
 
+function normalizeStatusFilter(value) {
+  const v = safe(value).toUpperCase();
+  return BRANCH_STATUS_FILTERS.includes(v) ? v : "ALL";
+}
+
 function branchStatusTone(status) {
   const value = safe(status).toUpperCase();
 
@@ -46,6 +51,34 @@ function normalizeBankAccounts(value) {
     .filter(Boolean);
 }
 
+function normalizeLocation(row) {
+  if (!row) return null;
+
+  return {
+    ...row,
+    id: row.id ?? null,
+    name: safe(row.name),
+    code: safe(row.code),
+    phone: safe(row.phone),
+    email: safe(row.email),
+    website: safe(row.website),
+    tin: safe(row.tin),
+    momoCode: safe(row.momoCode ?? row.momo_code),
+    address: safe(row.address),
+    logoUrl: safe(row.logoUrl ?? row.logo_url),
+    status: safe(row.status).toUpperCase() || "ACTIVE",
+    bankAccounts: Array.isArray(row.bankAccounts)
+      ? row.bankAccounts
+      : Array.isArray(row.bank_accounts)
+        ? row.bank_accounts
+        : [],
+    usersCount: Number(row.usersCount ?? row.users_count ?? 0),
+    productsCount: Number(row.productsCount ?? row.products_count ?? 0),
+    salesCount: Number(row.salesCount ?? row.sales_count ?? 0),
+    paymentsCount: Number(row.paymentsCount ?? row.payments_count ?? 0),
+  };
+}
+
 function InfoMini({ label, value, breakAll = false }) {
   return (
     <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-900">
@@ -79,6 +112,7 @@ function BranchIdentityCard({
 
   const bankAccounts = normalizeBankAccounts(location?.bankAccounts);
   const firstBankAccount = bankAccounts[0] || "";
+  const status = safe(location?.status).toUpperCase();
 
   return (
     <div
@@ -117,10 +151,10 @@ function BranchIdentityCard({
 
               <span
                 className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold ${branchStatusTone(
-                  location?.status,
+                  status,
                 )}`}
               >
-                {safe(location?.status) || "-"}
+                {status || "-"}
               </span>
             </div>
 
@@ -180,7 +214,7 @@ function BranchIdentityCard({
             Edit
           </button>
 
-          {safe(location?.status).toUpperCase() === "ACTIVE" ? (
+          {status === "ACTIVE" ? (
             <button
               type="button"
               onClick={() => onOpenClose?.(location)}
@@ -190,7 +224,7 @@ function BranchIdentityCard({
             </button>
           ) : null}
 
-          {safe(location?.status).toUpperCase() === "CLOSED" ? (
+          {status === "CLOSED" ? (
             <button
               type="button"
               onClick={() => onOpenReopen?.(location)}
@@ -200,7 +234,7 @@ function BranchIdentityCard({
             </button>
           ) : null}
 
-          {safe(location?.status).toUpperCase() !== "ARCHIVED" ? (
+          {status !== "ARCHIVED" ? (
             <button
               type="button"
               onClick={() => onOpenArchive?.(location)}
@@ -255,9 +289,9 @@ function BranchIdentityCard({
 
 export default function OwnerBranchesTab({
   locations = [],
-  selectedLocationId,
+  selectedLocationId = null,
   onSelectLocation,
-  branchStatusFilter,
+  branchStatusFilter = "ALL",
   onChangeBranchStatusFilter,
   onOpenCreate,
   onOpenEdit,
@@ -268,28 +302,38 @@ export default function OwnerBranchesTab({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerLocation, setDrawerLocation] = useState(null);
 
-  const filteredLocations = useMemo(() => {
-    const list = Array.isArray(locations) ? locations : [];
+  const normalizedFilter = useMemo(
+    () => normalizeStatusFilter(branchStatusFilter),
+    [branchStatusFilter],
+  );
 
-    return list.filter((row) => {
-      if (branchStatusFilter === "ALL") return true;
-      return safe(row?.status).toUpperCase() === branchStatusFilter;
+  const normalizedLocations = useMemo(() => {
+    const list = Array.isArray(locations) ? locations : [];
+    return list.map(normalizeLocation).filter(Boolean);
+  }, [locations]);
+
+  const filteredLocations = useMemo(() => {
+    if (normalizedFilter === "ALL") return normalizedLocations;
+
+    return normalizedLocations.filter((row) => {
+      return safe(row?.status).toUpperCase() === normalizedFilter;
     });
-  }, [locations, branchStatusFilter]);
+  }, [normalizedLocations, normalizedFilter]);
 
   const totalCounts = useMemo(() => {
-    const list = Array.isArray(locations) ? locations : [];
-
     return {
-      total: list.length,
-      active: list.filter((x) => safe(x?.status).toUpperCase() === "ACTIVE")
-        .length,
-      closed: list.filter((x) => safe(x?.status).toUpperCase() === "CLOSED")
-        .length,
-      archived: list.filter((x) => safe(x?.status).toUpperCase() === "ARCHIVED")
-        .length,
+      total: normalizedLocations.length,
+      active: normalizedLocations.filter(
+        (x) => safe(x?.status).toUpperCase() === "ACTIVE",
+      ).length,
+      closed: normalizedLocations.filter(
+        (x) => safe(x?.status).toUpperCase() === "CLOSED",
+      ).length,
+      archived: normalizedLocations.filter(
+        (x) => safe(x?.status).toUpperCase() === "ARCHIVED",
+      ).length,
     };
-  }, [locations]);
+  }, [normalizedLocations]);
 
   function openDetails(location) {
     setDrawerLocation(location || null);
@@ -342,7 +386,7 @@ export default function OwnerBranchesTab({
 
           <div className="mt-5 flex flex-wrap gap-2">
             {BRANCH_STATUS_FILTERS.map((status) => {
-              const active = branchStatusFilter === status;
+              const active = normalizedFilter === status;
 
               return (
                 <button

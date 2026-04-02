@@ -5,8 +5,6 @@ import {
   EmptyState,
   FormInput,
   FormSelect,
-  SectionCard,
-  StatCard,
   safe,
   safeDate,
   safeNumber,
@@ -18,6 +16,10 @@ import { apiFetch } from "../../../lib/api";
 
 const PAGE_SIZE = 20;
 const PAYMENT_METHOD_OPTIONS = ["BANK", "MOMO", "CASH", "CARD"];
+
+function cx(...classes) {
+  return classes.filter(Boolean).join(" ");
+}
 
 function normalizeCurrency(v) {
   const s = String(v || "RWF")
@@ -94,41 +96,6 @@ function normalizeProfile(row) {
   };
 }
 
-function paymentMethodTone(method) {
-  const v = safe(method).toUpperCase();
-  if (v === "BANK") {
-    return "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-300";
-  }
-  if (v === "MOMO") {
-    return "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-900/40 dark:bg-fuchsia-950/20 dark:text-fuchsia-300";
-  }
-  if (v === "CASH") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300";
-  }
-  if (v === "CARD") {
-    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300";
-  }
-  return "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
-}
-
-function supplierTone(sourceType) {
-  const v = safe(sourceType).toUpperCase();
-  if (v === "ABROAD") {
-    return "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-300";
-  }
-  return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300";
-}
-
-function activeTone(isActive) {
-  return isActive
-    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300"
-    : "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
-}
-
-function neutralBadgeTone() {
-  return "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
-}
-
 function profileDefaults(profile) {
   return {
     preferredPaymentMethod: safe(profile?.preferredPaymentMethod) || "BANK",
@@ -149,145 +116,179 @@ function profileDefaults(profile) {
   };
 }
 
-function Badge({ children, className = "" }) {
+function Pill({ tone = "neutral", children }) {
+  const cls =
+    tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300"
+      : tone === "warn"
+        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300"
+        : tone === "danger"
+          ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300"
+          : tone === "info"
+            ? "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-300"
+            : "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
+
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold ${className}`}
+      className={cx(
+        "inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em]",
+        cls,
+      )}
     >
       {children}
     </span>
   );
 }
 
+function supplierTone(sourceType) {
+  const v = safe(sourceType).toUpperCase();
+  return v === "ABROAD" ? "info" : "success";
+}
+
+function activeTone(isActive) {
+  return isActive ? "success" : "neutral";
+}
+
+function paymentMethodTone(method) {
+  const v = safe(method).toUpperCase();
+  if (v === "BANK") return "info";
+  if (v === "MOMO") return "warn";
+  if (v === "CASH") return "success";
+  if (v === "CARD") return "neutral";
+  return "neutral";
+}
+
+function SectionShell({ title, hint, right, children }) {
+  return (
+    <section className="overflow-hidden rounded-[30px] border border-stone-200 bg-white shadow-[0_10px_30px_rgba(2,6,23,0.04)] dark:border-stone-800 dark:bg-stone-900 dark:shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone-200 p-5 dark:border-stone-800">
+        <div className="min-w-0">
+          <div className="text-base font-black tracking-[-0.02em] text-stone-950 dark:text-stone-50">
+            {title}
+          </div>
+          {hint ? (
+            <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+              {hint}
+            </div>
+          ) : null}
+        </div>
+        {right ? <div className="shrink-0">{right}</div> : null}
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function Surface({ children, className = "" }) {
+  return (
+    <div
+      className={cx(
+        "rounded-[24px] border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function MetricCard({ label, value, sub }) {
+  return (
+    <div className="rounded-[22px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+      <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+        {label}
+      </div>
+      <div className="mt-2 text-lg font-black text-stone-950 dark:text-stone-50">
+        {value}
+      </div>
+      {sub ? (
+        <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+          {sub}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function InfoTile({ label, value }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-      <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+    <div className="rounded-[20px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+      <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
         {label}
-      </p>
-      <p className="mt-2 break-words text-sm font-semibold text-stone-950 dark:text-stone-50">
+      </div>
+      <div className="mt-2 break-words text-sm font-semibold text-stone-950 dark:text-stone-50">
         {value || "-"}
-      </p>
+      </div>
     </div>
   );
 }
 
 function ProfileCard({ supplier, profile, active, onSelect }) {
-  const preferredMethod = safe(profile?.preferredPaymentMethod) || "Not set";
-  const acceptedMethods =
-    Array.isArray(profile?.acceptedPaymentMethods) &&
-    profile.acceptedPaymentMethods.length > 0
-      ? profile.acceptedPaymentMethods.join(", ")
-      : "Not set";
+  const preferredMethod = safe(profile?.preferredPaymentMethod) || "NO PROFILE";
+  const acceptedCount = Array.isArray(profile?.acceptedPaymentMethods)
+    ? profile.acceptedPaymentMethods.length
+    : 0;
 
   return (
     <button
       type="button"
       onClick={() => onSelect?.(supplier?.id)}
-      className={
-        "group w-full overflow-hidden rounded-[28px] border text-left transition-all duration-200 " +
-        (active
-          ? "border-stone-900 bg-stone-900 text-white shadow-lg dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950"
-          : "border-stone-200 bg-white hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700")
-      }
+      className={cx(
+        "w-full rounded-[24px] border p-4 text-left transition",
+        active
+          ? "border-stone-400 bg-stone-50 dark:border-stone-700 dark:bg-stone-950"
+          : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700 dark:hover:bg-stone-950",
+      )}
     >
-      <div className="p-4 sm:p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="truncate text-base font-bold sm:text-lg">
-                {safe(supplier?.name) || "-"}
-              </h3>
-
-              <Badge
-                className={
-                  active
-                    ? "border-white/10 bg-white/10 text-white dark:border-stone-900/10 dark:bg-stone-900/10 dark:text-stone-950"
-                    : supplierTone(supplier?.sourceType)
-                }
-              >
-                {safe(supplier?.sourceType) || "LOCAL"}
-              </Badge>
-
-              <Badge
-                className={
-                  active
-                    ? "border-white/10 bg-white/10 text-white dark:border-stone-900/10 dark:bg-stone-900/10 dark:text-stone-950"
-                    : activeTone(!!supplier?.isActive)
-                }
-              >
-                {supplier?.isActive ? "Active" : "Inactive"}
-              </Badge>
-
-              <Badge
-                className={
-                  active
-                    ? "border-white/10 bg-white/10 text-white dark:border-stone-900/10 dark:bg-stone-900/10 dark:text-stone-950"
-                    : neutralBadgeTone()
-                }
-              >
-                {normalizeCurrency(supplier?.defaultCurrency)}
-              </Badge>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="truncate text-sm font-black text-stone-950 dark:text-stone-50">
+              {safe(supplier?.name) || "-"}
             </div>
-
-            <div
-              className={
-                "mt-3 grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4 " +
-                (active
-                  ? "text-stone-200 dark:text-stone-700"
-                  : "text-stone-600 dark:text-stone-400")
-              }
-            >
-              <p className="truncate">
-                <span className="font-medium">Phone:</span>{" "}
-                {safe(supplier?.phone) || "-"}
-              </p>
-              <p className="truncate">
-                <span className="font-medium">Email:</span>{" "}
-                {safe(supplier?.email) || "-"}
-              </p>
-              <p className="truncate">
-                <span className="font-medium">Terms:</span>{" "}
-                {safe(profile?.paymentTermsLabel) || "-"}
-              </p>
-              <p className="truncate">
-                <span className="font-medium">Tax ID:</span>{" "}
-                {safe(profile?.taxId) || "-"}
-              </p>
-            </div>
+            <Pill tone={supplierTone(supplier?.sourceType)}>
+              {safe(supplier?.sourceType) || "LOCAL"}
+            </Pill>
+            <Pill tone={activeTone(!!supplier?.isActive)}>
+              {supplier?.isActive ? "ACTIVE" : "INACTIVE"}
+            </Pill>
+            <Pill tone="neutral">
+              {normalizeCurrency(supplier?.defaultCurrency)}
+            </Pill>
           </div>
 
-          <div
-            className={
-              "rounded-2xl border px-4 py-3 xl:min-w-[230px] " +
-              (active
-                ? "border-white/10 bg-white/5 dark:border-stone-900/10 dark:bg-stone-900/5"
-                : "border-stone-200 bg-stone-50 dark:border-stone-800 dark:bg-stone-950")
-            }
-          >
-            <p
-              className={
-                "text-[11px] font-semibold uppercase tracking-[0.18em] " +
-                (active
-                  ? "text-stone-300 dark:text-stone-600"
-                  : "text-stone-500 dark:text-stone-400")
-              }
-            >
-              Preferred payment
-            </p>
-            <p className="mt-2 text-xl font-black sm:text-2xl">
-              {preferredMethod}
-            </p>
-            <p
-              className={
-                "mt-1 text-xs " +
-                (active
-                  ? "text-stone-300 dark:text-stone-600"
-                  : "text-stone-500 dark:text-stone-400")
-              }
-            >
-              Accepted: {acceptedMethods}
-            </p>
+          <div className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+            Phone:{" "}
+            <b className="text-stone-900 dark:text-stone-100">
+              {safe(supplier?.phone) || "-"}
+            </b>{" "}
+            • Email:{" "}
+            <b className="text-stone-900 dark:text-stone-100">
+              {safe(supplier?.email) || "-"}
+            </b>
+          </div>
+
+          <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+            Payment terms label:{" "}
+            <b className="text-stone-900 dark:text-stone-100">
+              {safe(profile?.paymentTermsLabel) || "-"}
+            </b>{" "}
+            • Tax ID / TIN:{" "}
+            <b className="text-stone-900 dark:text-stone-100">
+              {safe(profile?.taxId) || "-"}
+            </b>
+          </div>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Preferred payment method
+          </div>
+          <div className="mt-1 text-lg font-black text-stone-950 dark:text-stone-50">
+            {preferredMethod}
+          </div>
+          <div className="mt-1 text-[11px] text-stone-500 dark:text-stone-400">
+            {acceptedCount} accepted
           </div>
         </div>
       </div>
@@ -297,15 +298,15 @@ function ProfileCard({ supplier, profile, active, onSelect }) {
 
 function ModalShell({ title, subtitle, onClose, children }) {
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[28px] border border-stone-200 bg-white p-5 shadow-2xl dark:border-stone-800 dark:bg-stone-900 sm:p-6">
-        <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/50 p-4 backdrop-blur-[2px]">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[30px] border border-stone-200 bg-white shadow-[0_30px_80px_rgba(2,6,23,0.22)] dark:border-stone-800 dark:bg-stone-900">
+        <div className="flex items-start justify-between gap-4 border-b border-stone-200 p-5 dark:border-stone-800">
           <div>
-            <h3 className="text-xl font-bold text-stone-950 dark:text-stone-50">
+            <h3 className="text-xl font-black text-stone-950 dark:text-stone-50">
               {title}
             </h3>
             {subtitle ? (
-              <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
+              <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
                 {subtitle}
               </p>
             ) : null}
@@ -320,7 +321,7 @@ function ModalShell({ title, subtitle, onClose, children }) {
           </button>
         </div>
 
-        <div className="mt-5">{children}</div>
+        <div className="p-5">{children}</div>
       </div>
     </div>
   );
@@ -394,7 +395,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
 
   return (
     <ModalShell
-      title="Edit supplier profile"
+      title={profile?.id ? "Edit supplier profile" : "Create supplier profile"}
       subtitle={`Payment setup for ${safe(supplier?.name) || "supplier"}.`}
       onClose={onClose}
     >
@@ -402,7 +403,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Preferred payment method
           </label>
           <FormSelect
@@ -423,7 +424,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Payment terms label
           </label>
           <FormInput
@@ -439,7 +440,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Payment terms days
           </label>
           <FormInput
@@ -453,7 +454,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Credit limit
           </label>
           <FormInput
@@ -467,7 +468,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
         </div>
 
         <div className="md:col-span-2">
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Accepted payment methods
           </label>
           <div className="flex flex-wrap gap-2">
@@ -478,12 +479,12 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
                   key={method}
                   type="button"
                   onClick={() => toggleAcceptedMethod(method)}
-                  className={
-                    "rounded-full border px-4 py-2 text-sm font-semibold transition " +
-                    (active
+                  className={cx(
+                    "rounded-full border px-4 py-2 text-sm font-semibold transition",
+                    active
                       ? "border-stone-900 bg-stone-900 text-white dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950"
-                      : "border-stone-300 bg-white text-stone-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200")
-                  }
+                      : "border-stone-300 bg-white text-stone-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200",
+                  )}
                 >
                   {method}
                 </button>
@@ -493,7 +494,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Bank name
           </label>
           <FormInput
@@ -506,7 +507,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Bank branch
           </label>
           <FormInput
@@ -519,7 +520,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Bank account name
           </label>
           <FormInput
@@ -535,7 +536,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Bank account number
           </label>
           <FormInput
@@ -551,7 +552,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             MoMo name
           </label>
           <FormInput
@@ -564,7 +565,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             MoMo phone
           </label>
           <FormInput
@@ -577,7 +578,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Tax ID / TIN
           </label>
           <FormInput
@@ -585,12 +586,12 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
             onChange={(e) =>
               setForm((prev) => ({ ...prev, taxId: e.target.value }))
             }
-            placeholder="Tax ID"
+            placeholder="Tax ID / TIN"
           />
         </div>
 
         <div className="md:col-span-2">
-          <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Payment instructions
           </label>
           <textarea
@@ -602,7 +603,7 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
               }))
             }
             rows={4}
-            className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
+            className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
             placeholder="Instructions for how this supplier should be paid"
           />
         </div>
@@ -612,13 +613,13 @@ function SupplierProfileModalInner({ supplier, profile, onClose, onSaved }) {
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+          className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
         >
           Cancel
         </button>
 
         <AsyncButton
-          idleText="Save profile"
+          idleText="Save supplier profile"
           loadingText="Saving..."
           successText="Saved"
           onClick={handleSave}
@@ -635,7 +636,7 @@ export default function OwnerSupplierProfilesTab() {
   const [successText, setSuccessText] = useState("");
 
   const [suppliers, setSuppliers] = useState([]);
-  const [selectedSupplierId, setSelectedSupplierId] = useState(null);
+  const [selectedSupplierId, setSelectedSupplierId] = useState("");
   const [selectedDetail, setSelectedDetail] = useState({
     supplier: null,
     profile: null,
@@ -727,9 +728,7 @@ export default function OwnerSupplierProfilesTab() {
     };
   }, [filteredRows]);
 
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [q, sourceType, active, hasProfile]);
+  const visibleRows = filteredRows.slice(0, visibleCount);
 
   async function load() {
     setLoading(true);
@@ -768,12 +767,14 @@ export default function OwnerSupplierProfilesTab() {
       setSelectedSupplierId((prev) =>
         prev &&
         detailResults.some((x) => String(x?.supplier?.id) === String(prev))
-          ? prev
-          : (detailResults[0]?.supplier?.id ?? null),
+          ? String(prev)
+          : detailResults[0]?.supplier?.id != null
+            ? String(detailResults[0].supplier.id)
+            : "",
       );
     } catch (e) {
       setSuppliers([]);
-      setSelectedSupplierId(null);
+      setSelectedSupplierId("");
       setSelectedDetail({ supplier: null, profile: null });
       setErrorText(
         e?.data?.error || e?.message || "Failed to load supplier profiles",
@@ -827,398 +828,507 @@ export default function OwnerSupplierProfilesTab() {
     await load();
 
     if (nextId) {
-      setSelectedSupplierId(nextId);
-      await loadDetail(nextId);
+      setSelectedSupplierId(String(nextId));
+      await loadDetail(String(nextId));
     }
 
     setTimeout(() => setSuccessText(""), 2500);
   }
 
-  const visibleRows = filteredRows.slice(0, visibleCount);
+  function handleFilterChange(setter, value) {
+    setter(value);
+    setVisibleCount(PAGE_SIZE);
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="grid gap-4">
       <AlertBox message={errorText} />
       <AlertBox message={successText} tone="success" />
 
-      {loading ? (
-        <SectionCard
-          title="Supplier profiles"
-          subtitle="Loading supplier payment setup and terms."
-        >
+      <SectionShell
+        title="Supplier Profiles"
+        hint="Payment setup, payment terms, bank details, MoMo details, tax ID / TIN, and payment instructions."
+        right={
+          detailSupplier ? (
+            <AsyncButton
+              idleText={
+                detailProfile
+                  ? "Edit supplier profile"
+                  : "Create supplier profile"
+              }
+              loadingText="Opening..."
+              successText="Ready"
+              onClick={async () => setEditingProfile(true)}
+              variant="secondary"
+            />
+          ) : null
+        }
+      >
+        {loading ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="h-32 animate-pulse rounded-3xl border border-stone-200 bg-stone-100 dark:border-stone-800 dark:bg-stone-800"
+                className="h-28 animate-pulse rounded-[24px] bg-stone-100 dark:bg-stone-800"
               />
             ))}
           </div>
-        </SectionCard>
-      ) : (
-        <>
-          <SectionCard
-            title="Profile overview"
-            subtitle="See which suppliers have usable payment setup and terms."
-          >
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-              <StatCard
-                label="Suppliers"
-                value={safeNumber(overview?.total)}
-                sub="Current filtered rows"
-              />
-              <StatCard
-                label="With profile"
-                value={safeNumber(overview?.withProfile)}
-                sub="Payment setup exists"
-              />
-              <StatCard
-                label="Missing profile"
-                value={safeNumber(overview?.missingProfile)}
-                sub="Needs owner setup"
-              />
-              <StatCard
-                label="Bank preferred"
-                value={safeNumber(overview?.bankPreferred)}
-                sub="Preferred method"
-              />
-              <StatCard
-                label="MoMo preferred"
-                value={safeNumber(overview?.momoPreferred)}
-                sub="Preferred method"
-              />
-              <StatCard
-                label="Cash preferred"
-                value={safeNumber(overview?.cashPreferred)}
-                sub="Preferred method"
-              />
-              <StatCard
-                label="Card preferred"
-                value={safeNumber(overview?.cardPreferred)}
-                sub="Preferred method"
-              />
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Profile filters"
-            subtitle="Filter suppliers by source, active state, and whether payment setup exists."
-          >
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <FormInput
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search supplier, bank, momo, tax id, terms"
-              />
-
-              <FormSelect
-                value={sourceType}
-                onChange={(e) => setSourceType(e.target.value)}
-              >
-                <option value="">All source types</option>
-                <option value="LOCAL">Local</option>
-                <option value="ABROAD">Abroad</option>
-              </FormSelect>
-
-              <FormSelect
-                value={active}
-                onChange={(e) => setActive(e.target.value)}
-              >
-                <option value="">All activity states</option>
-                <option value="true">Active only</option>
-                <option value="false">Inactive only</option>
-              </FormSelect>
-
-              <FormSelect
-                value={hasProfile}
-                onChange={(e) => setHasProfile(e.target.value)}
-              >
-                <option value="">All profile states</option>
-                <option value="yes">Has profile</option>
-                <option value="no">Missing profile</option>
-              </FormSelect>
-            </div>
-          </SectionCard>
-
-          <div className="grid gap-6 2xl:grid-cols-[1.05fr_0.95fr]">
-            <SectionCard
-              title="Supplier profile directory"
-              subtitle="Select a supplier to inspect and manage payment setup."
-            >
-              {filteredRows.length === 0 ? (
-                <EmptyState text="No supplier profiles match the current filters." />
-              ) : (
-                <div className="space-y-4">
-                  {visibleRows.map((row) => (
-                    <ProfileCard
-                      key={row?.supplier?.id}
-                      supplier={row?.supplier}
-                      profile={row?.profile}
-                      active={
-                        String(row?.supplier?.id) === String(selectedSupplierId)
-                      }
-                      onSelect={setSelectedSupplierId}
-                    />
-                  ))}
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[1.05fr_0.95fr]">
+              <Surface>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Profile overview
                 </div>
-              )}
 
-              {visibleCount < filteredRows.length ? (
-                <div className="mt-5 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
-                  >
-                    Load 20 more
-                  </button>
-                </div>
-              ) : null}
-            </SectionCard>
-
-            {detailSupplier ? (
-              <SectionCard
-                title="Selected profile detail"
-                subtitle="Dedicated owner view of supplier payment setup and terms."
-                right={
-                  <AsyncButton
-                    idleText={detailProfile ? "Edit profile" : "Create profile"}
-                    loadingText="Opening..."
-                    successText="Ready"
-                    onClick={async () => setEditingProfile(true)}
-                    variant="secondary"
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <MetricCard
+                    label="Suppliers"
+                    value={safeNumber(overview?.total)}
+                    sub="Current filtered rows"
                   />
-                }
-              >
-                {detailLoading ? (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div
-                        key={i}
-                        className="h-28 animate-pulse rounded-3xl border border-stone-200 bg-stone-100 dark:border-stone-800 dark:bg-stone-800"
-                      />
-                    ))}
+                  <MetricCard
+                    label="With profile"
+                    value={safeNumber(overview?.withProfile)}
+                    sub="Payment setup exists"
+                  />
+                  <MetricCard
+                    label="Missing profile"
+                    value={safeNumber(overview?.missingProfile)}
+                    sub="Needs owner setup"
+                  />
+                  <MetricCard
+                    label="Bank preferred"
+                    value={safeNumber(overview?.bankPreferred)}
+                    sub="Preferred payment method"
+                  />
+                  <MetricCard
+                    label="MoMo preferred"
+                    value={safeNumber(overview?.momoPreferred)}
+                    sub="Preferred payment method"
+                  />
+                  <MetricCard
+                    label="Cash preferred"
+                    value={safeNumber(overview?.cashPreferred)}
+                    sub="Preferred payment method"
+                  />
+                  <MetricCard
+                    label="Card preferred"
+                    value={safeNumber(overview?.cardPreferred)}
+                    sub="Preferred payment method"
+                  />
+                  <MetricCard
+                    label="Profile scope"
+                    value="Business-wide"
+                    sub="Current backend model"
+                  />
+                </div>
+              </Surface>
+
+              <Surface>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Profile filters
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <FormInput
+                    value={q}
+                    onChange={(e) => handleFilterChange(setQ, e.target.value)}
+                    placeholder="Search supplier, bank, momo, tax id, payment terms"
+                  />
+
+                  <FormSelect
+                    value={sourceType}
+                    onChange={(e) =>
+                      handleFilterChange(setSourceType, e.target.value)
+                    }
+                  >
+                    <option value="">All source types</option>
+                    <option value="LOCAL">Local</option>
+                    <option value="ABROAD">Abroad</option>
+                  </FormSelect>
+
+                  <FormSelect
+                    value={active}
+                    onChange={(e) =>
+                      handleFilterChange(setActive, e.target.value)
+                    }
+                  >
+                    <option value="">All activity states</option>
+                    <option value="true">Active only</option>
+                    <option value="false">Inactive only</option>
+                  </FormSelect>
+
+                  <FormSelect
+                    value={hasProfile}
+                    onChange={(e) =>
+                      handleFilterChange(setHasProfile, e.target.value)
+                    }
+                  >
+                    <option value="">All profile states</option>
+                    <option value="yes">Has profile</option>
+                    <option value="no">Missing profile</option>
+                  </FormSelect>
+                </div>
+
+                <div className="mt-4 rounded-[22px] border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+                  <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                    Selected supplier
                   </div>
-                ) : (
-                  <>
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                      <StatCard
-                        label="Supplier"
-                        value={safe(detailSupplier?.name) || "-"}
-                        sub={
-                          safe(detailSupplier?.contactName) || "No contact name"
+
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <FormSelect
+                      value={selectedSupplierId}
+                      onChange={(e) => setSelectedSupplierId(e.target.value)}
+                    >
+                      <option value="">Select supplier</option>
+                      {filteredRows.map((row) => (
+                        <option
+                          key={row?.supplier?.id}
+                          value={String(row?.supplier?.id || "")}
+                        >
+                          {safe(row?.supplier?.name) || "-"}
+                        </option>
+                      ))}
+                    </FormSelect>
+
+                    <div className="rounded-[18px] border border-stone-200 bg-white px-3 py-3 text-sm text-stone-900 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100">
+                      Preferred payment method:{" "}
+                      <b>
+                        {detailLoading
+                          ? "..."
+                          : safe(detailProfile?.preferredPaymentMethod) || "—"}
+                      </b>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 text-[11px] text-stone-500 dark:text-stone-400">
+                    Profile scope: <b>Business-wide supplier profile</b> •
+                    Branches are not listed here because the current supplier
+                    profile model is not branch-specific.
+                  </div>
+                </div>
+              </Surface>
+            </div>
+
+            <div className="mt-4 grid gap-4 2xl:grid-cols-[1.05fr_0.95fr]">
+              <Surface>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Supplier profile directory
+                </div>
+                <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                  Select a supplier to inspect and manage supplier profile
+                  details.
+                </div>
+
+                <div className="mt-4">
+                  {filteredRows.length === 0 ? (
+                    <EmptyState text="No supplier profiles match the current filters." />
+                  ) : (
+                    <div className="grid gap-3">
+                      {visibleRows.map((row) => (
+                        <ProfileCard
+                          key={row?.supplier?.id}
+                          supplier={row?.supplier}
+                          profile={row?.profile}
+                          active={
+                            String(row?.supplier?.id) ===
+                            String(selectedSupplierId)
+                          }
+                          onSelect={(id) =>
+                            setSelectedSupplierId(String(id || ""))
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {visibleCount < filteredRows.length ? (
+                    <div className="mt-5 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setVisibleCount((prev) => prev + PAGE_SIZE)
                         }
-                      />
-                      <StatCard
-                        label="Preferred method"
-                        value={
-                          safe(detailProfile?.preferredPaymentMethod) || "-"
-                        }
-                        sub="Primary payment route"
-                      />
-                      <StatCard
-                        label="Terms"
-                        value={safe(detailProfile?.paymentTermsLabel) || "-"}
-                        sub={`${safeNumber(detailProfile?.paymentTermsDays)} days`}
-                      />
-                      <StatCard
-                        label={`Credit limit (${normalizeCurrency(
-                          detailSupplier?.defaultCurrency,
-                        )})`}
-                        value={money(
-                          detailProfile?.creditLimit,
-                          detailSupplier?.defaultCurrency,
-                        )}
-                        sub="Configured supplier ceiling"
-                      />
+                        className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+                      >
+                        Load 20 more
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </Surface>
+
+              {detailSupplier ? (
+                <Surface>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                        Selected supplier profile
+                      </div>
+                      <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                        Focused owner view of payment setup, payment terms, and
+                        supplier instructions.
+                      </div>
                     </div>
 
-                    <div className="mt-5 grid gap-4 xl:grid-cols-2">
-                      <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                          Supplier identity
-                        </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Pill tone={supplierTone(detailSupplier?.sourceType)}>
+                        {safe(detailSupplier?.sourceType) || "LOCAL"}
+                      </Pill>
+                      <Pill tone={activeTone(!!detailSupplier?.isActive)}>
+                        {detailSupplier?.isActive ? "ACTIVE" : "INACTIVE"}
+                      </Pill>
+                      <Pill
+                        tone={paymentMethodTone(
+                          detailProfile?.preferredPaymentMethod,
+                        )}
+                      >
+                        {safe(detailProfile?.preferredPaymentMethod) ||
+                          "NO PROFILE"}
+                      </Pill>
+                    </div>
+                  </div>
 
-                        <div className="mt-4 grid gap-3">
-                          <InfoTile
-                            label="Supplier"
-                            value={safe(detailSupplier?.name) || "-"}
-                          />
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <InfoTile
-                              label="Phone"
-                              value={safe(detailSupplier?.phone) || "-"}
-                            />
-                            <InfoTile
-                              label="Email"
-                              value={safe(detailSupplier?.email) || "-"}
-                            />
-                          </div>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <InfoTile
-                              label="Country / City"
-                              value={
-                                [
-                                  safe(detailSupplier?.country),
-                                  safe(detailSupplier?.city),
-                                ]
-                                  .filter(Boolean)
-                                  .join(" / ") || "-"
-                              }
-                            />
-                            <InfoTile
-                              label="Default currency"
-                              value={normalizeCurrency(
-                                detailSupplier?.defaultCurrency,
-                              )}
-                            />
-                          </div>
-                          <InfoTile
-                            label="Address"
-                            value={safe(detailSupplier?.address) || "-"}
-                          />
-                        </div>
+                  {detailLoading ? (
+                    <div className="mt-4 grid gap-3">
+                      {[1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="h-24 animate-pulse rounded-[22px] bg-stone-100 dark:bg-stone-800"
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <MetricCard
+                          label="Supplier"
+                          value={safe(detailSupplier?.name) || "-"}
+                          sub={
+                            safe(detailSupplier?.contactName) ||
+                            "No contact person"
+                          }
+                        />
+                        <MetricCard
+                          label="Preferred payment method"
+                          value={
+                            safe(detailProfile?.preferredPaymentMethod) || "-"
+                          }
+                          sub="Primary payment route"
+                        />
+                        <MetricCard
+                          label="Payment terms"
+                          value={safe(detailProfile?.paymentTermsLabel) || "-"}
+                          sub={`${safeNumber(detailProfile?.paymentTermsDays)} days`}
+                        />
+                        <MetricCard
+                          label={`Credit limit (${normalizeCurrency(detailSupplier?.defaultCurrency)})`}
+                          value={money(
+                            detailProfile?.creditLimit,
+                            detailSupplier?.defaultCurrency,
+                          )}
+                          sub="Configured supplier ceiling"
+                        />
                       </div>
 
-                      <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                          Payment setup
-                        </p>
+                      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                        <Surface className="bg-stone-50 dark:bg-stone-950">
+                          <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                            Supplier identity
+                          </div>
 
-                        {detailProfile ? (
                           <div className="mt-4 grid gap-3">
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <InfoTile
-                                label="Preferred payment method"
-                                value={
-                                  safe(detailProfile?.preferredPaymentMethod) ||
-                                  "-"
-                                }
-                              />
-                              <InfoTile
-                                label="Accepted payment methods"
-                                value={
-                                  Array.isArray(
-                                    detailProfile?.acceptedPaymentMethods,
-                                  ) &&
-                                  detailProfile.acceptedPaymentMethods.length >
-                                    0
-                                    ? detailProfile.acceptedPaymentMethods.join(
-                                        ", ",
-                                      )
-                                    : "-"
-                                }
-                              />
-                            </div>
-
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <InfoTile
-                                label="Payment terms label"
-                                value={
-                                  safe(detailProfile?.paymentTermsLabel) || "-"
-                                }
-                              />
-                              <InfoTile
-                                label="Payment terms days"
-                                value={String(
-                                  detailProfile?.paymentTermsDays ?? 0,
-                                )}
-                              />
-                            </div>
-
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <InfoTile
-                                label={`Credit limit (${normalizeCurrency(
-                                  detailSupplier?.defaultCurrency,
-                                )})`}
-                                value={money(
-                                  detailProfile?.creditLimit,
-                                  detailSupplier?.defaultCurrency,
-                                )}
-                              />
-                              <InfoTile
-                                label="Tax ID / TIN"
-                                value={safe(detailProfile?.taxId) || "-"}
-                              />
-                            </div>
-
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <InfoTile
-                                label="Bank name"
-                                value={safe(detailProfile?.bankName) || "-"}
-                              />
-                              <InfoTile
-                                label="Bank branch"
-                                value={safe(detailProfile?.bankBranch) || "-"}
-                              />
-                            </div>
-
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <InfoTile
-                                label="Bank account name"
-                                value={
-                                  safe(detailProfile?.bankAccountName) || "-"
-                                }
-                              />
-                              <InfoTile
-                                label="Bank account number"
-                                value={
-                                  safe(detailProfile?.bankAccountNumber) || "-"
-                                }
-                              />
-                            </div>
-
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <InfoTile
-                                label="MoMo name"
-                                value={safe(detailProfile?.momoName) || "-"}
-                              />
-                              <InfoTile
-                                label="MoMo phone"
-                                value={safe(detailProfile?.momoPhone) || "-"}
-                              />
-                            </div>
-
                             <InfoTile
-                              label="Payment instructions"
-                              value={
-                                safe(detailProfile?.paymentInstructions) ||
-                                "No payment instructions recorded"
-                              }
+                              label="Supplier"
+                              value={safe(detailSupplier?.name) || "-"}
                             />
-
                             <div className="grid gap-3 sm:grid-cols-2">
                               <InfoTile
-                                label="Profile created"
-                                value={safeDate(detailProfile?.createdAt)}
+                                label="Phone"
+                                value={safe(detailSupplier?.phone) || "-"}
                               />
                               <InfoTile
-                                label="Profile updated"
-                                value={safeDate(detailProfile?.updatedAt)}
+                                label="Email"
+                                value={safe(detailSupplier?.email) || "-"}
                               />
                             </div>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <InfoTile
+                                label="Country / City"
+                                value={
+                                  [
+                                    safe(detailSupplier?.country),
+                                    safe(detailSupplier?.city),
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" / ") || "-"
+                                }
+                              />
+                              <InfoTile
+                                label="Default currency"
+                                value={normalizeCurrency(
+                                  detailSupplier?.defaultCurrency,
+                                )}
+                              />
+                            </div>
+                            <InfoTile
+                              label="Address"
+                              value={safe(detailSupplier?.address) || "-"}
+                            />
+                            <InfoTile
+                              label="Profile scope"
+                              value="Business-wide supplier profile"
+                            />
                           </div>
-                        ) : (
-                          <div className="mt-4">
-                            <EmptyState text="This supplier does not have a payment profile yet." />
+                        </Surface>
+
+                        <Surface className="bg-stone-50 dark:bg-stone-950">
+                          <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                            Payment setup
                           </div>
-                        )}
+
+                          {detailProfile ? (
+                            <div className="mt-4 grid gap-3">
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <InfoTile
+                                  label="Preferred payment method"
+                                  value={
+                                    safe(
+                                      detailProfile?.preferredPaymentMethod,
+                                    ) || "-"
+                                  }
+                                />
+                                <InfoTile
+                                  label="Accepted payment methods"
+                                  value={
+                                    Array.isArray(
+                                      detailProfile?.acceptedPaymentMethods,
+                                    ) &&
+                                    detailProfile.acceptedPaymentMethods
+                                      .length > 0
+                                      ? detailProfile.acceptedPaymentMethods.join(
+                                          ", ",
+                                        )
+                                      : "-"
+                                  }
+                                />
+                              </div>
+
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <InfoTile
+                                  label="Payment terms label"
+                                  value={
+                                    safe(detailProfile?.paymentTermsLabel) ||
+                                    "-"
+                                  }
+                                />
+                                <InfoTile
+                                  label="Payment terms days"
+                                  value={String(
+                                    detailProfile?.paymentTermsDays ?? 0,
+                                  )}
+                                />
+                              </div>
+
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <InfoTile
+                                  label={`Credit limit (${normalizeCurrency(detailSupplier?.defaultCurrency)})`}
+                                  value={money(
+                                    detailProfile?.creditLimit,
+                                    detailSupplier?.defaultCurrency,
+                                  )}
+                                />
+                                <InfoTile
+                                  label="Tax ID / TIN"
+                                  value={safe(detailProfile?.taxId) || "-"}
+                                />
+                              </div>
+
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <InfoTile
+                                  label="Bank name"
+                                  value={safe(detailProfile?.bankName) || "-"}
+                                />
+                                <InfoTile
+                                  label="Bank branch"
+                                  value={safe(detailProfile?.bankBranch) || "-"}
+                                />
+                              </div>
+
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <InfoTile
+                                  label="Bank account name"
+                                  value={
+                                    safe(detailProfile?.bankAccountName) || "-"
+                                  }
+                                />
+                                <InfoTile
+                                  label="Bank account number"
+                                  value={
+                                    safe(detailProfile?.bankAccountNumber) ||
+                                    "-"
+                                  }
+                                />
+                              </div>
+
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <InfoTile
+                                  label="MoMo name"
+                                  value={safe(detailProfile?.momoName) || "-"}
+                                />
+                                <InfoTile
+                                  label="MoMo phone"
+                                  value={safe(detailProfile?.momoPhone) || "-"}
+                                />
+                              </div>
+
+                              <InfoTile
+                                label="Payment instructions"
+                                value={
+                                  safe(detailProfile?.paymentInstructions) ||
+                                  "No payment instructions recorded"
+                                }
+                              />
+
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <InfoTile
+                                  label="Profile created"
+                                  value={safeDate(detailProfile?.createdAt)}
+                                />
+                                <InfoTile
+                                  label="Profile updated"
+                                  value={safeDate(detailProfile?.updatedAt)}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-4">
+                              <EmptyState text="This supplier does not have a supplier profile yet." />
+                            </div>
+                          )}
+                        </Surface>
                       </div>
-                    </div>
-                  </>
-                )}
-              </SectionCard>
-            ) : (
-              <SectionCard
-                title="Selected profile detail"
-                subtitle="This section appears after a supplier is selected."
-              >
-                <EmptyState text="Select a supplier profile card above to inspect payment setup and terms." />
-              </SectionCard>
-            )}
-          </div>
-        </>
-      )}
+                    </>
+                  )}
+                </Surface>
+              ) : (
+                <Surface>
+                  <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                    Selected supplier profile
+                  </div>
+                  <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                    This section appears after a supplier is selected.
+                  </div>
+                  <div className="mt-4">
+                    <EmptyState text="Select a supplier profile card above to inspect payment setup and supplier instructions." />
+                  </div>
+                </Surface>
+              )}
+            </div>
+          </>
+        )}
+      </SectionShell>
 
       <SupplierProfileModal
         open={editingProfile}
