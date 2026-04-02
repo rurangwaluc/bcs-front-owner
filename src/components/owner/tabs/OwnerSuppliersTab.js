@@ -29,24 +29,6 @@ function money(v, currency = "RWF") {
   return `${normalizeCurrency(currency)} ${safeNumber(v).toLocaleString()}`;
 }
 
-function supplierTone(sourceType) {
-  const v = safe(sourceType).toUpperCase();
-  if (v === "ABROAD") {
-    return "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-300";
-  }
-  return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300";
-}
-
-function activeTone(isActive) {
-  return isActive
-    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300"
-    : "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
-}
-
-function neutralBadgeTone() {
-  return "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
-}
-
 function normalizeSupplier(row) {
   if (!row) return null;
 
@@ -73,11 +55,34 @@ function normalizeSupplier(row) {
       row.overdueBillsCount ?? row.overdue_bills_count ?? 0,
     ),
     overdueAmount: Number(row.overdueAmount ?? row.overdue_amount ?? 0),
+    openBillsCount: Number(row.openBillsCount ?? row.open_bills_count ?? 0),
+    partiallyPaidCount: Number(
+      row.partiallyPaidCount ?? row.partially_paid_count ?? 0,
+    ),
+    paidBillsCount: Number(row.paidBillsCount ?? row.paid_bills_count ?? 0),
     lastBillDate: row.lastBillDate ?? row.last_bill_date ?? null,
     lastPaymentDate: row.lastPaymentDate ?? row.last_payment_date ?? null,
     createdAt: row.createdAt ?? row.created_at ?? null,
     updatedAt: row.updatedAt ?? row.updated_at ?? null,
   };
+}
+
+function supplierTone(sourceType) {
+  const v = safe(sourceType).toUpperCase();
+  if (v === "ABROAD") {
+    return "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-300";
+  }
+  return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300";
+}
+
+function activeTone(isActive) {
+  return isActive
+    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300"
+    : "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
+}
+
+function neutralBadgeTone() {
+  return "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
 }
 
 function Badge({ children, className = "" }) {
@@ -115,6 +120,19 @@ function SmallStat({ label, value, tone = "default", active = false }) {
         {label}
       </p>
       <p className="mt-2 text-lg font-bold">{value}</p>
+    </div>
+  );
+}
+
+function InfoTile({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+      <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+        {label}
+      </p>
+      <p className="mt-2 break-words text-sm font-semibold text-stone-950 dark:text-stone-50">
+        {value || "-"}
+      </p>
     </div>
   );
 }
@@ -298,44 +316,39 @@ function ModalShell({ title, subtitle, onClose, children }) {
   );
 }
 
+function supplierFormDefaults(supplier) {
+  return {
+    name: safe(supplier?.name) || "",
+    contactName: safe(supplier?.contactName) || "",
+    phone: safe(supplier?.phone) || "",
+    email: safe(supplier?.email) || "",
+    country: safe(supplier?.country) || "",
+    city: safe(supplier?.city) || "",
+    sourceType: safe(supplier?.sourceType) || "LOCAL",
+    defaultCurrency: normalizeCurrency(supplier?.defaultCurrency),
+    address: safe(supplier?.address) || "",
+    notes: safe(supplier?.notes) || "",
+    isActive: supplier?.isActive ?? true,
+  };
+}
+
 function SupplierFormModal({ open, supplier, onClose, onSaved }) {
-  const isEdit = !!supplier;
-
-  const [form, setForm] = useState({
-    name: "",
-    contactName: "",
-    phone: "",
-    email: "",
-    country: "",
-    city: "",
-    sourceType: "LOCAL",
-    defaultCurrency: "RWF",
-    address: "",
-    notes: "",
-    isActive: true,
-  });
-  const [errorText, setErrorText] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-
-    setForm({
-      name: safe(supplier?.name) || "",
-      contactName: safe(supplier?.contactName) || "",
-      phone: safe(supplier?.phone) || "",
-      email: safe(supplier?.email) || "",
-      country: safe(supplier?.country) || "",
-      city: safe(supplier?.city) || "",
-      sourceType: safe(supplier?.sourceType) || "LOCAL",
-      defaultCurrency: normalizeCurrency(supplier?.defaultCurrency),
-      address: safe(supplier?.address) || "",
-      notes: safe(supplier?.notes) || "",
-      isActive: supplier?.isActive ?? true,
-    });
-    setErrorText("");
-  }, [open, supplier]);
-
   if (!open) return null;
+
+  return (
+    <SupplierFormModalInner
+      key={supplier?.id ? `edit-${supplier.id}` : "create-supplier"}
+      supplier={supplier}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function SupplierFormModalInner({ supplier, onClose, onSaved }) {
+  const isEdit = !!supplier;
+  const [form, setForm] = useState(() => supplierFormDefaults(supplier));
+  const [errorText, setErrorText] = useState("");
 
   async function handleSave() {
     setErrorText("");
@@ -379,7 +392,7 @@ function SupplierFormModal({ open, supplier, onClose, onSaved }) {
   return (
     <ModalShell
       title={isEdit ? "Edit supplier" : "Create supplier"}
-      subtitle="Suppliers are business-wide records. Branch belongs on bills, not the supplier master."
+      subtitle="Suppliers are business-wide master records."
       onClose={onClose}
     >
       <AlertBox message={errorText} />
@@ -565,16 +578,22 @@ function SupplierFormModal({ open, supplier, onClose, onSaved }) {
 }
 
 function SupplierStatusModal({ open, supplier, mode, onClose, onSaved }) {
+  if (!open || !supplier) return null;
+
+  return (
+    <SupplierStatusModalInner
+      key={`${mode}-${supplier.id}`}
+      supplier={supplier}
+      mode={mode}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function SupplierStatusModalInner({ supplier, mode, onClose, onSaved }) {
   const [reason, setReason] = useState("");
   const [errorText, setErrorText] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-    setReason("");
-    setErrorText("");
-  }, [open, supplier, mode]);
-
-  if (!open || !supplier) return null;
 
   const isDeactivate = mode === "deactivate";
   const title = isDeactivate ? "Deactivate supplier" : "Reactivate supplier";
@@ -660,16 +679,17 @@ function SupplierStatusModal({ open, supplier, mode, onClose, onSaved }) {
   );
 }
 
-export default function OwnerSuppliersTab({ locations = [] }) {
+export default function OwnerSuppliersTab() {
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [successText, setSuccessText] = useState("");
 
   const [suppliers, setSuppliers] = useState([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState(null);
+  const [selectedSupplier, setSelectedSupplier] = useState(null);
 
   const [q, setQ] = useState("");
-  const [locationId, setLocationId] = useState("");
   const [sourceType, setSourceType] = useState("");
   const [active, setActive] = useState("");
 
@@ -679,21 +699,6 @@ export default function OwnerSuppliersTab({ locations = [] }) {
   const [creatingSupplier, setCreatingSupplier] = useState(false);
   const [statusSupplier, setStatusSupplier] = useState(null);
   const [statusMode, setStatusMode] = useState("deactivate");
-
-  const selectedSupplier =
-    selectedSupplierId == null
-      ? null
-      : suppliers.find(
-          (row) => String(row.id) === String(selectedSupplierId),
-        ) || null;
-
-  const locationOptions = useMemo(() => {
-    return Array.isArray(locations)
-      ? locations.filter(
-          (row) => safe(row?.status).toUpperCase() !== "ARCHIVED",
-        )
-      : [];
-  }, [locations]);
 
   const overview = useMemo(() => {
     const rows = Array.isArray(suppliers) ? suppliers : [];
@@ -740,7 +745,7 @@ export default function OwnerSuppliersTab({ locations = [] }) {
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [q, locationId, sourceType, active]);
+  }, [q, sourceType, active]);
 
   async function load() {
     setLoading(true);
@@ -748,7 +753,6 @@ export default function OwnerSuppliersTab({ locations = [] }) {
 
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    if (locationId) params.set("locationId", locationId);
     if (sourceType) params.set("sourceType", sourceType);
     if (active) params.set("active", active);
 
@@ -772,15 +776,43 @@ export default function OwnerSuppliersTab({ locations = [] }) {
     } catch (e) {
       setSuppliers([]);
       setSelectedSupplierId(null);
+      setSelectedSupplier(null);
       setErrorText(e?.data?.error || e?.message || "Failed to load suppliers");
     } finally {
       setLoading(false);
     }
   }
 
+  async function loadDetail(id) {
+    if (!id) {
+      setSelectedSupplier(null);
+      return;
+    }
+
+    setDetailLoading(true);
+    try {
+      const result = await apiFetch(`/owner/suppliers/${id}`, {
+        method: "GET",
+      });
+
+      setSelectedSupplier(normalizeSupplier(result?.supplier));
+    } catch (e) {
+      setSelectedSupplier(null);
+      setErrorText(
+        e?.data?.error || e?.message || "Failed to load supplier detail",
+      );
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
   useEffect(() => {
     load();
-  }, [q, locationId, sourceType, active]);
+  }, [q, sourceType, active]);
+
+  useEffect(() => {
+    loadDetail(selectedSupplierId);
+  }, [selectedSupplierId]);
 
   async function handleSaved(actionText, result) {
     setSuccessText(actionText);
@@ -796,6 +828,7 @@ export default function OwnerSuppliersTab({ locations = [] }) {
 
     if (nextId) {
       setSelectedSupplierId(nextId);
+      await loadDetail(nextId);
     }
 
     setTimeout(() => setSuccessText(""), 2500);
@@ -826,7 +859,7 @@ export default function OwnerSuppliersTab({ locations = [] }) {
         <>
           <SectionCard
             title="Supplier overview"
-            subtitle="Owner-wide procurement visibility. Amounts currently follow backend supplier totals."
+            subtitle="Owner-wide supplier master view and liability context."
           >
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
               <StatCard
@@ -835,49 +868,42 @@ export default function OwnerSuppliersTab({ locations = [] }) {
                 sub="Directory size"
                 valueClassName="text-[17px] leading-tight"
               />
-
               <StatCard
                 label="Active"
                 value={safeNumber(overview?.activeSuppliersCount)}
                 sub="Operational suppliers"
                 valueClassName="text-[17px] leading-tight"
               />
-
               <StatCard
                 label="Local"
                 value={safeNumber(overview?.localSuppliersCount)}
                 sub="Rwanda-based suppliers"
                 valueClassName="text-[17px] leading-tight"
               />
-
               <StatCard
                 label="Abroad"
                 value={safeNumber(overview?.abroadSuppliersCount)}
                 sub="Foreign suppliers"
                 valueClassName="text-[17px] leading-tight"
               />
-
               <StatCard
                 label="Outstanding (RWF)"
                 value={money(overview?.outstandingRWF, "RWF")}
                 sub="Frontend grouped"
                 valueClassName="text-[17px] leading-tight"
               />
-
               <StatCard
                 label="Outstanding (USD)"
                 value={money(overview?.outstandingUSD, "USD")}
                 sub="Frontend grouped"
                 valueClassName="text-[17px] leading-tight"
               />
-
               <StatCard
                 label="Overdue (RWF)"
                 value={money(overview?.overdueRWF, "RWF")}
                 sub="Frontend grouped"
                 valueClassName="text-[17px] leading-tight"
               />
-
               <StatCard
                 label="Overdue (USD)"
                 value={money(overview?.overdueUSD, "USD")}
@@ -889,7 +915,7 @@ export default function OwnerSuppliersTab({ locations = [] }) {
 
           <SectionCard
             title="Supplier filters"
-            subtitle="Suppliers are business-wide. Branch filter only changes the liability lens through bills."
+            subtitle="Filter the supplier master by search, source type, and activity state."
             right={
               <AsyncButton
                 idleText="Create supplier"
@@ -899,25 +925,12 @@ export default function OwnerSuppliersTab({ locations = [] }) {
               />
             }
           >
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <FormInput
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search supplier, contact, phone, email, country"
               />
-
-              <FormSelect
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-              >
-                <option value="">All branches</option>
-                {locationOptions.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {safe(row.name)}{" "}
-                    {safe(row.code) ? `(${safe(row.code)})` : ""}
-                  </option>
-                ))}
-              </FormSelect>
 
               <FormSelect
                 value={sourceType}
@@ -942,7 +955,7 @@ export default function OwnerSuppliersTab({ locations = [] }) {
           <div className="grid gap-6 2xl:grid-cols-[1.15fr_0.85fr]">
             <SectionCard
               title="Supplier directory"
-              subtitle="Select a supplier to inspect profile, liability, and payment behavior."
+              subtitle="Select a supplier to inspect supplier master detail."
             >
               {suppliers.length === 0 ? (
                 <EmptyState text="No suppliers match the current owner filters." />
@@ -975,7 +988,7 @@ export default function OwnerSuppliersTab({ locations = [] }) {
             {selectedSupplier ? (
               <SectionCard
                 title="Selected supplier detail"
-                subtitle="Focused owner view of supplier identity, debt, and recent activity."
+                subtitle="Focused owner view of supplier identity and liability only."
                 right={
                   <div className="flex flex-wrap items-center gap-2">
                     <AsyncButton
@@ -1027,201 +1040,217 @@ export default function OwnerSuppliersTab({ locations = [] }) {
                   </div>
                 }
               >
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  <StatCard
-                    label="Supplier"
-                    value={safe(selectedSupplier?.name) || "-"}
-                    sub={
-                      safe(selectedSupplier?.contactName) || "No contact name"
-                    }
-                  />
-                  <StatCard
-                    label={`Outstanding (${normalizeCurrency(
-                      selectedSupplier?.defaultCurrency,
-                    )})`}
-                    value={money(
-                      selectedSupplier?.balanceDue,
-                      selectedSupplier?.defaultCurrency,
-                    )}
-                    sub="Current unpaid amount"
-                  />
-                  <StatCard
-                    label={`Overdue (${normalizeCurrency(
-                      selectedSupplier?.defaultCurrency,
-                    )})`}
-                    value={money(
-                      selectedSupplier?.overdueAmount,
-                      selectedSupplier?.defaultCurrency,
-                    )}
-                    sub={`${safeNumber(selectedSupplier?.overdueBillsCount)} overdue bills`}
-                  />
-                  <StatCard
-                    label="Bills"
-                    value={safeNumber(selectedSupplier?.billsCount)}
-                    sub="Bills in current filter"
-                  />
-                </div>
+                {detailLoading ? (
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div
+                        key={i}
+                        className="h-28 animate-pulse rounded-3xl border border-stone-200 bg-stone-100 dark:border-stone-800 dark:bg-stone-800"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                      <StatCard
+                        label="Supplier"
+                        value={safe(selectedSupplier?.name) || "-"}
+                        sub={
+                          safe(selectedSupplier?.contactName) ||
+                          "No contact name"
+                        }
+                      />
+                      <StatCard
+                        label={`Outstanding (${normalizeCurrency(
+                          selectedSupplier?.defaultCurrency,
+                        )})`}
+                        value={money(
+                          selectedSupplier?.balanceDue,
+                          selectedSupplier?.defaultCurrency,
+                        )}
+                        sub="Current unpaid amount"
+                      />
+                      <StatCard
+                        label={`Overdue (${normalizeCurrency(
+                          selectedSupplier?.defaultCurrency,
+                        )})`}
+                        value={money(
+                          selectedSupplier?.overdueAmount,
+                          selectedSupplier?.defaultCurrency,
+                        )}
+                        sub={`${safeNumber(selectedSupplier?.overdueBillsCount)} overdue bills`}
+                      />
+                      <StatCard
+                        label="Bills"
+                        value={safeNumber(selectedSupplier?.billsCount)}
+                        sub="Current supplier bills"
+                      />
+                    </div>
 
-                <div className="mt-5 grid gap-4 xl:grid-cols-2">
-                  <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                      Supplier profile
-                    </p>
+                    <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                      <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                          Supplier master
+                        </p>
 
-                    <div className="mt-4 grid gap-3">
-                      <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                        <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                          Contact person
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                          {safe(selectedSupplier?.contactName) || "-"}
-                        </p>
+                        <div className="mt-4 grid gap-3">
+                          <InfoTile
+                            label="Contact person"
+                            value={safe(selectedSupplier?.contactName) || "-"}
+                          />
+
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <InfoTile
+                              label="Phone"
+                              value={safe(selectedSupplier?.phone) || "-"}
+                            />
+                            <InfoTile
+                              label="Email"
+                              value={safe(selectedSupplier?.email) || "-"}
+                            />
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <InfoTile
+                              label="Country / City"
+                              value={
+                                [
+                                  safe(selectedSupplier?.country),
+                                  safe(selectedSupplier?.city),
+                                ]
+                                  .filter(Boolean)
+                                  .join(" / ") || "-"
+                              }
+                            />
+                            <InfoTile
+                              label="Default currency"
+                              value={normalizeCurrency(
+                                selectedSupplier?.defaultCurrency,
+                              )}
+                            />
+                          </div>
+
+                          <InfoTile
+                            label="Address"
+                            value={safe(selectedSupplier?.address) || "-"}
+                          />
+
+                          <InfoTile
+                            label="Notes"
+                            value={
+                              safe(selectedSupplier?.notes) ||
+                              "No notes recorded"
+                            }
+                          />
+
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <InfoTile
+                              label="Created"
+                              value={safeDate(selectedSupplier?.createdAt)}
+                            />
+                            <InfoTile
+                              label="Updated"
+                              value={safeDate(selectedSupplier?.updatedAt)}
+                            />
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                          <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                            Phone
-                          </p>
-                          <p className="mt-2 break-words text-sm font-semibold text-stone-950 dark:text-stone-50">
-                            {safe(selectedSupplier?.phone) || "-"}
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                          <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                            Email
-                          </p>
-                          <p className="mt-2 break-all text-sm font-semibold text-stone-950 dark:text-stone-50">
-                            {safe(selectedSupplier?.email) || "-"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                          <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                            Country / City
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                            {[
-                              safe(selectedSupplier?.country),
-                              safe(selectedSupplier?.city),
-                            ]
-                              .filter(Boolean)
-                              .join(" / ") || "-"}
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                          <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                            Default currency
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                            {normalizeCurrency(
-                              selectedSupplier?.defaultCurrency,
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                        <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                          Address
+                      <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                          Liability context
                         </p>
-                        <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                          {safe(selectedSupplier?.address) || "-"}
-                        </p>
-                      </div>
 
-                      <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                        <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                          Notes
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                          {safe(selectedSupplier?.notes) || "No notes recorded"}
-                        </p>
-                      </div>
+                        <div className="mt-4 grid gap-3">
+                          <div className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+                            <p className="text-xs uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
+                              Total billed (
+                              {normalizeCurrency(
+                                selectedSupplier?.defaultCurrency,
+                              )}
+                              )
+                            </p>
+                            <p className="mt-2 text-2xl font-black text-stone-950 dark:text-stone-50">
+                              {money(
+                                selectedSupplier?.totalBilled,
+                                selectedSupplier?.defaultCurrency,
+                              )}
+                            </p>
+                          </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                          <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                            Last bill date
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                            {safeDate(selectedSupplier?.lastBillDate)}
-                          </p>
-                        </div>
+                          <div className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+                            <p className="text-xs uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
+                              Total paid (
+                              {normalizeCurrency(
+                                selectedSupplier?.defaultCurrency,
+                              )}
+                              )
+                            </p>
+                            <p className="mt-2 text-2xl font-black text-stone-950 dark:text-stone-50">
+                              {money(
+                                selectedSupplier?.totalPaid,
+                                selectedSupplier?.defaultCurrency,
+                              )}
+                            </p>
+                          </div>
 
-                        <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                          <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                            Last payment date
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
-                            {safeDate(selectedSupplier?.lastPaymentDate)}
-                          </p>
+                          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900/50 dark:bg-rose-950/20">
+                            <p className="text-xs uppercase tracking-[0.14em] text-rose-700 dark:text-rose-300">
+                              Current debt (
+                              {normalizeCurrency(
+                                selectedSupplier?.defaultCurrency,
+                              )}
+                              )
+                            </p>
+                            <p className="mt-2 text-2xl font-black text-rose-900 dark:text-rose-100">
+                              {money(
+                                selectedSupplier?.balanceDue,
+                                selectedSupplier?.defaultCurrency,
+                              )}
+                            </p>
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <InfoTile
+                              label="Open bills"
+                              value={String(
+                                selectedSupplier?.openBillsCount ?? 0,
+                              )}
+                            />
+                            <InfoTile
+                              label="Partially paid"
+                              value={String(
+                                selectedSupplier?.partiallyPaidCount ?? 0,
+                              )}
+                            />
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <InfoTile
+                              label="Paid bills"
+                              value={String(
+                                selectedSupplier?.paidBillsCount ?? 0,
+                              )}
+                            />
+                            <InfoTile
+                              label="Overdue bills"
+                              value={String(
+                                selectedSupplier?.overdueBillsCount ?? 0,
+                              )}
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                      Liability view
-                    </p>
-
-                    <div className="mt-4 grid gap-3">
-                      <div className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-                        <p className="text-xs uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
-                          Total billed (
-                          {normalizeCurrency(selectedSupplier?.defaultCurrency)}
-                          )
-                        </p>
-                        <p className="mt-2 text-2xl font-black text-stone-950 dark:text-stone-50">
-                          {money(
-                            selectedSupplier?.totalBilled,
-                            selectedSupplier?.defaultCurrency,
-                          )}
-                        </p>
-                      </div>
-
-                      <div className="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-                        <p className="text-xs uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
-                          Total paid (
-                          {normalizeCurrency(selectedSupplier?.defaultCurrency)}
-                          )
-                        </p>
-                        <p className="mt-2 text-2xl font-black text-stone-950 dark:text-stone-50">
-                          {money(
-                            selectedSupplier?.totalPaid,
-                            selectedSupplier?.defaultCurrency,
-                          )}
-                        </p>
-                      </div>
-
-                      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900/50 dark:bg-rose-950/20">
-                        <p className="text-xs uppercase tracking-[0.14em] text-rose-700 dark:text-rose-300">
-                          Current debt (
-                          {normalizeCurrency(selectedSupplier?.defaultCurrency)}
-                          )
-                        </p>
-                        <p className="mt-2 text-2xl font-black text-rose-900 dark:text-rose-100">
-                          {money(
-                            selectedSupplier?.balanceDue,
-                            selectedSupplier?.defaultCurrency,
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  </>
+                )}
               </SectionCard>
             ) : (
               <SectionCard
                 title="Selected supplier detail"
                 subtitle="This section appears after a supplier is selected."
               >
-                <EmptyState text="Select a supplier card above to inspect relationship and debt detail." />
+                <EmptyState text="Select a supplier card above to inspect supplier master detail." />
               </SectionCard>
             )}
           </div>

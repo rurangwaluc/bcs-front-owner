@@ -38,6 +38,20 @@ function normalizeBillsResponse(result) {
   return [];
 }
 
+function normalizeSupplier(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id ?? null,
+    name: row.name ?? "",
+    defaultCurrency: normalizeCurrency(
+      row.defaultCurrency ?? row.default_currency ?? "RWF",
+    ),
+    sourceType: row.sourceType ?? row.source_type ?? "LOCAL",
+    isActive: row.isActive ?? row.is_active ?? true,
+  };
+}
+
 function normalizeBill(row) {
   if (!row) return null;
 
@@ -380,37 +394,66 @@ function ModalShell({ title, subtitle, onClose, children }) {
   );
 }
 
-function CreateBillModal({ open, suppliers, locations, onClose, onSaved }) {
-  const [form, setForm] = useState({
+function billCreateDefaults(suppliers) {
+  const firstSupplier = Array.isArray(suppliers) ? suppliers[0] : null;
+  const defaultCurrency = normalizeCurrency(firstSupplier?.defaultCurrency);
+
+  return {
     supplierId: "",
     locationId: "",
     billNo: "",
-    currency: "RWF",
+    currency: defaultCurrency || "RWF",
     totalAmount: "",
     issuedDate: "",
     dueDate: "",
     note: "",
     status: "OPEN",
-  });
+  };
+}
+
+function billEditDefaults(bill) {
+  return {
+    supplierId: String(bill?.supplierId || ""),
+    locationId: String(bill?.locationId || ""),
+    billNo: safe(bill?.billNo) || "",
+    currency: normalizeCurrency(bill?.currency),
+    totalAmount: String(bill?.totalAmount ?? ""),
+    issuedDate: bill?.issuedDate ? String(bill.issuedDate).slice(0, 10) : "",
+    dueDate: bill?.dueDate ? String(bill.dueDate).slice(0, 10) : "",
+    note: safe(bill?.note) || "",
+    status: safe(bill?.status) || "OPEN",
+  };
+}
+
+function CreateBillModal({ open, suppliers, locations, onClose, onSaved }) {
+  if (!open) return null;
+
+  return (
+    <CreateBillModalInner
+      key={`create-bill-${suppliers?.length || 0}`}
+      suppliers={suppliers}
+      locations={locations}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
+  const [form, setForm] = useState(() => billCreateDefaults(suppliers));
   const [errorText, setErrorText] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
-    setForm({
-      supplierId: "",
-      locationId: "",
-      billNo: "",
-      currency: "RWF",
-      totalAmount: "",
-      issuedDate: "",
-      dueDate: "",
-      note: "",
-      status: "OPEN",
-    });
-    setErrorText("");
-  }, [open]);
+  const selectedSupplier = useMemo(
+    () =>
+      (Array.isArray(suppliers) ? suppliers : []).find(
+        (row) => String(row.id) === String(form.supplierId),
+      ) || null,
+    [suppliers, form.supplierId],
+  );
 
-  if (!open) return null;
+  const effectiveCurrency = selectedSupplier?.defaultCurrency
+    ? normalizeCurrency(selectedSupplier.defaultCurrency)
+    : normalizeCurrency(form.currency);
 
   async function handleSave() {
     setErrorText("");
@@ -420,7 +463,7 @@ function CreateBillModal({ open, suppliers, locations, onClose, onSaved }) {
         supplierId: Number(form.supplierId),
         locationId: Number(form.locationId),
         billNo: form.billNo || undefined,
-        currency: form.currency || undefined,
+        currency: effectiveCurrency || undefined,
         totalAmount: Number(form.totalAmount),
         issuedDate: form.issuedDate || undefined,
         dueDate: form.dueDate || undefined,
@@ -435,7 +478,9 @@ function CreateBillModal({ open, suppliers, locations, onClose, onSaved }) {
 
       onSaved?.(result);
     } catch (e) {
-      setErrorText(e?.data?.error || e?.message || "Failed to create bill");
+      setErrorText(
+        e?.data?.error || e?.message || "Failed to create supplier bill",
+      );
     }
   }
 
@@ -495,7 +540,7 @@ function CreateBillModal({ open, suppliers, locations, onClose, onSaved }) {
             onChange={(e) =>
               setForm((prev) => ({ ...prev, billNo: e.target.value }))
             }
-            placeholder="INV-001"
+            placeholder="BILL-001"
           />
         </div>
 
@@ -504,14 +549,20 @@ function CreateBillModal({ open, suppliers, locations, onClose, onSaved }) {
             Currency
           </label>
           <FormSelect
-            value={form.currency}
+            value={effectiveCurrency}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, currency: e.target.value }))
             }
+            disabled={!!selectedSupplier?.defaultCurrency}
           >
             <option value="RWF">RWF</option>
             <option value="USD">USD</option>
           </FormSelect>
+          {selectedSupplier?.defaultCurrency ? (
+            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+              Locked to supplier default currency.
+            </p>
+          ) : null}
         </div>
 
         <div>
@@ -571,7 +622,7 @@ function CreateBillModal({ open, suppliers, locations, onClose, onSaved }) {
 
         <div className="md:col-span-2">
           <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
-            Note
+            Bill note
           </label>
           <textarea
             value={form.note}
@@ -595,7 +646,7 @@ function CreateBillModal({ open, suppliers, locations, onClose, onSaved }) {
         </button>
 
         <AsyncButton
-          idleText="Create bill"
+          idleText="Create supplier bill"
           loadingText="Creating..."
           successText="Created"
           onClick={handleSave}
@@ -606,36 +657,35 @@ function CreateBillModal({ open, suppliers, locations, onClose, onSaved }) {
 }
 
 function EditBillModal({ open, bill, suppliers, locations, onClose, onSaved }) {
-  const [form, setForm] = useState({
-    supplierId: "",
-    locationId: "",
-    billNo: "",
-    currency: "RWF",
-    totalAmount: "",
-    issuedDate: "",
-    dueDate: "",
-    note: "",
-    status: "OPEN",
-  });
+  if (!open || !bill) return null;
+
+  return (
+    <EditBillModalInner
+      key={`edit-bill-${bill.id}-${bill.updatedAt || ""}`}
+      bill={bill}
+      suppliers={suppliers}
+      locations={locations}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
+  const [form, setForm] = useState(() => billEditDefaults(bill));
   const [errorText, setErrorText] = useState("");
 
-  useEffect(() => {
-    if (!bill) return;
-    setForm({
-      supplierId: String(bill.supplierId || ""),
-      locationId: String(bill.locationId || ""),
-      billNo: safe(bill.billNo) || "",
-      currency: normalizeCurrency(bill.currency),
-      totalAmount: String(bill.totalAmount ?? ""),
-      issuedDate: bill.issuedDate ? String(bill.issuedDate).slice(0, 10) : "",
-      dueDate: bill.dueDate ? String(bill.dueDate).slice(0, 10) : "",
-      note: safe(bill.note) || "",
-      status: safe(bill.status) || "OPEN",
-    });
-    setErrorText("");
-  }, [bill]);
+  const selectedSupplier = useMemo(
+    () =>
+      (Array.isArray(suppliers) ? suppliers : []).find(
+        (row) => String(row.id) === String(form.supplierId),
+      ) || null,
+    [suppliers, form.supplierId],
+  );
 
-  if (!open || !bill) return null;
+  const effectiveCurrency = selectedSupplier?.defaultCurrency
+    ? normalizeCurrency(selectedSupplier.defaultCurrency)
+    : normalizeCurrency(form.currency);
 
   async function handleSave() {
     setErrorText("");
@@ -645,7 +695,7 @@ function EditBillModal({ open, bill, suppliers, locations, onClose, onSaved }) {
         supplierId: Number(form.supplierId),
         locationId: Number(form.locationId),
         billNo: form.billNo || undefined,
-        currency: form.currency || undefined,
+        currency: effectiveCurrency || undefined,
         totalAmount: Number(form.totalAmount),
         issuedDate: form.issuedDate || undefined,
         dueDate: form.dueDate || undefined,
@@ -660,14 +710,16 @@ function EditBillModal({ open, bill, suppliers, locations, onClose, onSaved }) {
 
       onSaved?.(result);
     } catch (e) {
-      setErrorText(e?.data?.error || e?.message || "Failed to update bill");
+      setErrorText(
+        e?.data?.error || e?.message || "Failed to update supplier bill",
+      );
     }
   }
 
   return (
     <ModalShell
       title={`Edit supplier bill #${bill.id}`}
-      subtitle="Update branch, supplier, bill details, currency, dates, and amount."
+      subtitle="Update supplier, branch, bill details, dates, and amount."
       onClose={onClose}
     >
       <AlertBox message={errorText} />
@@ -720,7 +772,7 @@ function EditBillModal({ open, bill, suppliers, locations, onClose, onSaved }) {
             onChange={(e) =>
               setForm((prev) => ({ ...prev, billNo: e.target.value }))
             }
-            placeholder="INV-001"
+            placeholder="BILL-001"
           />
         </div>
 
@@ -729,14 +781,20 @@ function EditBillModal({ open, bill, suppliers, locations, onClose, onSaved }) {
             Currency
           </label>
           <FormSelect
-            value={form.currency}
+            value={effectiveCurrency}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, currency: e.target.value }))
             }
+            disabled={!!selectedSupplier?.defaultCurrency}
           >
             <option value="RWF">RWF</option>
             <option value="USD">USD</option>
           </FormSelect>
+          {selectedSupplier?.defaultCurrency ? (
+            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+              Locked to supplier default currency.
+            </p>
+          ) : null}
         </div>
 
         <div>
@@ -798,7 +856,7 @@ function EditBillModal({ open, bill, suppliers, locations, onClose, onSaved }) {
 
         <div className="md:col-span-2">
           <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
-            Note
+            Bill note
           </label>
           <textarea
             value={form.note}
@@ -822,7 +880,7 @@ function EditBillModal({ open, bill, suppliers, locations, onClose, onSaved }) {
         </button>
 
         <AsyncButton
-          idleText="Save bill"
+          idleText="Save supplier bill"
           loadingText="Saving..."
           successText="Saved"
           onClick={handleSave}
@@ -833,28 +891,27 @@ function EditBillModal({ open, bill, suppliers, locations, onClose, onSaved }) {
 }
 
 function AddPaymentModal({ open, bill, onClose, onSaved }) {
+  if (!open || !bill) return null;
+
+  return (
+    <AddPaymentModalInner
+      key={`payment-${bill.id}-${bill.balance}-${bill.updatedAt || ""}`}
+      bill={bill}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function AddPaymentModalInner({ bill, onClose, onSaved }) {
   const [form, setForm] = useState({
-    amount: "",
+    amount: String(bill.balance ?? ""),
     method: "BANK",
     reference: "",
     note: "",
     paidAt: "",
   });
   const [errorText, setErrorText] = useState("");
-
-  useEffect(() => {
-    if (!bill) return;
-    setForm({
-      amount: String(bill.balance ?? ""),
-      method: "BANK",
-      reference: "",
-      note: "",
-      paidAt: "",
-    });
-    setErrorText("");
-  }, [bill]);
-
-  if (!open || !bill) return null;
 
   async function handleSave() {
     setErrorText("");
@@ -909,7 +966,7 @@ function AddPaymentModal({ open, bill, onClose, onSaved }) {
 
         <div>
           <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
-            Method
+            Payment method
           </label>
           <FormSelect
             value={form.method}
@@ -953,7 +1010,7 @@ function AddPaymentModal({ open, bill, onClose, onSaved }) {
 
         <div className="md:col-span-2">
           <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
-            Note
+            Payment note
           </label>
           <textarea
             value={form.note}
@@ -988,15 +1045,21 @@ function AddPaymentModal({ open, bill, onClose, onSaved }) {
 }
 
 function VoidBillModal({ open, bill, onClose, onSaved }) {
+  if (!open || !bill) return null;
+
+  return (
+    <VoidBillModalInner
+      key={`void-${bill.id}-${bill.updatedAt || ""}`}
+      bill={bill}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function VoidBillModalInner({ bill, onClose, onSaved }) {
   const [reason, setReason] = useState("");
   const [errorText, setErrorText] = useState("");
-
-  useEffect(() => {
-    setReason("");
-    setErrorText("");
-  }, [bill]);
-
-  if (!open || !bill) return null;
 
   async function handleVoid() {
     setErrorText("");
@@ -1011,7 +1074,9 @@ function VoidBillModal({ open, bill, onClose, onSaved }) {
 
       onSaved?.(result);
     } catch (e) {
-      setErrorText(e?.data?.error || e?.message || "Failed to void bill");
+      setErrorText(
+        e?.data?.error || e?.message || "Failed to void supplier bill",
+      );
     }
   }
 
@@ -1111,8 +1176,11 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
       const result = await apiFetch(`/owner/suppliers?limit=200`, {
         method: "GET",
       });
+
       setSupplierOptions(
-        Array.isArray(result?.suppliers) ? result.suppliers : [],
+        Array.isArray(result?.suppliers)
+          ? result.suppliers.map(normalizeSupplier).filter(Boolean)
+          : [],
       );
     } catch {
       setSupplierOptions([]);
@@ -1253,11 +1321,11 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
         <>
           <SectionCard
             title="Supplier bills overview"
-            subtitle="Owner-wide procurement liabilities with exact currency visibility."
+            subtitle="Owner-wide supplier liabilities with exact currency visibility."
           >
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
               <StatCard
-                label="Bills"
+                label="Supplier bills"
                 value={safeNumber(summary?.billsCount)}
                 sub="Recorded supplier invoices"
               />
@@ -1269,12 +1337,12 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
               <StatCard
                 label="Partial"
                 value={safeNumber(summary?.partiallyPaidCount)}
-                sub="Installment invoices"
+                sub="Installment bills"
               />
               <StatCard
                 label="Overdue bills"
                 value={safeNumber(summary?.overdueBillsCount)}
-                sub="Invoices past due date"
+                sub="Bills past due date"
               />
               <StatCard
                 label="Outstanding (RWF)"
@@ -1304,7 +1372,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
             subtitle="Click any bill card below to open full detail, items, and payments."
             right={
               <AsyncButton
-                idleText="Create bill"
+                idleText="Create supplier bill"
                 loadingText="Opening..."
                 successText="Ready"
                 onClick={async () => setCreatingBill(true)}
@@ -1393,12 +1461,12 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
             {detailBill ? (
               <SectionCard
-                title="Selected bill detail"
+                title="Selected supplier bill detail"
                 subtitle="Focused owner view of supplier liability and bill activity."
                 right={
                   <div className="flex flex-wrap gap-2">
                     <AsyncButton
-                      idleText="Edit bill"
+                      idleText="Edit supplier bill"
                       loadingText="Opening..."
                       successText="Ready"
                       onClick={async () => setEditingBill(detailBill)}
@@ -1650,7 +1718,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
                       <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                          Installment payments
+                          Bill payments
                         </p>
 
                         {(billDetail?.payments || []).length === 0 ? (
@@ -1717,7 +1785,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
               </SectionCard>
             ) : (
               <SectionCard
-                title="Selected bill detail"
+                title="Selected supplier bill detail"
                 subtitle="This section appears after a supplier bill is selected."
               >
                 <EmptyState text="Select a supplier bill above to inspect details and payments." />

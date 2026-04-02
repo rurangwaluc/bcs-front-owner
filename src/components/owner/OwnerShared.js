@@ -128,7 +128,7 @@ export function StatCard({ label, value, sub, valueClassName = "" }) {
         {label}
       </p>
       <p
-        className={`mt-3 break-words text-3xl font-black text-stone-950 dark:text-stone-50 ${valueClassName}`}
+        className={`mt-3 break-words text-[19px] font-black text-stone-950 dark:text-stone-50 ${valueClassName}`}
       >
         {value}
       </p>
