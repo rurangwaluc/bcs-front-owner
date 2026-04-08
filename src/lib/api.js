@@ -13,6 +13,18 @@ async function readBodySafe(res) {
   return { error: text };
 }
 
+function buildQuery(params = {}) {
+  const qs = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    qs.set(key, String(value));
+  });
+
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}
+
 export async function apiFetch(path, opts = {}) {
   if (!BASE) {
     throw new Error(
@@ -23,7 +35,6 @@ export async function apiFetch(path, opts = {}) {
   const url = `${BASE}${path}`;
   const hasBody = opts.body !== undefined && opts.body !== null;
 
-  // ✅ Only set JSON header if we actually send a JSON body
   const headers = {
     ...(opts.headers || {}),
     ...(hasBody ? { "Content-Type": "application/json" } : {}),
@@ -48,3 +59,27 @@ export async function apiFetch(path, opts = {}) {
 
   return data;
 }
+
+/**
+ * Expenses API
+ */
+
+export function listExpenses(params = {}) {
+  return apiFetch(`/cash/expenses${buildQuery(params)}`);
+}
+
+export function createExpense(payload) {
+  return apiFetch("/cash/expenses", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function voidExpense(expenseId, reason) {
+  return apiFetch(`/cash/expenses/${expenseId}/void`, {
+    method: "POST",
+    body: { reason },
+  });
+}
+
+export { buildQuery };

@@ -62,8 +62,8 @@ export default function LoginPage() {
   const router = useRouter();
 
   const [form, setForm] = useState({
-    email: "",
-    password: "",
+    email: "owner@bcs.com",
+    password: "Owner@123",
   });
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState("");
