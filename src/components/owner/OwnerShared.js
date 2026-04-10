@@ -74,26 +74,38 @@ export function downloadCSV(filename, rows) {
 
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
+
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
+
   URL.revokeObjectURL(url);
 }
 
-export function AlertBox({ message, tone = "error" }) {
-  if (!message) return null;
+export function AlertBox({
+  message = "",
+  children = null,
+  tone = "error",
+  className = "",
+}) {
+  const content = children ?? message;
+  if (!content) return null;
 
   const classes =
     tone === "success"
       ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300"
-      : "border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300";
+      : tone === "warn"
+        ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
+        : "border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300";
 
   return (
-    <div className={`rounded-2xl border px-4 py-3 text-sm ${classes}`}>
-      {message}
+    <div
+      className={`rounded-2xl border px-4 py-3 text-sm ${classes} ${className}`}
+    >
+      {content}
     </div>
   );
 }
@@ -101,13 +113,14 @@ export function AlertBox({ message, tone = "error" }) {
 export function SectionCard({ title, subtitle, right = null, children }) {
   return (
     <section className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 sm:p-6">
-      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 dark:border-stone-800 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-lg font-black tracking-tight text-stone-950 dark:text-stone-50">
             {title}
-          </p>
+          </h3>
+
           {subtitle ? (
-            <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-300">
+            <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
               {subtitle}
             </p>
           ) : null}
@@ -123,17 +136,19 @@ export function SectionCard({ title, subtitle, right = null, children }) {
 
 export function StatCard({ label, value, sub, valueClassName = "" }) {
   return (
-    <div className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+    <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500 dark:text-stone-400">
         {label}
       </p>
+
       <p
         className={`mt-3 break-words text-[19px] font-black text-stone-950 dark:text-stone-50 ${valueClassName}`}
       >
         {value}
       </p>
+
       {sub ? (
-        <p className="mt-2 text-sm text-stone-600 dark:text-stone-300">{sub}</p>
+        <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">{sub}</p>
       ) : null}
     </div>
   );
@@ -141,7 +156,7 @@ export function StatCard({ label, value, sub, valueClassName = "" }) {
 
 export function EmptyState({ text }) {
   return (
-    <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-stone-600 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-300">
+    <div className="rounded-[24px] border border-dashed border-stone-300 bg-stone-50 px-5 py-10 text-center text-sm text-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-400">
       {text}
     </div>
   );
@@ -151,7 +166,7 @@ export function FieldLabel({ htmlFor, children }) {
   return (
     <label
       htmlFor={htmlFor}
-      className="mb-2 block text-sm font-semibold text-stone-800 dark:text-stone-200"
+      className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400"
     >
       {children}
     </label>
@@ -205,41 +220,42 @@ export function OverlayModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/45">
-      <div className="flex min-h-screen items-start justify-center overflow-y-auto px-4 py-4 sm:px-6 sm:py-8">
-        <div className="my-auto flex w-full max-w-xl flex-col overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-2xl dark:border-stone-800 dark:bg-stone-900 max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-4rem)]">
-          <div className="flex items-start justify-between gap-4 border-b border-stone-200 px-5 py-5 dark:border-stone-800 sm:px-6">
-            <div>
-              <h3 className="text-xl font-black text-stone-950 dark:text-stone-50">
-                {title}
-              </h3>
-              {subtitle ? (
-                <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-300">
-                  {subtitle}
-                </p>
-              ) : null}
-            </div>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/60 p-4 backdrop-blur-sm">
+      <div className="absolute inset-0" onClick={onClose} />
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
-              aria-label="Close modal"
-            >
-              ×
-            </button>
+      <div className="relative z-[101] flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-2xl dark:border-stone-800 dark:bg-stone-900">
+        <div className="flex items-start justify-between gap-4 border-b border-stone-200 px-5 py-5 dark:border-stone-800 sm:px-6">
+          <div className="min-w-0">
+            <h3 className="text-xl font-black tracking-tight text-stone-950 dark:text-stone-50">
+              {title}
+            </h3>
+
+            {subtitle ? (
+              <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
+                {subtitle}
+              </p>
+            ) : null}
           </div>
 
-          <div className="flex-1 overflow-y-auto px-5 py-5 dark:text-stone-100 sm:px-6">
-            {children}
-          </div>
-
-          {footer ? (
-            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 px-5 py-5 dark:border-stone-800 sm:flex-row sm:justify-end sm:px-6">
-              {footer}
-            </div>
-          ) : null}
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+            aria-label="Close modal"
+          >
+            ×
+          </button>
         </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5 dark:text-stone-100 sm:px-6">
+          {children}
+        </div>
+
+        {footer ? (
+          <div className="flex flex-col-reverse gap-3 border-t border-stone-200 px-5 py-5 dark:border-stone-800 sm:flex-row sm:justify-end sm:px-6">
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -269,9 +285,11 @@ export function LocationCard({ row, active, onSelect }) {
           >
             Branch
           </p>
-          <h3 className="mt-2 text-lg font-bold break-words">
+
+          <h4 className="mt-2 break-words text-lg font-black">
             {safe(row?.name) || "Unnamed branch"}
-          </h3>
+          </h4>
+
           <p
             className={
               "mt-1 text-sm " +
@@ -376,110 +394,108 @@ export function StaffRowCard({ row, active, onSelect }) {
           : "border-stone-200 bg-white hover:border-stone-300 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700")
       }
     >
-      <div className="flex flex-col gap-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-4">
-            <div
-              className={
-                "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border text-sm font-black tracking-[0.12em] " +
-                (active
-                  ? "border-white/10 bg-white/10 text-white dark:border-stone-300 dark:bg-stone-200 dark:text-stone-950"
-                  : "border-stone-200 bg-stone-50 text-stone-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200")
-              }
-            >
-              {initials || "U"}
-            </div>
-
-            <div className="min-w-0">
-              <p
-                className={
-                  "truncate text-lg font-black " +
-                  (active
-                    ? "text-white dark:text-stone-950"
-                    : "text-stone-950 dark:text-stone-50")
-                }
-              >
-                {name || "-"}
-              </p>
-
-              <p
-                className={
-                  "mt-1 break-all text-sm " +
-                  (active
-                    ? "text-stone-200 dark:text-stone-700"
-                    : "text-stone-600 dark:text-stone-300")
-                }
-              >
-                {safe(row?.email) || "-"}
-              </p>
-            </div>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-4">
+          <div
+            className={
+              "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border text-sm font-black tracking-[0.12em] " +
+              (active
+                ? "border-white/10 bg-white/10 text-white dark:border-stone-300 dark:bg-stone-200 dark:text-stone-950"
+                : "border-stone-200 bg-stone-50 text-stone-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200")
+            }
+          >
+            {initials || "U"}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <span
+          <div className="min-w-0">
+            <p
               className={
-                "rounded-full px-3 py-1 text-xs font-semibold " +
+                "truncate text-lg font-black " +
                 (active
-                  ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
-                  : roleTone(row?.role))
+                  ? "text-white dark:text-stone-950"
+                  : "text-stone-950 dark:text-stone-50")
               }
             >
-              {roleLabel}
-            </span>
+              {name || "-"}
+            </p>
 
-            <span
+            <p
               className={
-                "rounded-full px-3 py-1 text-xs font-semibold " +
+                "mt-1 break-all text-sm " +
                 (active
-                  ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
-                  : userActiveTone(!!row?.isActive))
+                  ? "text-stone-200 dark:text-stone-700"
+                  : "text-stone-600 dark:text-stone-300")
               }
             >
-              {row?.isActive ? "Active" : "Inactive"}
-            </span>
+              {safe(row?.email) || "-"}
+            </p>
           </div>
         </div>
 
-        <div
-          className={
-            "grid gap-3 rounded-[22px] border p-4 sm:grid-cols-2 " +
-            (active
-              ? "border-white/10 bg-white/5 dark:border-stone-300 dark:bg-stone-200"
-              : "border-stone-200 bg-stone-50 dark:border-stone-800 dark:bg-stone-950")
-          }
-        >
-          <div>
-            <p
-              className={
-                "text-[11px] uppercase tracking-[0.14em] " +
-                (active
-                  ? "text-stone-300 dark:text-stone-600"
-                  : "text-stone-500 dark:text-stone-400")
-              }
-            >
-              Branch
-            </p>
-            <p className="mt-2 break-words text-sm font-semibold">
-              {safe(row?.location?.name || "-")}
-              {safe(row?.location?.code) ? ` (${safe(row.location.code)})` : ""}
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span
+            className={
+              "rounded-full px-3 py-1 text-xs font-semibold " +
+              (active
+                ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
+                : roleTone(row?.role))
+            }
+          >
+            {roleLabel}
+          </span>
 
-          <div>
-            <p
-              className={
-                "text-[11px] uppercase tracking-[0.14em] " +
-                (active
-                  ? "text-stone-300 dark:text-stone-600"
-                  : "text-stone-500 dark:text-stone-400")
-              }
-            >
-              Last seen
-            </p>
-            <p className="mt-2 text-sm font-semibold">
-              {safeDate(row?.lastSeenAt)}
-            </p>
-          </div>
+          <span
+            className={
+              "rounded-full px-3 py-1 text-xs font-semibold " +
+              (active
+                ? "bg-white/10 text-white dark:bg-stone-900/10 dark:text-stone-950"
+                : userActiveTone(!!row?.isActive))
+            }
+          >
+            {row?.isActive ? "Active" : "Inactive"}
+          </span>
+        </div>
+      </div>
+
+      <div
+        className={
+          "mt-4 grid gap-3 rounded-[22px] border p-4 sm:grid-cols-2 " +
+          (active
+            ? "border-white/10 bg-white/5 dark:border-stone-300 dark:bg-stone-200"
+            : "border-stone-200 bg-stone-50 dark:border-stone-800 dark:bg-stone-950")
+        }
+      >
+        <div>
+          <p
+            className={
+              "text-[11px] uppercase tracking-[0.14em] " +
+              (active
+                ? "text-stone-300 dark:text-stone-600"
+                : "text-stone-500 dark:text-stone-400")
+            }
+          >
+            Branch
+          </p>
+          <p className="mt-2 break-words text-sm font-semibold">
+            {safe(row?.location?.name || "-")}
+            {safe(row?.location?.code) ? ` (${safe(row.location.code)})` : ""}
+          </p>
+        </div>
+
+        <div>
+          <p
+            className={
+              "text-[11px] uppercase tracking-[0.14em] " +
+              (active
+                ? "text-stone-300 dark:text-stone-600"
+                : "text-stone-500 dark:text-stone-400")
+            }
+          >
+            Last seen
+          </p>
+          <p className="mt-2 text-sm font-semibold">
+            {safeDate(row?.lastSeenAt)}
+          </p>
         </div>
       </div>
     </button>

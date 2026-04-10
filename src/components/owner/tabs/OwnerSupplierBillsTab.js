@@ -142,6 +142,26 @@ function displayCreatedBy(row) {
   return "-";
 }
 
+function paymentMethodLabel(v) {
+  const s = safe(v).toUpperCase();
+  if (s === "BANK") return "Bank";
+  if (s === "CASH") return "Cash";
+  if (s === "MOMO") return "MoMo";
+  if (s === "CARD") return "Card";
+  if (s === "OTHER") return "Other";
+  return s || "-";
+}
+
+function statusLabel(status) {
+  const s = safe(status).toUpperCase();
+  if (s === "PARTIALLY_PAID") return "Partially paid";
+  if (s === "PAID") return "Paid";
+  if (s === "OPEN") return "Open";
+  if (s === "DRAFT") return "Draft";
+  if (s === "VOID") return "Void";
+  return s || "-";
+}
+
 function Pill({ tone = "neutral", children }) {
   const cls =
     tone === "success"
@@ -262,9 +282,11 @@ function BillCard({ row, active, onSelect, locations = [] }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <div className="truncate text-sm font-black text-stone-950 dark:text-stone-50">
-              Bill #{safe(row?.billNo || row?.id) || "-"}
+              {safe(row?.billNo)
+                ? `Supplier invoice ${safe(row.billNo)}`
+                : `Supplier bill #${safe(row?.id) || "-"}`}
             </div>
-            <Pill tone={statusTone(status)}>{status}</Pill>
+            <Pill tone={statusTone(status)}>{statusLabel(status)}</Pill>
             <Pill tone="neutral">{currency}</Pill>
             <Pill tone={row?.isOverdue ? "danger" : "neutral"}>
               {row?.isOverdue
@@ -298,7 +320,7 @@ function BillCard({ row, active, onSelect, locations = [] }) {
 
         <div className="shrink-0 text-right">
           <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Balance
+            Balance left
           </div>
           <div className="mt-1 text-lg font-black text-stone-950 dark:text-stone-50">
             {money(row?.balance, currency)}
@@ -312,7 +334,7 @@ function BillCard({ row, active, onSelect, locations = [] }) {
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <div className="rounded-[18px] border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
           <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Total
+            Bill total
           </div>
           <div className="mt-2 text-sm font-bold text-stone-950 dark:text-stone-50">
             {money(row?.totalAmount, currency)}
@@ -320,7 +342,7 @@ function BillCard({ row, active, onSelect, locations = [] }) {
         </div>
         <div className="rounded-[18px] border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
           <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Paid
+            Paid so far
           </div>
           <div className="mt-2 text-sm font-bold text-stone-950 dark:text-stone-50">
             {money(row?.paidAmount, currency)}
@@ -328,7 +350,7 @@ function BillCard({ row, active, onSelect, locations = [] }) {
         </div>
         <div className="rounded-[18px] border border-rose-200 bg-rose-50 p-3 dark:border-rose-900/40 dark:bg-rose-950/20">
           <div className="text-[11px] font-black uppercase tracking-[0.12em] text-rose-700 dark:text-rose-300">
-            Remaining
+            Still unpaid
           </div>
           <div className="mt-2 text-sm font-bold text-rose-700 dark:text-rose-300">
             {money(row?.balance, currency)}
@@ -463,10 +485,16 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
   return (
     <ModalShell
       title="Create supplier bill"
-      subtitle="Create a new supplier liability for a specific branch."
+      subtitle="Record a new supplier amount your business must pay later."
       onClose={onClose}
     >
       <AlertBox message={errorText} />
+
+      <div className="mb-4 rounded-[20px] border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-200">
+        Creating a supplier bill does <b>not</b> mean the supplier has already
+        been paid. You are only recording the amount owed. The payment method is
+        chosen later when you click <b>Add payment</b>.
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
@@ -509,15 +537,20 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
 
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Bill number
+            Supplier invoice number
           </label>
           <FormInput
             value={form.billNo}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, billNo: e.target.value }))
             }
-            placeholder="BILL-001"
+            placeholder="Number written on supplier invoice or paper"
           />
+          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+            {
+              "This is the number from the supplier's invoice, receipt, paper, or message. You can leave it empty if there is no number."
+            }
+          </p>
         </div>
 
         <div>
@@ -543,7 +576,7 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
 
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Total amount
+            Bill total
           </label>
           <FormInput
             type="number"
@@ -607,7 +640,7 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
             }
             rows={4}
             className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-            placeholder="Bill note"
+            placeholder="Optional note about this bill"
           />
         </div>
       </div>
@@ -695,7 +728,7 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
   return (
     <ModalShell
       title={`Edit supplier bill #${bill.id}`}
-      subtitle="Update supplier, branch, bill details, dates, and amount."
+      subtitle="Update the supplier, branch, amount, dates, and bill details."
       onClose={onClose}
     >
       <AlertBox message={errorText} />
@@ -741,15 +774,18 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
 
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Bill number
+            Supplier invoice number
           </label>
           <FormInput
             value={form.billNo}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, billNo: e.target.value }))
             }
-            placeholder="BILL-001"
+            placeholder="Number written on supplier invoice or paper"
           />
+          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+            {"This is the supplier's own number for this bill."}
+          </p>
         </div>
 
         <div>
@@ -775,7 +811,7 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
 
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Total amount
+            Bill total
           </label>
           <FormInput
             type="number"
@@ -841,7 +877,7 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
             }
             rows={4}
             className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-            placeholder="Bill note"
+            placeholder="Optional note about this bill"
           />
         </div>
       </div>
@@ -920,7 +956,7 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
   return (
     <ModalShell
       title={`Add payment to bill #${bill.id}`}
-      subtitle={`Remaining balance: ${money(bill.balance, bill.currency)}`}
+      subtitle={`Choose how the supplier was actually paid. Remaining balance now: ${money(bill.balance, bill.currency)}`}
       onClose={onClose}
     >
       <AlertBox message={errorText} />
@@ -942,7 +978,7 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
 
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Payment method
+            How was it paid?
           </label>
           <FormSelect
             value={form.method}
@@ -967,7 +1003,7 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
             onChange={(e) =>
               setForm((prev) => ({ ...prev, reference: e.target.value }))
             }
-            placeholder="Transaction reference"
+            placeholder="Bank slip, transfer code, receipt number"
           />
         </div>
 
@@ -995,7 +1031,7 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
             }
             rows={4}
             className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-            placeholder="Payment note"
+            placeholder="Optional note about this payment"
           />
         </div>
       </div>
@@ -1059,14 +1095,14 @@ function VoidBillModalInner({ bill, onClose, onSaved }) {
   return (
     <ModalShell
       title={`Void bill #${bill.id}`}
-      subtitle="This should only be used for bills that should no longer count."
+      subtitle="Use this only if this supplier bill should no longer count."
       onClose={onClose}
     >
       <AlertBox message={errorText} />
 
       <Surface className="bg-rose-50 dark:bg-rose-950/20">
         <div className="text-sm text-rose-800 dark:text-rose-200">
-          Bill amount: <strong>{money(bill.totalAmount, bill.currency)}</strong>
+          Bill total: <strong>{money(bill.totalAmount, bill.currency)}</strong>
           <br />
           Paid so far: <strong>{money(bill.paidAmount, bill.currency)}</strong>
         </div>
@@ -1308,7 +1344,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
       <SectionShell
         title="Supplier bills"
-        hint="Supplier liabilities, due dates, installments, and unpaid balances."
+        hint="Track what your business owes suppliers, what has already been paid, and what still remains unpaid."
         right={headerRight}
       >
         {loading ? (
@@ -1332,17 +1368,17 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                   <MetricCard
                     label="Supplier bills"
                     value={safeNumber(summary?.billsCount)}
-                    sub="Recorded supplier invoices"
+                    sub="Recorded supplier bills"
                   />
                   <MetricCard
-                    label="Paid"
+                    label="Paid so far"
                     value={safeNumber(summary?.paidAmount).toLocaleString()}
-                    sub="Settled amount"
+                    sub="Already settled"
                   />
                   <MetricCard
-                    label="Partial"
+                    label="Partly paid"
                     value={safeNumber(summary?.partiallyPaidCount)}
-                    sub="Installment bills"
+                    sub="Bills with partial payment"
                   />
                   <MetricCard
                     label="Overdue bills"
@@ -1351,14 +1387,14 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                     tone="danger"
                   />
                   <MetricCard
-                    label="Outstanding (RWF)"
+                    label="Still unpaid (RWF)"
                     value={money(summary?.balanceRWF, "RWF")}
-                    sub="Open RWF liability"
+                    sub="Open RWF balance"
                   />
                   <MetricCard
-                    label="Outstanding (USD)"
+                    label="Still unpaid (USD)"
                     value={money(summary?.balanceUSD, "USD")}
-                    sub="Open USD liability"
+                    sub="Open USD balance"
                   />
                   <MetricCard
                     label="Overdue (RWF)"
@@ -1377,14 +1413,14 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
               <Surface>
                 <div className="text-sm font-black text-stone-950 dark:text-stone-50">
-                  Bill filters
+                  Find a supplier bill
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <FormInput
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="Search supplier, bill number, note, branch"
+                    placeholder="Search supplier, invoice number, note, branch"
                   />
 
                   <FormSelect
@@ -1444,7 +1480,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                     </FormSelect>
 
                     <div className="rounded-[18px] border border-stone-200 bg-white px-3 py-3 text-sm text-stone-900 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100">
-                      Balance:{" "}
+                      Remaining now:{" "}
                       <b>
                         {detailLoading
                           ? "..."
@@ -1456,8 +1492,9 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                   </div>
 
                   <div className="mt-2 text-[11px] text-stone-500 dark:text-stone-400">
-                    Status: <b>{detailBill ? safe(detailBill.status) : "—"}</b>{" "}
-                    • Supplier:{" "}
+                    Status:{" "}
+                    <b>{detailBill ? statusLabel(detailBill.status) : "—"}</b> •
+                    Supplier:{" "}
                     <b>{detailBill ? safe(detailBill.supplierName) : "—"}</b>
                   </div>
                 </div>
@@ -1467,16 +1504,15 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
             <div className="mt-4 grid gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
               <Surface>
                 <div className="text-sm font-black text-stone-950 dark:text-stone-50">
-                  Supplier bills directory
+                  Supplier bills list
                 </div>
                 <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-                  Select a bill to inspect details, items, and installment
-                  payments.
+                  Pick a bill to review its details and payment history.
                 </div>
 
                 <div className="mt-4">
                   {bills.length === 0 ? (
-                    <EmptyState text="No supplier bills match the current owner filters." />
+                    <EmptyState text="No supplier bills match the current filters." />
                   ) : (
                     <div className="grid gap-3">
                       {visibleRows.map((row) => (
@@ -1517,8 +1553,8 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                         Selected supplier bill
                       </div>
                       <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-                        Focused owner view of supplier liability and bill
-                        activity.
+                        Full owner view of this supplier amount and every
+                        payment already made against it.
                       </div>
                     </div>
 
@@ -1571,7 +1607,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                     <>
                       <div className="mt-4 flex flex-wrap items-center gap-2">
                         <Pill tone={statusTone(detailBill?.status)}>
-                          {safe(detailBill?.status) || "OPEN"}
+                          {statusLabel(detailBill?.status)}
                         </Pill>
                         <Pill tone="neutral">
                           {normalizeCurrency(detailBill?.currency)}
@@ -1589,7 +1625,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                         <MetricCard
                           label="Supplier"
                           value={safe(detailBill?.supplierName) || "-"}
-                          sub={`Bill #${safe(detailBill?.billNo) || safe(detailBill?.id) || "-"}`}
+                          sub={`Invoice / bill #${safe(detailBill?.billNo) || safe(detailBill?.id) || "-"}`}
                         />
                         <MetricCard
                           label="Branch"
@@ -1597,18 +1633,18 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                           sub={displayBranchSub(detailBill, locationOptions)}
                         />
                         <MetricCard
-                          label={`Balance (${normalizeCurrency(detailBill?.currency)})`}
+                          label={`Balance left (${normalizeCurrency(detailBill?.currency)})`}
                           value={money(
                             detailBill?.balance,
                             detailBill?.currency,
                           )}
-                          sub="Outstanding amount"
+                          sub="Still unpaid"
                           tone="danger"
                         />
                         <MetricCard
                           label="Created by"
                           value={displayCreatedBy(detailBill)}
-                          sub={safe(detailBill?.status) || "-"}
+                          sub={statusLabel(detailBill?.status) || "-"}
                         />
                       </div>
 
@@ -1644,26 +1680,26 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
                       <div className="mt-4 grid gap-3">
                         <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                          Financial view
+                          Money view
                         </div>
 
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                           <InfoTile
-                            label={`Total (${normalizeCurrency(detailBill?.currency)})`}
+                            label={`Bill total (${normalizeCurrency(detailBill?.currency)})`}
                             value={money(
                               detailBill?.totalAmount,
                               detailBill?.currency,
                             )}
                           />
                           <InfoTile
-                            label={`Paid (${normalizeCurrency(detailBill?.currency)})`}
+                            label={`Paid so far (${normalizeCurrency(detailBill?.currency)})`}
                             value={money(
                               detailBill?.paidAmount,
                               detailBill?.currency,
                             )}
                           />
                           <InfoTile
-                            label={`Remaining (${normalizeCurrency(detailBill?.currency)})`}
+                            label={`Still unpaid (${normalizeCurrency(detailBill?.currency)})`}
                             value={money(
                               detailBill?.balance,
                               detailBill?.currency,
@@ -1740,12 +1776,12 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
                         <Surface className="bg-stone-50 dark:bg-stone-950">
                           <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                            Bill payments
+                            Payment history
                           </div>
 
                           {(billDetail?.payments || []).length === 0 ? (
                             <div className="mt-4">
-                              <EmptyState text="No payment installments recorded yet." />
+                              <EmptyState text="No payments recorded yet." />
                             </div>
                           ) : (
                             <div className="mt-4 space-y-3">
@@ -1757,7 +1793,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                                   <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div className="min-w-0">
                                       <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-                                        {safe(payment?.method) || "-"}
+                                        {paymentMethodLabel(payment?.method)}
                                       </p>
                                       <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
                                         {safeDate(payment?.paidAt)}
@@ -1814,7 +1850,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                     This section appears after a supplier bill is selected.
                   </div>
                   <div className="mt-4">
-                    <EmptyState text="Select a supplier bill above to inspect details and payments." />
+                    <EmptyState text="Select a supplier bill above to inspect its details and payment history." />
                   </div>
                 </Surface>
               )}

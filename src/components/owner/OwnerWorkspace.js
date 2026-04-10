@@ -109,7 +109,7 @@ function sectionSubtitle(activeTab) {
     case "sales":
       return "Sales flow, output, and operational execution visibility.";
     case "payments":
-      return "Recorded customer payments, methods, and settlement behavior.";
+      return "Money in, money out, and net position across methods and branches.";
     case "credits":
       return "Customer credit exposure, control, and repayment visibility.";
     case "suppliers":
@@ -279,7 +279,7 @@ export default function OwnerWorkspace({
             key: "payments",
             label: "Payments",
             icon: CreditCard,
-            description: "Recorded customer payments",
+            description: "Money in, money out, and net",
           },
           {
             key: "credits",
