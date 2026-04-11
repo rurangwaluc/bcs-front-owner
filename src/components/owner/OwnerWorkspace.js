@@ -33,6 +33,7 @@ import OwnerNotesTab from "./tabs/OwnerNotesTab";
 import OwnerOverviewTab from "./tabs/OwnerOverviewTab";
 import OwnerPaymentsTab from "./tabs/OwnerPaymentsTab";
 import OwnerProductsTab from "./tabs/OwnerProductsTab";
+import OwnerPurchaseOrdersTab from "./tabs/OwnerPurchaseOrdersTab";
 import OwnerRefundsTab from "./tabs/OwnerRefundsTab";
 import OwnerReportsTab from "./tabs/OwnerReportsTab";
 import OwnerSalesTab from "./tabs/OwnerSalesTab";
@@ -73,6 +74,8 @@ function sectionTitle(activeTab) {
       return "Supplier Profiles";
     case "supplier-evaluations":
       return "Supplier Evaluations";
+    case "purchase-orders":
+      return "Purchase Orders";
     case "supplier-bills":
       return "Supplier Bills";
     case "cash":
@@ -118,6 +121,8 @@ function sectionSubtitle(activeTab) {
       return "Supplier payment setup, terms, bank details, and instructions.";
     case "supplier-evaluations":
       return "Owner evaluation, preferred suppliers, watchlist, and risk.";
+    case "purchase-orders":
+      return "Supplier ordering, incoming stock planning, approvals, and printable purchase documents.";
     case "supplier-bills":
       return "Supplier liabilities, due dates, installments, and balances.";
     case "cash":
@@ -317,6 +322,12 @@ export default function OwnerWorkspace({
             description: "Performance and risk scoring",
           },
           {
+            key: "purchase-orders",
+            label: "Purchase Orders",
+            icon: ClipboardList,
+            description: "Supplier ordering and approvals",
+          },
+          {
             key: "supplier-bills",
             label: "Supplier Bills",
             icon: ClipboardList,
@@ -449,6 +460,8 @@ export default function OwnerWorkspace({
         return <OwnerSupplierProfilesTab locations={locations} />;
       case "supplier-evaluations":
         return <OwnerSupplierEvaluationsTab locations={locations} />;
+      case "purchase-orders":
+        return <OwnerPurchaseOrdersTab locations={locations} />;
       case "supplier-bills":
         return <OwnerSupplierBillsTab locations={locations} />;
       case "cash":
