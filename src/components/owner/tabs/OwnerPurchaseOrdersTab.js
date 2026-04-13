@@ -5,8 +5,7 @@ import {
   EmptyState,
   FormInput,
   FormSelect,
-  SectionCard,
-  StatCard,
+  FormTextarea,
   safe,
   safeDate,
   safeNumber,
@@ -41,14 +40,6 @@ function normalizePurchaseOrdersResponse(result) {
   return [];
 }
 
-function normalizeSuppliersResponse(result) {
-  if (Array.isArray(result)) return result;
-  if (Array.isArray(result?.suppliers)) return result.suppliers;
-  if (Array.isArray(result?.rows)) return result.rows;
-  if (Array.isArray(result?.data)) return result.data;
-  return [];
-}
-
 function normalizeSupplier(row) {
   if (!row) return null;
 
@@ -62,7 +53,19 @@ function normalizeSupplier(row) {
   };
 }
 
-function normalizePO(row) {
+function normalizeProduct(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id ?? null,
+    name: row.name ?? row.productName ?? "",
+    sku: row.sku ?? "",
+    costPrice: Number(row.costPrice ?? row.cost_price ?? 0),
+    isActive: row.isActive ?? row.is_active ?? true,
+  };
+}
+
+function normalizePurchaseOrder(row) {
   if (!row) return null;
 
   return {
@@ -70,70 +73,44 @@ function normalizePO(row) {
     locationId: row.locationId ?? row.location_id ?? null,
     locationName: row.locationName ?? row.location_name ?? "",
     locationCode: row.locationCode ?? row.location_code ?? "",
-
     supplierId: row.supplierId ?? row.supplier_id ?? null,
     supplierName: row.supplierName ?? row.supplier_name ?? "",
-
     poNo: row.poNo ?? row.po_no ?? "",
     reference: row.reference ?? "",
     currency: normalizeCurrency(row.currency),
-
     status: row.status ?? "DRAFT",
     notes: row.notes ?? row.note ?? "",
-
     orderedAt: row.orderedAt ?? row.ordered_at ?? null,
     expectedAt: row.expectedAt ?? row.expected_at ?? null,
     approvedAt: row.approvedAt ?? row.approved_at ?? null,
-
     createdByUserId: row.createdByUserId ?? row.created_by_user_id ?? null,
     createdByName: row.createdByName ?? row.created_by_name ?? "",
-    createdByEmail: row.createdByEmail ?? row.created_by_email ?? "",
-
     approvedByUserId: row.approvedByUserId ?? row.approved_by_user_id ?? null,
     approvedByName: row.approvedByName ?? row.approved_by_name ?? "",
-
     subtotalAmount: Number(row.subtotalAmount ?? row.subtotal_amount ?? 0),
     totalAmount: Number(row.totalAmount ?? row.total_amount ?? 0),
-
-    createdAt: row.createdAt ?? row.created_at ?? null,
-    updatedAt: row.updatedAt ?? row.updated_at ?? null,
-
     itemsCount: Number(row.itemsCount ?? row.items_count ?? 0),
     qtyOrderedTotal: Number(row.qtyOrderedTotal ?? row.qty_ordered_total ?? 0),
     qtyReceivedTotal: Number(
       row.qtyReceivedTotal ?? row.qty_received_total ?? 0,
     ),
+    createdAt: row.createdAt ?? row.created_at ?? null,
+    updatedAt: row.updatedAt ?? row.updated_at ?? null,
   };
 }
 
-function normalizePODetail(result) {
+function normalizePurchaseOrderDetail(result) {
   return {
     purchaseOrder: result?.purchaseOrder
-      ? normalizePO(result.purchaseOrder)
+      ? normalizePurchaseOrder(result.purchaseOrder)
       : null,
-    items: Array.isArray(result?.items)
-      ? result.items.map((row) => ({
-          id: row.id ?? null,
-          purchaseOrderId: row.purchaseOrderId ?? row.purchase_order_id ?? null,
-          productId: row.productId ?? row.product_id ?? null,
-          productName: row.productName ?? row.product_name ?? "",
-          productDisplayName:
-            row.productDisplayName ?? row.product_display_name ?? "",
-          productSku: row.productSku ?? row.product_sku ?? "",
-          stockUnit: row.stockUnit ?? row.stock_unit ?? "PIECE",
-          purchaseUnit: row.purchaseUnit ?? row.purchase_unit ?? "PIECE",
-          purchaseUnitFactor: Number(
-            row.purchaseUnitFactor ?? row.purchase_unit_factor ?? 1,
-          ),
-          qtyOrdered: Number(row.qtyOrdered ?? row.qty_ordered ?? 0),
-          qtyReceived: Number(row.qtyReceived ?? row.qty_received ?? 0),
-          unitCost: Number(row.unitCost ?? row.unit_cost ?? 0),
-          lineTotal: Number(row.lineTotal ?? row.line_total ?? 0),
-          note: row.note ?? "",
-          createdAt: row.createdAt ?? row.created_at ?? null,
-        }))
-      : [],
+    items: Array.isArray(result?.items) ? result.items : [],
   };
+}
+
+function findLocationMeta(locations, locationId) {
+  const rows = Array.isArray(locations) ? locations : [];
+  return rows.find((row) => String(row?.id) === String(locationId)) || null;
 }
 
 function displayBranch(row, locations = []) {
@@ -143,70 +120,45 @@ function displayBranch(row, locations = []) {
       : safe(row.locationName);
   }
 
-  const found =
-    (Array.isArray(locations) ? locations : []).find(
-      (x) => String(x?.id) === String(row?.locationId),
-    ) || null;
-
-  if (found) {
-    return safe(found?.code)
-      ? `${safe(found?.name)} (${safe(found?.code)})`
-      : safe(found?.name);
+  const meta = findLocationMeta(locations, row?.locationId);
+  if (meta) {
+    return safe(meta?.code)
+      ? `${safe(meta?.name)} (${safe(meta?.code)})`
+      : safe(meta?.name) || "-";
   }
 
   if (row?.locationId != null) return `Branch #${row.locationId}`;
   return "-";
 }
 
-function displayCreatedBy(row) {
-  if (safe(row?.createdByName)) return safe(row.createdByName);
-  if (safe(row?.createdByEmail)) return safe(row.createdByEmail);
-  if (row?.createdByUserId != null)
-    return `User #${safeNumber(row.createdByUserId)}`;
-  return "-";
-}
-
-function displayApprovedBy(row) {
-  if (safe(row?.approvedByName)) return safe(row.approvedByName);
-  if (row?.approvedByUserId != null)
-    return `User #${safeNumber(row.approvedByUserId)}`;
-  return "-";
-}
-
 function statusTone(status) {
   const s = safe(status).toUpperCase();
-
-  if (s === "RECEIVED") return "success";
+  if (s === "APPROVED") return "success";
+  if (s === "DRAFT") return "info";
   if (s === "PARTIALLY_RECEIVED") return "warn";
-  if (s === "APPROVED") return "info";
+  if (s === "RECEIVED") return "success";
   if (s === "CANCELLED") return "danger";
-  if (s === "DRAFT") return "neutral";
   return "neutral";
 }
 
-function StatusPill({ status }) {
-  const s = safe(status).toUpperCase() || "DRAFT";
-
-  const cls =
-    s === "RECEIVED"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300"
-      : s === "PARTIALLY_RECEIVED"
-        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300"
-        : s === "APPROVED"
-          ? "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-300"
-          : s === "CANCELLED"
-            ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300"
-            : "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
-
+function SectionShell({ title, hint, right, children }) {
   return (
-    <span
-      className={cx(
-        "inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em]",
-        cls,
-      )}
-    >
-      {s.replaceAll("_", " ")}
-    </span>
+    <section className="overflow-hidden rounded-[30px] border border-stone-200 bg-white shadow-[0_10px_30px_rgba(2,6,23,0.04)] dark:border-stone-800 dark:bg-stone-900 dark:shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone-200 p-5 dark:border-stone-800">
+        <div className="min-w-0">
+          <div className="text-base font-black tracking-[-0.02em] text-stone-950 dark:text-stone-50">
+            {title}
+          </div>
+          {hint ? (
+            <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+              {hint}
+            </div>
+          ) : null}
+        </div>
+        {right ? <div className="shrink-0">{right}</div> : null}
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
   );
 }
 
@@ -223,15 +175,20 @@ function Surface({ children, className = "" }) {
   );
 }
 
-function InfoTile({ label, value, sub = "" }) {
+function MetricCard({ label, value, sub, tone = "default" }) {
+  const valueClass =
+    tone === "danger"
+      ? "text-rose-700 dark:text-rose-300"
+      : tone === "warn"
+        ? "text-amber-700 dark:text-amber-300"
+        : "text-stone-950 dark:text-stone-50";
+
   return (
-    <div className="rounded-[20px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+    <div className="rounded-[22px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
       <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
         {label}
       </div>
-      <div className="mt-2 break-words text-sm font-semibold text-stone-950 dark:text-stone-50">
-        {value || "-"}
-      </div>
+      <div className={cx("mt-2 text-lg font-black", valueClass)}>{value}</div>
       {sub ? (
         <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
           {sub}
@@ -241,11 +198,45 @@ function InfoTile({ label, value, sub = "" }) {
   );
 }
 
-function OrderCard({ row, active, onSelect, locations = [] }) {
-  const remainingQty = Math.max(
-    0,
-    safeNumber(row?.qtyOrderedTotal) - safeNumber(row?.qtyReceivedTotal),
+function InfoTile({ label, value }) {
+  return (
+    <div className="rounded-[20px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+      <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+        {label}
+      </div>
+      <div className="mt-2 break-words text-sm font-semibold text-stone-950 dark:text-stone-50">
+        {value || "-"}
+      </div>
+    </div>
   );
+}
+
+function Pill({ tone = "neutral", children }) {
+  const cls =
+    tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300"
+      : tone === "warn"
+        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300"
+        : tone === "danger"
+          ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300"
+          : tone === "info"
+            ? "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-300"
+            : "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300";
+
+  return (
+    <span
+      className={cx(
+        "inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em]",
+        cls,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function PurchaseOrderCard({ row, active, onSelect, locations = [] }) {
+  const status = safe(row?.status) || "DRAFT";
 
   return (
     <button
@@ -262,12 +253,10 @@ function OrderCard({ row, active, onSelect, locations = [] }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <div className="truncate text-sm font-black text-stone-950 dark:text-stone-50">
-              {safe(row?.poNo) || `PO #${safeNumber(row?.id)}`}
+              {safe(row?.poNo) || `PO #${safe(row?.id) || "-"}`}
             </div>
-            <StatusPill status={row?.status} />
-            <span className="inline-flex items-center rounded-full border border-stone-200 bg-stone-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
-              {normalizeCurrency(row?.currency)}
-            </span>
+            <Pill tone={statusTone(status)}>{status}</Pill>
+            <Pill tone="neutral">{normalizeCurrency(row?.currency)}</Pill>
           </div>
 
           <div className="mt-2 text-xs text-stone-500 dark:text-stone-400">
@@ -310,28 +299,26 @@ function OrderCard({ row, active, onSelect, locations = [] }) {
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <div className="rounded-[18px] border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
           <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Ordered qty
+            Qty ordered
           </div>
           <div className="mt-2 text-sm font-bold text-stone-950 dark:text-stone-50">
             {safeNumber(row?.qtyOrderedTotal)}
           </div>
         </div>
-
         <div className="rounded-[18px] border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
           <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Received qty
+            Qty received
           </div>
           <div className="mt-2 text-sm font-bold text-stone-950 dark:text-stone-50">
             {safeNumber(row?.qtyReceivedTotal)}
           </div>
         </div>
-
-        <div className="rounded-[18px] border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
-          <div className="text-[11px] font-black uppercase tracking-[0.12em] text-amber-700 dark:text-amber-300">
-            Remaining qty
+        <div className="rounded-[18px] border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+          <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Reference
           </div>
-          <div className="mt-2 text-sm font-bold text-amber-700 dark:text-amber-300">
-            {remainingQty}
+          <div className="mt-2 truncate text-sm font-bold text-stone-950 dark:text-stone-50">
+            {safe(row?.reference) || "-"}
           </div>
         </div>
       </div>
@@ -342,7 +329,7 @@ function OrderCard({ row, active, onSelect, locations = [] }) {
 function ModalShell({ title, subtitle, onClose, children }) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/50 p-4 backdrop-blur-[2px]">
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[30px] border border-stone-200 bg-white shadow-[0_30px_80px_rgba(2,6,23,0.22)] dark:border-stone-800 dark:bg-stone-900">
+      <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[30px] border border-stone-200 bg-white shadow-[0_30px_80px_rgba(2,6,23,0.22)] dark:border-stone-800 dark:bg-stone-900">
         <div className="flex items-start justify-between gap-4 border-b border-stone-200 p-5 dark:border-stone-800">
           <div>
             <h3 className="text-xl font-black text-stone-950 dark:text-stone-50">
@@ -370,7 +357,7 @@ function ModalShell({ title, subtitle, onClose, children }) {
   );
 }
 
-function emptyLine() {
+function makeEmptyLine() {
   return {
     productId: "",
     productName: "",
@@ -380,152 +367,352 @@ function emptyLine() {
   };
 }
 
-function buildPOCreateDefaults(suppliers) {
+function buildCreateDefaults(suppliers, locations) {
   const firstSupplier = Array.isArray(suppliers) ? suppliers[0] : null;
+  const firstLocation = Array.isArray(locations) ? locations[0] : null;
 
   return {
-    locationId: "",
     supplierId: firstSupplier?.id ? String(firstSupplier.id) : "",
+    locationId: firstLocation?.id ? String(firstLocation.id) : "",
     poNo: "",
     reference: "",
     currency: normalizeCurrency(firstSupplier?.defaultCurrency || "RWF"),
     orderedAt: "",
     expectedAt: "",
     notes: "",
-    items: [emptyLine()],
+    items: [makeEmptyLine()],
   };
 }
 
-function buildPOEditDefaults(po, items) {
+function buildEditDefaults(purchaseOrder, items) {
   return {
-    locationId: String(po?.locationId || ""),
-    supplierId: String(po?.supplierId || ""),
-    poNo: safe(po?.poNo),
-    reference: safe(po?.reference),
-    currency: normalizeCurrency(po?.currency || "RWF"),
-    orderedAt: po?.orderedAt ? String(po.orderedAt).slice(0, 10) : "",
-    expectedAt: po?.expectedAt ? String(po.expectedAt).slice(0, 10) : "",
-    notes: safe(po?.notes),
+    supplierId: purchaseOrder?.supplierId
+      ? String(purchaseOrder.supplierId)
+      : "",
+    locationId: purchaseOrder?.locationId
+      ? String(purchaseOrder.locationId)
+      : "",
+    poNo: safe(purchaseOrder?.poNo),
+    reference: safe(purchaseOrder?.reference),
+    currency: normalizeCurrency(purchaseOrder?.currency),
+    orderedAt: purchaseOrder?.orderedAt
+      ? String(purchaseOrder.orderedAt).slice(0, 10)
+      : "",
+    expectedAt: purchaseOrder?.expectedAt
+      ? String(purchaseOrder.expectedAt).slice(0, 10)
+      : "",
+    notes: safe(purchaseOrder?.notes),
     items:
-      Array.isArray(items) && items.length > 0
+      Array.isArray(items) && items.length
         ? items.map((item) => ({
             productId: item?.productId != null ? String(item.productId) : "",
             productName: safe(item?.productName || item?.productDisplayName),
             qtyOrdered: String(safeNumber(item?.qtyOrdered) || 1),
-            unitCost: String(safeNumber(item?.unitCost) || ""),
+            unitCost: String(safeNumber(item?.unitCost) || 0),
             note: safe(item?.note),
           }))
-        : [emptyLine()],
+        : [makeEmptyLine()],
   };
 }
 
-function POLineEditor({
+function PurchaseOrderLineEditor({
   line,
   index,
+  products,
+  currency,
   onChange,
   onRemove,
-  disableRemove = false,
+  canRemove,
 }) {
+  const selectedProduct =
+    Array.isArray(products) && line?.productId
+      ? products.find((p) => String(p.id) === String(line.productId)) || null
+      : null;
+
+  const effectiveName = selectedProduct?.name || line?.productName || "";
+  const effectiveCost =
+    line?.unitCost !== ""
+      ? safeNumber(line?.unitCost)
+      : safeNumber(selectedProduct?.costPrice);
+
+  const lineQty = safeNumber(line?.qtyOrdered) || 0;
+  const lineTotal = lineQty * effectiveCost;
+
   return (
-    <div className="rounded-[22px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <div className="text-sm font-black text-stone-950 dark:text-stone-50">
-          Order line {index + 1}
+          Line {index + 1}
         </div>
 
-        <button
-          type="button"
-          onClick={onRemove}
-          disabled={disableRemove}
-          className="rounded-[16px] border border-stone-300 px-3 py-2 text-xs font-bold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-        >
-          Remove
-        </button>
+        {canRemove ? (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="rounded-[16px] border border-stone-300 px-3 py-2 text-xs font-bold text-stone-700 transition hover:bg-stone-100 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+          >
+            Remove
+          </button>
+        ) : null}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <FormInput
-          value={line.productId}
-          onChange={(e) => onChange(index, "productId", e.target.value)}
-          placeholder="Product ID (optional)"
-          type="number"
-        />
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Product
+          </label>
+          <FormSelect
+            value={line.productId}
+            onChange={(e) => {
+              const nextId = e.target.value;
+              const picked =
+                products.find((p) => String(p.id) === String(nextId)) || null;
 
-        <FormInput
-          value={line.productName}
-          onChange={(e) => onChange(index, "productName", e.target.value)}
-          placeholder="Product name if no ID"
-        />
+              onChange({
+                ...line,
+                productId: nextId,
+                productName: picked ? safe(picked.name) : line.productName,
+                unitCost: picked
+                  ? String(safeNumber(picked.costPrice) || 0)
+                  : line.unitCost,
+              });
+            }}
+          >
+            <option value="">Manual line / no product linked</option>
+            {products.map((product) => (
+              <option key={product.id} value={String(product.id)}>
+                {safe(product.name)}
+                {safe(product.sku) ? ` (${safe(product.sku)})` : ""}
+              </option>
+            ))}
+          </FormSelect>
+        </div>
 
-        <FormInput
-          value={line.qtyOrdered}
-          onChange={(e) => onChange(index, "qtyOrdered", e.target.value)}
-          placeholder="Qty"
-          type="number"
-        />
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Item name
+          </label>
+          <FormInput
+            value={line.productName}
+            onChange={(e) =>
+              onChange({ ...line, productName: e.target.value, productId: "" })
+            }
+            placeholder="What are you ordering?"
+          />
+          {selectedProduct ? (
+            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+              Linked product: {effectiveName}
+            </p>
+          ) : null}
+        </div>
 
-        <FormInput
-          value={line.unitCost}
-          onChange={(e) => onChange(index, "unitCost", e.target.value)}
-          placeholder="Unit cost"
-          type="number"
-        />
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Qty ordered
+          </label>
+          <FormInput
+            type="number"
+            min="1"
+            value={line.qtyOrdered}
+            onChange={(e) => onChange({ ...line, qtyOrdered: e.target.value })}
+            placeholder="1"
+          />
+        </div>
 
-        <FormInput
-          value={line.note}
-          onChange={(e) => onChange(index, "note", e.target.value)}
-          placeholder="Line note"
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Unit cost ({normalizeCurrency(currency)})
+          </label>
+          <FormInput
+            type="number"
+            min="0"
+            value={line.unitCost}
+            onChange={(e) => onChange({ ...line, unitCost: e.target.value })}
+            placeholder="0"
+          />
+        </div>
+
+        <div className="lg:col-span-2">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Note
+          </label>
+          <FormInput
+            value={line.note}
+            onChange={(e) => onChange({ ...line, note: e.target.value })}
+            placeholder="Optional line note"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <InfoTile label="Item" value={effectiveName || "Manual line"} />
+        <InfoTile label="Unit cost" value={money(effectiveCost, currency)} />
+        <InfoTile label="Line total" value={money(lineTotal, currency)} />
+      </div>
+    </div>
+  );
+}
+
+function buildReceiveDefaults(purchaseOrder, items) {
+  return {
+    locationId: purchaseOrder?.locationId
+      ? String(purchaseOrder.locationId)
+      : "",
+    purchaseOrderId: purchaseOrder?.id ? String(purchaseOrder.id) : "",
+    receiptNo: "",
+    reference: "",
+    receivedAt: "",
+    note: "",
+    items: (Array.isArray(items) ? items : [])
+      .map((item) => {
+        const qtyOrdered = safeNumber(item?.qtyOrdered);
+        const qtyReceived = safeNumber(item?.qtyReceived);
+        const remaining = Math.max(0, qtyOrdered - qtyReceived);
+
+        if (remaining <= 0) return null;
+
+        return {
+          purchaseOrderItemId: String(item?.id || ""),
+          productId: item?.productId != null ? String(item.productId) : "",
+          productName: safe(item?.productDisplayName || item?.productName),
+          qtyOrdered,
+          qtyReceivedAlready: qtyReceived,
+          qtyRemaining: remaining,
+          qtyReceiveNow: String(remaining),
+          purchaseUnit: safe(item?.purchaseUnit) || "PIECE",
+          stockUnit: safe(item?.stockUnit) || "PIECE",
+          purchaseUnitFactor: safeNumber(item?.purchaseUnitFactor) || 1,
+          unitCost: safeNumber(item?.unitCost) || 0,
+          note: "",
+        };
+      })
+      .filter(Boolean),
+  };
+}
+
+function ReceiveGoodsLineEditor({ line, currency, onChange }) {
+  const qtyReceiveNow = safeNumber(line?.qtyReceiveNow) || 0;
+  const lineTotal = qtyReceiveNow * (safeNumber(line?.unitCost) || 0);
+
+  return (
+    <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+            {safe(line?.productName) || "Unknown item"}
+          </div>
+          <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+            PO item #{safe(line?.purchaseOrderItemId) || "-"}
+          </div>
+        </div>
+
+        <Pill tone={safeNumber(line?.qtyRemaining) > 0 ? "warn" : "neutral"}>
+          Remaining {safeNumber(line?.qtyRemaining)}
+        </Pill>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <InfoTile
+          label="Ordered"
+          value={`${safeNumber(line?.qtyOrdered)} ${safe(line?.purchaseUnit) || ""}`.trim()}
+        />
+        <InfoTile
+          label="Already received"
+          value={`${safeNumber(line?.qtyReceivedAlready)} ${safe(line?.purchaseUnit) || ""}`.trim()}
+        />
+        <InfoTile
+          label="Remaining"
+          value={`${safeNumber(line?.qtyRemaining)} ${safe(line?.purchaseUnit) || ""}`.trim()}
+        />
+        <InfoTile label="Unit cost" value={money(line?.unitCost, currency)} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Quantity to receive now ({safe(line?.purchaseUnit) || "PIECE"})
+          </label>
+          <FormInput
+            type="number"
+            min="0"
+            max={String(safeNumber(line?.qtyRemaining))}
+            value={line.qtyReceiveNow}
+            onChange={(e) =>
+              onChange({
+                ...line,
+                qtyReceiveNow: e.target.value,
+              })
+            }
+            placeholder="0"
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Receipt note
+          </label>
+          <FormInput
+            value={line.note}
+            onChange={(e) =>
+              onChange({
+                ...line,
+                note: e.target.value,
+              })
+            }
+            placeholder="Optional note for this received line"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <InfoTile
+          label="Purchase unit factor"
+          value={`${safeNumber(line?.purchaseUnitFactor)} ×`}
+        />
+        <InfoTile
+          label={`Stock units added (${safe(line?.stockUnit) || "PIECE"})`}
+          value={safeNumber(line?.purchaseUnitFactor) * qtyReceiveNow}
+        />
+        <InfoTile
+          label="Line receipt value"
+          value={money(lineTotal, currency)}
         />
       </div>
     </div>
   );
 }
 
-function PurchaseOrderFormModal({
+function CreatePurchaseOrderModal({
   open,
-  mode = "create",
-  suppliers = [],
-  locations = [],
-  initialPO = null,
-  initialItems = [],
+  suppliers,
+  locations,
+  products,
   onClose,
   onSaved,
 }) {
   if (!open) return null;
 
   return (
-    <PurchaseOrderFormModalInner
-      key={
-        mode === "edit" && initialPO?.id
-          ? `edit-po-${initialPO.id}-${initialPO.updatedAt || ""}`
-          : `create-po-${suppliers.length}-${locations.length}`
-      }
-      mode={mode}
+    <CreatePurchaseOrderModalInner
+      key={`create-po-${suppliers?.length || 0}-${locations?.length || 0}`}
       suppliers={suppliers}
       locations={locations}
-      initialPO={initialPO}
-      initialItems={initialItems}
+      products={products}
       onClose={onClose}
       onSaved={onSaved}
     />
   );
 }
 
-function PurchaseOrderFormModalInner({
-  mode,
+function CreatePurchaseOrderModalInner({
   suppliers,
   locations,
-  initialPO,
-  initialItems,
+  products,
   onClose,
   onSaved,
 }) {
-  const isEdit = mode === "edit";
-
   const [form, setForm] = useState(() =>
-    isEdit
-      ? buildPOEditDefaults(initialPO, initialItems)
-      : buildPOCreateDefaults(suppliers),
+    buildCreateDefaults(suppliers, locations),
   );
   const [errorText, setErrorText] = useState("");
 
@@ -541,33 +728,31 @@ function PurchaseOrderFormModalInner({
     ? normalizeCurrency(selectedSupplier.defaultCurrency)
     : normalizeCurrency(form.currency);
 
-  function setField(key, value) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
+  const formItems = Array.isArray(form.items) ? form.items : [];
+  const subtotal = formItems.reduce((sum, line) => {
+    const qty = safeNumber(line?.qtyOrdered) || 0;
+    const unitCost = safeNumber(line?.unitCost) || 0;
+    return sum + qty * unitCost;
+  }, 0);
 
-  function changeLine(index, key, value) {
+  function updateLine(index, nextLine) {
     setForm((prev) => ({
       ...prev,
-      items: prev.items.map((line, i) =>
-        i === index ? { ...line, [key]: value } : line,
-      ),
+      items: prev.items.map((item, idx) => (idx === index ? nextLine : item)),
     }));
   }
 
   function addLine() {
     setForm((prev) => ({
       ...prev,
-      items: [...prev.items, emptyLine()],
+      items: [...prev.items, makeEmptyLine()],
     }));
   }
 
   function removeLine(index) {
     setForm((prev) => ({
       ...prev,
-      items:
-        prev.items.length <= 1
-          ? prev.items
-          : prev.items.filter((_, i) => i !== index),
+      items: prev.items.filter((_, idx) => idx !== index),
     }));
   }
 
@@ -576,7 +761,385 @@ function PurchaseOrderFormModalInner({
 
     try {
       const payload = {
+        supplierId: Number(form.supplierId),
         locationId: Number(form.locationId),
+        poNo: safe(form.poNo) || undefined,
+        reference: safe(form.reference) || undefined,
+        currency: effectiveCurrency || undefined,
+        orderedAt: form.orderedAt || undefined,
+        expectedAt: form.expectedAt || undefined,
+        notes: safe(form.notes) || undefined,
+        items: formItems.map((line) => ({
+          ...(line.productId ? { productId: Number(line.productId) } : {}),
+          ...(safe(line.productName)
+            ? { productName: safe(line.productName) }
+            : {}),
+          qtyOrdered: Number(line.qtyOrdered),
+          unitCost: Number(line.unitCost),
+          ...(safe(line.note) ? { note: safe(line.note) } : {}),
+        })),
+      };
+
+      const result = await apiFetch("/purchase-orders", {
+        method: "POST",
+        body: payload,
+      });
+
+      onSaved?.(result);
+    } catch (e) {
+      setErrorText(
+        e?.data?.error || e?.message || "Failed to create purchase order",
+      );
+    }
+  }
+
+  return (
+    <ModalShell
+      title="Create purchase order"
+      subtitle="Prepare what will be ordered, from which supplier, for which branch."
+      onClose={onClose}
+    >
+      <AlertBox message={errorText} />
+
+      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="grid gap-4">
+          <Surface>
+            <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+              Purchase order details
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Supplier
+                </label>
+                <FormSelect
+                  value={form.supplierId}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      supplierId: e.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Choose supplier</option>
+                  {suppliers.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {safe(row.name)}
+                    </option>
+                  ))}
+                </FormSelect>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Branch
+                </label>
+                <FormSelect
+                  value={form.locationId}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      locationId: e.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Choose branch</option>
+                  {locations.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {safe(row.name)}{" "}
+                      {safe(row.code) ? `(${safe(row.code)})` : ""}
+                    </option>
+                  ))}
+                </FormSelect>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Purchase order number
+                </label>
+                <FormInput
+                  value={form.poNo}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, poNo: e.target.value }))
+                  }
+                  placeholder="Example: PO-2026-001"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Reference
+                </label>
+                <FormInput
+                  value={form.reference}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, reference: e.target.value }))
+                  }
+                  placeholder="Supplier quote, request number, or memo"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Currency
+                </label>
+                <FormSelect
+                  value={effectiveCurrency}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, currency: e.target.value }))
+                  }
+                  disabled={!!selectedSupplier?.defaultCurrency}
+                >
+                  <option value="RWF">RWF</option>
+                  <option value="USD">USD</option>
+                </FormSelect>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Ordered date
+                </label>
+                <FormInput
+                  type="date"
+                  value={form.orderedAt}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, orderedAt: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Expected date
+                </label>
+                <FormInput
+                  type="date"
+                  value={form.expectedAt}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, expectedAt: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Internal note
+                </label>
+                <FormTextarea
+                  rows={4}
+                  value={form.notes}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, notes: e.target.value }))
+                  }
+                  placeholder="Why are we ordering this, any supplier instructions, urgency, or branch note"
+                />
+              </div>
+            </div>
+          </Surface>
+
+          <Surface>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Order lines
+                </div>
+                <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                  Add linked products or manual lines for supplier-specific
+                  items.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={addLine}
+                className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+              >
+                Add line
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4">
+              {formItems.map((line, index) => (
+                <PurchaseOrderLineEditor
+                  key={`create-line-${index}`}
+                  line={line}
+                  index={index}
+                  products={products}
+                  currency={effectiveCurrency}
+                  onChange={(next) => updateLine(index, next)}
+                  onRemove={() => removeLine(index)}
+                  canRemove={formItems.length > 1}
+                />
+              ))}
+            </div>
+          </Surface>
+        </div>
+
+        <div className="grid gap-4">
+          <Surface>
+            <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+              Order preview
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <MetricCard
+                label="Supplier"
+                value={selectedSupplier?.name || "Not selected"}
+                sub={selectedSupplier?.defaultCurrency || "No default currency"}
+              />
+              <MetricCard
+                label="Branch"
+                value={
+                  findLocationMeta(locations, form.locationId)?.name ||
+                  "Not selected"
+                }
+                sub={findLocationMeta(locations, form.locationId)?.code || "-"}
+              />
+              <MetricCard
+                label="Lines"
+                value={safeNumber(formItems.length)}
+                sub="Items on this PO"
+              />
+              <MetricCard
+                label={`Total (${effectiveCurrency})`}
+                value={money(subtotal, effectiveCurrency)}
+                sub="Estimated order total"
+              />
+            </div>
+          </Surface>
+
+          <Surface>
+            <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+              Ready to save
+            </div>
+
+            <div className="mt-4 space-y-3 text-sm text-stone-600 dark:text-stone-400">
+              <p>
+                The purchase order will be created as <b>DRAFT</b>.
+              </p>
+              <p>
+                After review, it can be approved before stock starts arriving.
+              </p>
+              <p>
+                Use clear order numbers and references so non-technical staff
+                can understand them.
+              </p>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+              >
+                Cancel
+              </button>
+
+              <AsyncButton
+                idleText="Create purchase order"
+                loadingText="Creating..."
+                successText="Created"
+                onClick={handleSave}
+              />
+            </div>
+          </Surface>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+function EditPurchaseOrderModal({
+  open,
+  purchaseOrder,
+  items,
+  suppliers,
+  locations,
+  products,
+  onClose,
+  onSaved,
+}) {
+  if (!open || !purchaseOrder) return null;
+
+  return (
+    <EditPurchaseOrderModalInner
+      key={`edit-po-${purchaseOrder.id}-${purchaseOrder.updatedAt || ""}`}
+      purchaseOrder={purchaseOrder}
+      items={items}
+      suppliers={suppliers}
+      locations={locations}
+      products={products}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function EditPurchaseOrderModalInner({
+  purchaseOrder,
+  items,
+  suppliers,
+  locations,
+  products,
+  onClose,
+  onSaved,
+}) {
+  const [form, setForm] = useState(() =>
+    buildEditDefaults(purchaseOrder, items),
+  );
+  const [errorText, setErrorText] = useState("");
+
+  const statusUpper = safe(purchaseOrder?.status).toUpperCase();
+  const linesLocked = statusUpper !== "DRAFT";
+
+  const selectedSupplier = useMemo(
+    () =>
+      (Array.isArray(suppliers) ? suppliers : []).find(
+        (row) => String(row.id) === String(form.supplierId),
+      ) || null,
+    [suppliers, form.supplierId],
+  );
+
+  const effectiveCurrency = selectedSupplier?.defaultCurrency
+    ? normalizeCurrency(selectedSupplier.defaultCurrency)
+    : normalizeCurrency(form.currency);
+
+  const formItems = Array.isArray(form.items) ? form.items : [];
+  const subtotal = formItems.reduce((sum, line) => {
+    const qty = safeNumber(line?.qtyOrdered) || 0;
+    const unitCost = safeNumber(line?.unitCost) || 0;
+    return sum + qty * unitCost;
+  }, 0);
+
+  function updateLine(index, nextLine) {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, idx) => (idx === index ? nextLine : item)),
+    }));
+  }
+
+  function addLine() {
+    if (linesLocked) return;
+    setForm((prev) => ({
+      ...prev,
+      items: [...prev.items, makeEmptyLine()],
+    }));
+  }
+
+  function removeLine(index) {
+    if (linesLocked) return;
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, idx) => idx !== index),
+    }));
+  }
+
+  async function handleSave() {
+    setErrorText("");
+
+    try {
+      const payload = {
         supplierId: Number(form.supplierId),
         poNo: safe(form.poNo) || undefined,
         reference: safe(form.reference) || undefined,
@@ -584,233 +1147,329 @@ function PurchaseOrderFormModalInner({
         orderedAt: form.orderedAt || undefined,
         expectedAt: form.expectedAt || undefined,
         notes: safe(form.notes) || undefined,
-        items: (Array.isArray(form.items) ? form.items : []).map((line) => {
-          const out = {
-            qtyOrdered: Number(line.qtyOrdered),
-            unitCost: Number(line.unitCost || 0),
-            note: safe(line.note) || undefined,
-          };
-
-          if (safe(line.productId)) {
-            out.productId = Number(line.productId);
-          }
-
-          if (safe(line.productName)) {
-            out.productName = safe(line.productName);
-          }
-
-          return out;
-        }),
+        ...(linesLocked
+          ? {}
+          : {
+              items: formItems.map((line) => ({
+                ...(line.productId
+                  ? { productId: Number(line.productId) }
+                  : {}),
+                ...(safe(line.productName)
+                  ? { productName: safe(line.productName) }
+                  : {}),
+                qtyOrdered: Number(line.qtyOrdered),
+                unitCost: Number(line.unitCost),
+                ...(safe(line.note) ? { note: safe(line.note) } : {}),
+              })),
+            }),
       };
 
-      const result = await apiFetch(
-        isEdit ? `/purchase-orders/${initialPO.id}` : `/purchase-orders`,
-        {
-          method: isEdit ? "PATCH" : "POST",
-          body: payload,
-        },
-      );
+      const result = await apiFetch(`/purchase-orders/${purchaseOrder.id}`, {
+        method: "PATCH",
+        body: payload,
+      });
 
       onSaved?.(result);
     } catch (e) {
       setErrorText(
-        e?.data?.error ||
-          e?.message ||
-          (isEdit
-            ? "Failed to update purchase order"
-            : "Failed to create purchase order"),
+        e?.data?.error || e?.message || "Failed to update purchase order",
       );
     }
   }
 
   return (
     <ModalShell
-      title={
-        isEdit
-          ? `Edit purchase order #${initialPO?.id}`
-          : "Create purchase order"
-      }
+      title={`Edit purchase order ${safe(purchaseOrder?.poNo) || `#${purchaseOrder?.id}`}`}
       subtitle={
-        isEdit
-          ? "Update supplier, branch, document details, and order lines."
-          : "Create a supplier order before goods arrive."
+        linesLocked
+          ? "This purchase order is already approved, so only header details can be adjusted."
+          : "Update supplier, references, dates, notes, and order lines."
       }
       onClose={onClose}
     >
       <AlertBox message={errorText} />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Supplier
-          </label>
-          <FormSelect
-            value={form.supplierId}
-            onChange={(e) => setField("supplierId", e.target.value)}
-          >
-            <option value="">Choose supplier</option>
-            {suppliers.map((row) => (
-              <option key={row.id} value={row.id}>
-                {safe(row.name)}
-              </option>
-            ))}
-          </FormSelect>
+      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="grid gap-4">
+          <Surface>
+            <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+              Purchase order details
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Supplier
+                </label>
+                <FormSelect
+                  value={form.supplierId}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      supplierId: e.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Choose supplier</option>
+                  {suppliers.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {safe(row.name)}
+                    </option>
+                  ))}
+                </FormSelect>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Branch
+                </label>
+                <FormInput
+                  value={displayBranch(purchaseOrder, locations)}
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Purchase order number
+                </label>
+                <FormInput
+                  value={form.poNo}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, poNo: e.target.value }))
+                  }
+                  placeholder="Example: PO-2026-001"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Reference
+                </label>
+                <FormInput
+                  value={form.reference}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, reference: e.target.value }))
+                  }
+                  placeholder="Supplier quote, request number, or memo"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Currency
+                </label>
+                <FormSelect
+                  value={effectiveCurrency}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, currency: e.target.value }))
+                  }
+                  disabled={!!selectedSupplier?.defaultCurrency}
+                >
+                  <option value="RWF">RWF</option>
+                  <option value="USD">USD</option>
+                </FormSelect>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Ordered date
+                </label>
+                <FormInput
+                  type="date"
+                  value={form.orderedAt}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, orderedAt: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Expected date
+                </label>
+                <FormInput
+                  type="date"
+                  value={form.expectedAt}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, expectedAt: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Internal note
+                </label>
+                <FormTextarea
+                  rows={4}
+                  value={form.notes}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, notes: e.target.value }))
+                  }
+                  placeholder="Why are we ordering this, any supplier instructions, urgency, or branch note"
+                />
+              </div>
+            </div>
+          </Surface>
+
+          <Surface>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Order lines
+                </div>
+                <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                  {linesLocked
+                    ? "Approved purchase order lines are locked."
+                    : "Update order lines before saving."}
+                </div>
+              </div>
+
+              {!linesLocked ? (
+                <button
+                  type="button"
+                  onClick={addLine}
+                  className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+                >
+                  Add line
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-4 grid gap-4">
+              {formItems.map((line, index) => (
+                <PurchaseOrderLineEditor
+                  key={`edit-line-${index}`}
+                  line={line}
+                  index={index}
+                  products={products}
+                  currency={effectiveCurrency}
+                  onChange={(next) => updateLine(index, next)}
+                  onRemove={() => removeLine(index)}
+                  canRemove={!linesLocked && formItems.length > 1}
+                />
+              ))}
+            </div>
+          </Surface>
         </div>
 
-        <div>
-          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Branch
-          </label>
-          <FormSelect
-            value={form.locationId}
-            onChange={(e) => setField("locationId", e.target.value)}
-          >
-            <option value="">Choose branch</option>
-            {locations.map((row) => (
-              <option key={row.id} value={row.id}>
-                {safe(row.name)} {safe(row.code) ? `(${safe(row.code)})` : ""}
-              </option>
-            ))}
-          </FormSelect>
+        <div className="grid gap-4">
+          <Surface>
+            <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+              Order preview
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <MetricCard
+                label="Status"
+                value={safe(purchaseOrder?.status) || "DRAFT"}
+                sub={linesLocked ? "Lines locked" : "Lines editable"}
+                tone={statusUpper === "CANCELLED" ? "danger" : "default"}
+              />
+              <MetricCard
+                label="Supplier"
+                value={selectedSupplier?.name || "Not selected"}
+                sub={selectedSupplier?.defaultCurrency || "No default currency"}
+              />
+              <MetricCard
+                label="Lines"
+                value={safeNumber(formItems.length)}
+                sub="Items on this PO"
+              />
+              <MetricCard
+                label={`Total (${effectiveCurrency})`}
+                value={money(subtotal, effectiveCurrency)}
+                sub="Estimated order total"
+              />
+            </div>
+          </Surface>
+
+          <Surface>
+            <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+              Save changes
+            </div>
+
+            <div className="mt-4 space-y-3 text-sm text-stone-600 dark:text-stone-400">
+              <p>
+                Keep order numbers and references readable for non-technical
+                staff.
+              </p>
+              {linesLocked ? (
+                <p>
+                  This order is already approved, so only supplier, reference,
+                  dates, currency, and notes can change.
+                </p>
+              ) : (
+                <p>Draft orders can still be cleaned up before approval.</p>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+              >
+                Cancel
+              </button>
+
+              <AsyncButton
+                idleText="Save purchase order"
+                loadingText="Saving..."
+                successText="Saved"
+                onClick={handleSave}
+              />
+            </div>
+          </Surface>
         </div>
-
-        <div>
-          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Purchase order number
-          </label>
-          <FormInput
-            value={form.poNo}
-            onChange={(e) => setField("poNo", e.target.value)}
-            placeholder="Example: PO-2026-001"
-          />
-        </div>
-
-        <div>
-          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Reference
-          </label>
-          <FormInput
-            value={form.reference}
-            onChange={(e) => setField("reference", e.target.value)}
-            placeholder="Supplier quote or internal reference"
-          />
-        </div>
-
-        <div>
-          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Currency
-          </label>
-          <FormSelect
-            value={effectiveCurrency}
-            onChange={(e) => setField("currency", e.target.value)}
-            disabled={!!selectedSupplier?.defaultCurrency}
-          >
-            <option value="RWF">RWF</option>
-            <option value="USD">USD</option>
-          </FormSelect>
-        </div>
-
-        <div>
-          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Ordered date
-          </label>
-          <FormInput
-            type="date"
-            value={form.orderedAt}
-            onChange={(e) => setField("orderedAt", e.target.value)}
-          />
-        </div>
-
-        <div>
-          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Expected arrival date
-          </label>
-          <FormInput
-            type="date"
-            value={form.expectedAt}
-            onChange={(e) => setField("expectedAt", e.target.value)}
-          />
-        </div>
-
-        <div className="md:col-span-2">
-          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Order note
-          </label>
-          <textarea
-            value={form.notes}
-            onChange={(e) => setField("notes", e.target.value)}
-            rows={4}
-            className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-            placeholder="Why this order is being made, special terms, delivery instructions, or internal note"
-          />
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="text-sm font-black text-stone-950 dark:text-stone-50">
-            Order lines
-          </div>
-
-          <button
-            type="button"
-            onClick={addLine}
-            className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-          >
-            Add line
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {(Array.isArray(form.items) ? form.items : []).map((line, index) => (
-            <POLineEditor
-              key={`line-${index}`}
-              line={line}
-              index={index}
-              onChange={changeLine}
-              onRemove={() => removeLine(index)}
-              disableRemove={(form.items || []).length <= 1}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-5 flex justify-end gap-3">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-        >
-          Cancel
-        </button>
-
-        <AsyncButton
-          idleText={isEdit ? "Save purchase order" : "Create purchase order"}
-          loadingText={isEdit ? "Saving..." : "Creating..."}
-          successText={isEdit ? "Saved" : "Created"}
-          onClick={handleSave}
-        />
       </div>
     </ModalShell>
   );
 }
 
-function ApprovePOModal({ open, po, onClose, onSaved }) {
-  if (!open || !po) return null;
+function ApprovePurchaseOrderModal({ open, purchaseOrder, onClose, onSaved }) {
+  const [errorText, setErrorText] = useState("");
+
+  if (!open || !purchaseOrder) return null;
+
+  async function handleApprove() {
+    setErrorText("");
+
+    try {
+      const result = await apiFetch(
+        `/purchase-orders/${purchaseOrder.id}/approve`,
+        {
+          method: "POST",
+          body: {},
+        },
+      );
+
+      onSaved?.(result);
+    } catch (e) {
+      setErrorText(
+        e?.data?.error || e?.message || "Failed to approve purchase order",
+      );
+    }
+  }
 
   return (
     <ModalShell
-      title={`Approve purchase order #${po.id}`}
-      subtitle="This confirms the order is ready to be sent or acted on."
+      title={`Approve ${safe(purchaseOrder?.poNo) || `PO #${purchaseOrder?.id}`}`}
+      subtitle="Approving confirms this purchase order is ready for real procurement work."
       onClose={onClose}
     >
-      <Surface className="bg-sky-50 dark:bg-sky-950/20">
-        <div className="text-sm text-sky-800 dark:text-sky-200">
-          Supplier: <strong>{safe(po?.supplierName) || "-"}</strong>
+      <AlertBox message={errorText} />
+
+      <Surface>
+        <div className="text-sm text-stone-700 dark:text-stone-300">
+          Supplier: <b>{safe(purchaseOrder?.supplierName) || "-"}</b>
           <br />
-          Total: <strong>{money(po?.totalAmount, po?.currency)}</strong>
+          Branch: <b>{displayBranch(purchaseOrder)}</b>
           <br />
-          Status now: <strong>{safe(po?.status) || "DRAFT"}</strong>
+          Total:{" "}
+          <b>{money(purchaseOrder?.totalAmount, purchaseOrder?.currency)}</b>
         </div>
       </Surface>
 
@@ -827,39 +1486,32 @@ function ApprovePOModal({ open, po, onClose, onSaved }) {
           idleText="Approve purchase order"
           loadingText="Approving..."
           successText="Approved"
-          onClick={async () => {
-            const result = await apiFetch(`/purchase-orders/${po.id}/approve`, {
-              method: "POST",
-              body: {},
-            });
-            onSaved?.(result);
-          }}
+          onClick={handleApprove}
         />
       </div>
     </ModalShell>
   );
 }
 
-function CancelPOModal({ open, po, onClose, onSaved }) {
-  if (!open || !po) return null;
-
-  return <CancelPOModalInner po={po} onClose={onClose} onSaved={onSaved} />;
-}
-
-function CancelPOModalInner({ po, onClose, onSaved }) {
+function CancelPurchaseOrderModal({ open, purchaseOrder, onClose, onSaved }) {
   const [reason, setReason] = useState("");
   const [errorText, setErrorText] = useState("");
+
+  if (!open || !purchaseOrder) return null;
 
   async function handleCancel() {
     setErrorText("");
 
     try {
-      const result = await apiFetch(`/purchase-orders/${po.id}/cancel`, {
-        method: "POST",
-        body: {
-          reason: safe(reason) || undefined,
+      const result = await apiFetch(
+        `/purchase-orders/${purchaseOrder.id}/cancel`,
+        {
+          method: "POST",
+          body: {
+            reason: safe(reason) || undefined,
+          },
         },
-      });
+      );
 
       onSaved?.(result);
     } catch (e) {
@@ -871,19 +1523,20 @@ function CancelPOModalInner({ po, onClose, onSaved }) {
 
   return (
     <ModalShell
-      title={`Cancel purchase order #${po.id}`}
-      subtitle="Only cancel when this order should no longer count."
+      title={`Cancel ${safe(purchaseOrder?.poNo) || `PO #${purchaseOrder?.id}`}`}
+      subtitle="Only cancel if this purchase order should no longer be used."
       onClose={onClose}
     >
       <AlertBox message={errorText} />
 
       <Surface className="bg-rose-50 dark:bg-rose-950/20">
         <div className="text-sm text-rose-800 dark:text-rose-200">
-          Supplier: <strong>{safe(po?.supplierName) || "-"}</strong>
+          Supplier: <strong>{safe(purchaseOrder?.supplierName) || "-"}</strong>
           <br />
-          Total: <strong>{money(po?.totalAmount, po?.currency)}</strong>
-          <br />
-          Current status: <strong>{safe(po?.status) || "-"}</strong>
+          Total:{" "}
+          <strong>
+            {money(purchaseOrder?.totalAmount, purchaseOrder?.currency)}
+          </strong>
         </div>
       </Surface>
 
@@ -891,12 +1544,11 @@ function CancelPOModalInner({ po, onClose, onSaved }) {
         <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
           Reason
         </label>
-        <textarea
+        <FormTextarea
+          rows={4}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          rows={4}
-          className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-          placeholder="Why is this order being cancelled?"
+          placeholder="Why is this purchase order being cancelled?"
         />
       </div>
 
@@ -921,134 +1573,322 @@ function CancelPOModalInner({ po, onClose, onSaved }) {
   );
 }
 
-function PrintablePO({ po, items, locations = [] }) {
-  if (!po) return null;
+function ReceiveGoodsModal({
+  open,
+  purchaseOrder,
+  items,
+  locations,
+  onClose,
+  onSaved,
+}) {
+  if (!open || !purchaseOrder) return null;
 
   return (
-    <div id="owner-po-print-area" className="bg-white p-6 text-black">
-      <div className="border-b border-stone-300 pb-4">
-        <div className="text-2xl font-black">PURCHASE ORDER</div>
-        <div className="mt-2 text-sm">
-          {safe(po?.poNo)
-            ? `PO Number: ${safe(po.poNo)}`
-            : `PO #${safeNumber(po?.id)}`}
+    <ReceiveGoodsModalInner
+      key={`receive-po-${purchaseOrder.id}-${purchaseOrder.updatedAt || ""}`}
+      purchaseOrder={purchaseOrder}
+      items={items}
+      locations={locations}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function ReceiveGoodsModalInner({
+  purchaseOrder,
+  items,
+  locations,
+  onClose,
+  onSaved,
+}) {
+  const [form, setForm] = useState(() =>
+    buildReceiveDefaults(purchaseOrder, items),
+  );
+  const [errorText, setErrorText] = useState("");
+
+  const receiveLines = Array.isArray(form.items) ? form.items : [];
+
+  const activeLines = receiveLines.filter(
+    (line) => safeNumber(line?.qtyReceiveNow) > 0,
+  );
+
+  const totalPurchaseUnits = activeLines.reduce(
+    (sum, line) => sum + (safeNumber(line?.qtyReceiveNow) || 0),
+    0,
+  );
+
+  const totalStockUnits = activeLines.reduce(
+    (sum, line) =>
+      sum +
+      (safeNumber(line?.qtyReceiveNow) || 0) *
+        (safeNumber(line?.purchaseUnitFactor) || 1),
+    0,
+  );
+
+  const totalAmount = activeLines.reduce(
+    (sum, line) =>
+      sum +
+      (safeNumber(line?.qtyReceiveNow) || 0) *
+        (safeNumber(line?.unitCost) || 0),
+    0,
+  );
+
+  function updateReceiveLine(index, nextLine) {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, idx) => (idx === index ? nextLine : item)),
+    }));
+  }
+
+  async function handleSave() {
+    setErrorText("");
+
+    try {
+      const payload = {
+        locationId: Number(form.locationId),
+        purchaseOrderId: Number(form.purchaseOrderId),
+        receiptNo: safe(form.receiptNo) || undefined,
+        reference: safe(form.reference) || undefined,
+        note: safe(form.note) || undefined,
+        receivedAt: form.receivedAt || undefined,
+        items: activeLines.map((line) => ({
+          purchaseOrderItemId: Number(line.purchaseOrderItemId),
+          qtyReceived: Number(line.qtyReceiveNow),
+          ...(safe(line.note) ? { note: safe(line.note) } : {}),
+        })),
+      };
+
+      const result = await apiFetch("/goods-receipts", {
+        method: "POST",
+        body: payload,
+      });
+
+      onSaved?.(result);
+    } catch (e) {
+      setErrorText(e?.data?.error || e?.message || "Failed to receive goods");
+    }
+  }
+
+  return (
+    <ModalShell
+      title={`Receive goods for ${safe(purchaseOrder?.poNo) || `PO #${purchaseOrder?.id}`}`}
+      subtitle="Record what has actually arrived so stock and purchase order progress stay correct."
+      onClose={onClose}
+    >
+      <AlertBox message={errorText} />
+
+      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="grid gap-4">
+          <Surface>
+            <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+              Receipt details
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Supplier
+                </label>
+                <FormInput
+                  value={safe(purchaseOrder?.supplierName) || "-"}
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Branch
+                </label>
+                <FormInput
+                  value={displayBranch(purchaseOrder, locations)}
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Receipt number
+                </label>
+                <FormInput
+                  value={form.receiptNo}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, receiptNo: e.target.value }))
+                  }
+                  placeholder="Example: GR-2026-001"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Reference
+                </label>
+                <FormInput
+                  value={form.reference}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, reference: e.target.value }))
+                  }
+                  placeholder="Delivery note number, truck note, or supplier reference"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Received date
+                </label>
+                <FormInput
+                  type="date"
+                  value={form.receivedAt}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, receivedAt: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Purchase order
+                </label>
+                <FormInput
+                  value={
+                    safe(purchaseOrder?.poNo) || `PO #${purchaseOrder?.id}`
+                  }
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  Receipt note
+                </label>
+                <FormTextarea
+                  rows={4}
+                  value={form.note}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, note: e.target.value }))
+                  }
+                  placeholder="What arrived, condition of goods, delays, shortages, or receiving comments"
+                />
+              </div>
+            </div>
+          </Surface>
+
+          <Surface>
+            <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+              Lines to receive
+            </div>
+            <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+              Enter only what has physically arrived now. Leave zero for lines
+              not received yet.
+            </div>
+
+            <div className="mt-4 grid gap-4">
+              {receiveLines.length === 0 ? (
+                <EmptyState text="All order lines are already fully received." />
+              ) : (
+                receiveLines.map((line, index) => (
+                  <ReceiveGoodsLineEditor
+                    key={`receive-line-${line.purchaseOrderItemId}-${index}`}
+                    line={line}
+                    currency={purchaseOrder?.currency}
+                    onChange={(next) => updateReceiveLine(index, next)}
+                  />
+                ))
+              )}
+            </div>
+          </Surface>
         </div>
-        <div className="text-sm">Status: {safe(po?.status) || "-"}</div>
+
+        <div className="grid gap-4">
+          <Surface>
+            <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+              Receipt summary
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <MetricCard
+                label="Active lines"
+                value={safeNumber(activeLines.length)}
+                sub="Lines being received now"
+              />
+              <MetricCard
+                label="Purchase units"
+                value={safeNumber(totalPurchaseUnits)}
+                sub="Units in supplier purchase measure"
+              />
+              <MetricCard
+                label="Stock units"
+                value={safeNumber(totalStockUnits)}
+                sub="What will be added to stock"
+              />
+              <MetricCard
+                label={`Receipt value (${normalizeCurrency(purchaseOrder?.currency)})`}
+                value={money(totalAmount, purchaseOrder?.currency)}
+                sub="Estimated value of this receipt"
+              />
+            </div>
+          </Surface>
+
+          <Surface>
+            <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+              What happens after save
+            </div>
+
+            <div className="mt-4 space-y-3 text-sm text-stone-600 dark:text-stone-400">
+              <p>
+                The selected quantities will increase inventory for this branch.
+              </p>
+              <p>
+                The purchase order received quantities will be updated
+                automatically.
+              </p>
+              <p>
+                The purchase order status will move to <b>Partially received</b>{" "}
+                or <b>Received</b> based on totals.
+              </p>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+              >
+                Cancel
+              </button>
+
+              <AsyncButton
+                idleText="Receive goods"
+                loadingText="Receiving..."
+                successText="Received"
+                onClick={handleSave}
+              />
+            </div>
+          </Surface>
+        </div>
       </div>
-
-      <div className="mt-5 grid grid-cols-2 gap-6 text-sm">
-        <div>
-          <div className="font-bold">Supplier</div>
-          <div className="mt-1">{safe(po?.supplierName) || "-"}</div>
-        </div>
-
-        <div>
-          <div className="font-bold">Branch</div>
-          <div className="mt-1">{displayBranch(po, locations)}</div>
-        </div>
-
-        <div>
-          <div className="font-bold">Ordered date</div>
-          <div className="mt-1">{safeDate(po?.orderedAt)}</div>
-        </div>
-
-        <div>
-          <div className="font-bold">Expected date</div>
-          <div className="mt-1">{safeDate(po?.expectedAt)}</div>
-        </div>
-
-        <div>
-          <div className="font-bold">Reference</div>
-          <div className="mt-1">{safe(po?.reference) || "-"}</div>
-        </div>
-
-        <div>
-          <div className="font-bold">Created by</div>
-          <div className="mt-1">{displayCreatedBy(po)}</div>
-        </div>
-      </div>
-
-      <div className="mt-6 overflow-hidden rounded-xl border border-stone-300">
-        <table className="min-w-full border-collapse text-sm">
-          <thead className="bg-stone-100">
-            <tr>
-              <th className="border-b border-stone-300 px-3 py-2 text-left">
-                Item
-              </th>
-              <th className="border-b border-stone-300 px-3 py-2 text-left">
-                SKU
-              </th>
-              <th className="border-b border-stone-300 px-3 py-2 text-right">
-                Qty
-              </th>
-              <th className="border-b border-stone-300 px-3 py-2 text-right">
-                Unit cost
-              </th>
-              <th className="border-b border-stone-300 px-3 py-2 text-right">
-                Line total
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {(Array.isArray(items) ? items : []).map((item) => (
-              <tr key={item?.id ?? `${item?.productId}-${item?.productName}`}>
-                <td className="border-b border-stone-200 px-3 py-2">
-                  {safe(item?.productDisplayName || item?.productName) || "-"}
-                </td>
-                <td className="border-b border-stone-200 px-3 py-2">
-                  {safe(item?.productSku) || "-"}
-                </td>
-                <td className="border-b border-stone-200 px-3 py-2 text-right">
-                  {safeNumber(item?.qtyOrdered)}
-                </td>
-                <td className="border-b border-stone-200 px-3 py-2 text-right">
-                  {money(item?.unitCost, po?.currency)}
-                </td>
-                <td className="border-b border-stone-200 px-3 py-2 text-right">
-                  {money(item?.lineTotal, po?.currency)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-6 flex justify-end">
-        <div className="w-full max-w-sm space-y-2 rounded-xl border border-stone-300 p-4 text-sm">
-          <div className="flex items-center justify-between">
-            <span>Subtotal</span>
-            <strong>{money(po?.subtotalAmount, po?.currency)}</strong>
-          </div>
-          <div className="flex items-center justify-between">
-            <span>Total</span>
-            <strong>{money(po?.totalAmount, po?.currency)}</strong>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 text-sm">
-        <div className="font-bold">Notes</div>
-        <div className="mt-1 whitespace-pre-wrap">
-          {safe(po?.notes) || "No notes recorded."}
-        </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
 export default function OwnerPurchaseOrdersTab({ locations = [] }) {
   const [loading, setLoading] = useState(true);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [successText, setSuccessText] = useState("");
 
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [supplierOptions, setSupplierOptions] = useState([]);
-  const [selectedPOId, setSelectedPOId] = useState("");
-  const [poDetail, setPODetail] = useState({
+  const [productOptions, setProductOptions] = useState([]);
+
+  const [selectedPurchaseOrderId, setSelectedPurchaseOrderId] = useState("");
+  const [purchaseOrderDetail, setPurchaseOrderDetail] = useState({
     purchaseOrder: null,
     items: [],
   });
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const [q, setQ] = useState("");
   const [locationId, setLocationId] = useState("");
@@ -1057,17 +1897,20 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
 
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const [creatingPO, setCreatingPO] = useState(false);
-  const [editingPO, setEditingPO] = useState(null);
-  const [approvingPO, setApprovingPO] = useState(null);
-  const [cancellingPO, setCancellingPO] = useState(null);
+  const [creatingPurchaseOrder, setCreatingPurchaseOrder] = useState(false);
+  const [editingPurchaseOrder, setEditingPurchaseOrder] = useState(null);
+  const [approvingPurchaseOrder, setApprovingPurchaseOrder] = useState(null);
+  const [cancellingPurchaseOrder, setCancellingPurchaseOrder] = useState(null);
+  const [receivingPurchaseOrder, setReceivingPurchaseOrder] = useState(null);
 
-  const selectedPO = !selectedPOId
+  const selectedPurchaseOrder = !selectedPurchaseOrderId
     ? null
-    : purchaseOrders.find((row) => String(row.id) === String(selectedPOId)) ||
-      null;
+    : purchaseOrders.find(
+        (row) => String(row.id) === String(selectedPurchaseOrderId),
+      ) || null;
 
-  const detailPO = poDetail?.purchaseOrder || selectedPO || null;
+  const detailPurchaseOrder =
+    purchaseOrderDetail?.purchaseOrder || selectedPurchaseOrder || null;
 
   const locationOptions = useMemo(() => {
     return Array.isArray(locations)
@@ -1077,47 +1920,31 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
       : [];
   }, [locations]);
 
-  const overview = useMemo(() => {
-    const rows = Array.isArray(purchaseOrders) ? purchaseOrders : [];
+  const summary = useMemo(() => {
+    return purchaseOrders.reduce(
+      (acc, row) => {
+        const statusUpper = safe(row?.status).toUpperCase();
+        acc.totalCount += 1;
+        acc.totalAmount += safeNumber(row?.totalAmount);
 
-    const totalCount = rows.length;
-    const totalAmount = rows.reduce(
-      (sum, row) => sum + safeNumber(row?.totalAmount),
-      0,
-    );
-    const approvedCount = rows.filter(
-      (row) => safe(row?.status).toUpperCase() === "APPROVED",
-    ).length;
-    const receivedCount = rows.filter((row) =>
-      ["RECEIVED", "PARTIALLY_RECEIVED"].includes(
-        safe(row?.status).toUpperCase(),
-      ),
-    ).length;
-    const draftCount = rows.filter(
-      (row) => safe(row?.status).toUpperCase() === "DRAFT",
-    ).length;
-    const cancelledCount = rows.filter(
-      (row) => safe(row?.status).toUpperCase() === "CANCELLED",
-    ).length;
-    const qtyOrdered = rows.reduce(
-      (sum, row) => sum + safeNumber(row?.qtyOrderedTotal),
-      0,
-    );
-    const qtyReceived = rows.reduce(
-      (sum, row) => sum + safeNumber(row?.qtyReceivedTotal),
-      0,
-    );
+        if (statusUpper === "DRAFT") acc.draftCount += 1;
+        if (statusUpper === "APPROVED") acc.approvedCount += 1;
+        if (statusUpper === "PARTIALLY_RECEIVED") acc.partialCount += 1;
+        if (statusUpper === "RECEIVED") acc.receivedCount += 1;
+        if (statusUpper === "CANCELLED") acc.cancelledCount += 1;
 
-    return {
-      totalCount,
-      totalAmount,
-      approvedCount,
-      receivedCount,
-      draftCount,
-      cancelledCount,
-      qtyOrdered,
-      qtyReceived,
-    };
+        return acc;
+      },
+      {
+        totalCount: 0,
+        totalAmount: 0,
+        draftCount: 0,
+        approvedCount: 0,
+        partialCount: 0,
+        receivedCount: 0,
+        cancelledCount: 0,
+      },
+    );
   }, [purchaseOrders]);
 
   async function loadSupplierOptions() {
@@ -1127,12 +1954,32 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
       });
 
       setSupplierOptions(
-        normalizeSuppliersResponse(result)
-          .map(normalizeSupplier)
-          .filter(Boolean),
+        Array.isArray(result?.suppliers)
+          ? result.suppliers.map(normalizeSupplier).filter(Boolean)
+          : [],
       );
     } catch {
       setSupplierOptions([]);
+    }
+  }
+
+  async function loadProductOptions() {
+    try {
+      const result = await apiFetch(`/owner/products?limit=300`, {
+        method: "GET",
+      });
+
+      const rows = Array.isArray(result?.products)
+        ? result.products
+        : Array.isArray(result?.items)
+          ? result.items
+          : Array.isArray(result?.rows)
+            ? result.rows
+            : [];
+
+      setProductOptions(rows.map(normalizeProduct).filter(Boolean));
+    } catch {
+      setProductOptions([]);
     }
   }
 
@@ -1142,31 +1989,35 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
 
     try {
       const params = new URLSearchParams();
-      params.set("limit", String(200));
-      if (safe(q)) params.set("q", safe(q));
-      if (safe(locationId)) params.set("locationId", safe(locationId));
-      if (safe(supplierId)) params.set("supplierId", safe(supplierId));
-      if (safe(status)) params.set("status", safe(status).toUpperCase());
 
-      const result = await apiFetch(`/purchase-orders?${params.toString()}`, {
+      if (q) params.set("q", q);
+      if (locationId) params.set("locationId", locationId);
+      if (supplierId) params.set("supplierId", supplierId);
+      if (status) params.set("status", status);
+
+      const suffix = params.toString() ? `?${params.toString()}` : "";
+
+      const result = await apiFetch(`/purchase-orders${suffix}`, {
         method: "GET",
       });
 
       const rows = normalizePurchaseOrdersResponse(result)
-        .map(normalizePO)
+        .map(normalizePurchaseOrder)
         .filter(Boolean);
 
       setPurchaseOrders(rows);
-      setSelectedPOId((prev) =>
-        prev && rows.some((x) => String(x.id) === String(prev))
-          ? String(prev)
-          : rows[0]?.id != null
-            ? String(rows[0].id)
-            : "",
-      );
+      setSelectedPurchaseOrderId((prev) => {
+        const next =
+          prev && rows.some((x) => String(x.id) === String(prev))
+            ? String(prev)
+            : rows[0]?.id != null
+              ? String(rows[0].id)
+              : "";
+        return next;
+      });
     } catch (e) {
       setPurchaseOrders([]);
-      setSelectedPOId("");
+      setSelectedPurchaseOrderId("");
       setErrorText(
         e?.data?.error || e?.message || "Failed to load purchase orders",
       );
@@ -1177,7 +2028,7 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
 
   async function loadDetail(id) {
     if (!id) {
-      setPODetail({ purchaseOrder: null, items: [] });
+      setPurchaseOrderDetail({ purchaseOrder: null, items: [] });
       return;
     }
 
@@ -1188,40 +2039,17 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
         method: "GET",
       });
 
-      setPODetail(normalizePODetail(result));
+      setPurchaseOrderDetail(normalizePurchaseOrderDetail(result));
     } catch {
-      setPODetail({ purchaseOrder: null, items: [] });
+      setPurchaseOrderDetail({ purchaseOrder: null, items: [] });
     } finally {
       setDetailLoading(false);
     }
   }
 
-  async function reloadAll() {
-    await Promise.all([loadList(), loadSupplierOptions()]);
-  }
-
-  async function handleActionSaved(actionText, result) {
-    const nextId =
-      result?.purchaseOrder?.id ?? result?.id ?? selectedPOId ?? "";
-
-    setCreatingPO(false);
-    setEditingPO(null);
-    setApprovingPO(null);
-    setCancellingPO(null);
-
-    setSuccessText(actionText);
-    await loadList();
-
-    if (nextId) {
-      setSelectedPOId(String(nextId));
-      await loadDetail(String(nextId));
-    }
-
-    setTimeout(() => setSuccessText(""), 2500);
-  }
-
   useEffect(() => {
     loadSupplierOptions();
+    loadProductOptions();
   }, []);
 
   useEffect(() => {
@@ -1233,546 +2061,592 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
   }, [q, locationId, supplierId, status]);
 
   useEffect(() => {
-    loadDetail(selectedPOId);
-  }, [selectedPOId]);
+    loadDetail(selectedPurchaseOrderId);
+  }, [selectedPurchaseOrderId]);
+
+  async function handleActionSaved(actionText, result) {
+    const nextId =
+      result?.purchaseOrder?.id ??
+      purchaseOrderDetail?.purchaseOrder?.id ??
+      receivingPurchaseOrder?.id ??
+      selectedPurchaseOrderId ??
+      "";
+
+    setSuccessText(actionText);
+    setCreatingPurchaseOrder(false);
+    setEditingPurchaseOrder(null);
+    setApprovingPurchaseOrder(null);
+    setCancellingPurchaseOrder(null);
+    setReceivingPurchaseOrder(null);
+
+    await loadList();
+
+    if (nextId) {
+      setSelectedPurchaseOrderId(String(nextId));
+      await loadDetail(String(nextId));
+    }
+
+    setTimeout(() => setSuccessText(""), 2500);
+  }
 
   const visibleRows = purchaseOrders.slice(0, visibleCount);
 
-  const canApprove =
-    detailPO && safe(detailPO?.status).toUpperCase() === "DRAFT";
+  const headerRight = (
+    <div className="flex flex-wrap items-center gap-2">
+      <AsyncButton
+        variant="secondary"
+        state={loading || detailLoading ? "loading" : "idle"}
+        idleText="Reload"
+        loadingText="Loading..."
+        successText="Done"
+        onClick={async () => {
+          await Promise.all([
+            loadSupplierOptions(),
+            loadProductOptions(),
+            loadList(),
+            loadDetail(selectedPurchaseOrderId),
+          ]);
+        }}
+      />
 
-  const canEdit =
-    detailPO &&
-    ["DRAFT", "APPROVED"].includes(safe(detailPO?.status).toUpperCase());
+      <AsyncButton
+        idleText="Create purchase order"
+        loadingText="Opening..."
+        successText="Ready"
+        onClick={async () => setCreatingPurchaseOrder(true)}
+      />
+    </div>
+  );
 
-  const canCancel =
-    detailPO &&
-    !["RECEIVED", "CANCELLED"].includes(safe(detailPO?.status).toUpperCase());
+  const detailStatusUpper = safe(detailPurchaseOrder?.status).toUpperCase();
+  const hasReceivableLines = Array.isArray(purchaseOrderDetail?.items)
+    ? purchaseOrderDetail.items.some((item) => {
+        const qtyOrdered = safeNumber(item?.qtyOrdered);
+        const qtyReceived = safeNumber(item?.qtyReceived);
+        const productId = item?.productId;
+        return productId != null && qtyOrdered > qtyReceived;
+      })
+    : false;
 
   return (
-    <div className="space-y-6">
-      <style jsx global>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #owner-po-print-area,
-          #owner-po-print-area * {
-            visibility: visible;
-          }
-          #owner-po-print-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-          }
-        }
-      `}</style>
-
+    <div className="grid gap-4">
       <AlertBox message={errorText} />
       <AlertBox message={successText} tone="success" />
 
-      {loading ? (
-        <SectionCard
-          title="Purchase orders"
-          subtitle="Loading owner-wide supplier order visibility."
-        >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
+      <SectionShell
+        title="Purchase orders"
+        hint="Prepare supplier orders clearly, approve them before procurement, and track what has been ordered for each branch."
+        right={headerRight}
+      >
+        {loading ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="h-32 animate-pulse rounded-3xl border border-stone-200 bg-stone-100 dark:border-stone-800 dark:bg-stone-800"
+                className="h-28 animate-pulse rounded-[24px] bg-stone-100 dark:bg-stone-800"
               />
             ))}
           </div>
-        </SectionCard>
-      ) : (
-        <>
-          <SectionCard
-            title="Purchase order overview"
-            subtitle="Owner-wide view of supplier orders, incoming quantity, and branch procurement readiness."
-          >
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-              <StatCard
-                label="Orders"
-                value={safeNumber(overview?.totalCount)}
-                sub="Loaded purchase orders"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Total ordered"
-                value={money(overview?.totalAmount, "RWF")}
-                sub="Loaded order value"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Draft"
-                value={safeNumber(overview?.draftCount)}
-                sub="Not yet approved"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Approved"
-                value={safeNumber(overview?.approvedCount)}
-                sub="Ready to action"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Received"
-                value={safeNumber(overview?.receivedCount)}
-                sub="With goods received"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Cancelled"
-                value={safeNumber(overview?.cancelledCount)}
-                sub="No longer active"
-                valueClassName="text-[17px] leading-tight"
-              />
-            </div>
-
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
-              <StatCard
-                label="Qty ordered"
-                value={safeNumber(overview?.qtyOrdered)}
-                sub="Across loaded orders"
-                valueClassName="text-[17px] leading-tight"
-              />
-              <StatCard
-                label="Qty received"
-                value={safeNumber(overview?.qtyReceived)}
-                sub="Already received"
-                valueClassName="text-[17px] leading-tight"
-              />
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Purchase order controls"
-            subtitle="Filter orders, refresh the list, and create a new supplier order."
-            right={
-              <div className="flex flex-wrap items-center gap-2">
-                <AsyncButton
-                  variant="secondary"
-                  state={loading || detailLoading ? "loading" : "idle"}
-                  idleText="Reload"
-                  loadingText="Loading..."
-                  successText="Done"
-                  onClick={reloadAll}
-                />
-                <AsyncButton
-                  idleText="Create purchase order"
-                  loadingText="Opening..."
-                  successText="Ready"
-                  onClick={async () => setCreatingPO(true)}
-                />
-              </div>
-            }
-          >
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <FormInput
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search PO number, supplier, branch, reference"
-              />
-
-              <FormSelect
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-              >
-                <option value="">All branches</option>
-                {locationOptions.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {safe(row.name)}{" "}
-                    {safe(row.code) ? `(${safe(row.code)})` : ""}
-                  </option>
-                ))}
-              </FormSelect>
-
-              <FormSelect
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-              >
-                <option value="">All suppliers</option>
-                {supplierOptions.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {safe(row.name)}
-                  </option>
-                ))}
-              </FormSelect>
-
-              <FormSelect
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-              >
-                <option value="">All statuses</option>
-                <option value="DRAFT">Draft</option>
-                <option value="APPROVED">Approved</option>
-                <option value="PARTIALLY_RECEIVED">Partially received</option>
-                <option value="RECEIVED">Received</option>
-                <option value="CANCELLED">Cancelled</option>
-              </FormSelect>
-            </div>
-          </SectionCard>
-
-          <div className="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
-            <SectionCard
-              title="Purchase order directory"
-              subtitle="Select an order to inspect its supplier, branch, line items, and receiving progress."
-            >
-              {purchaseOrders.length === 0 ? (
-                <EmptyState text="No purchase orders match the current filters." />
-              ) : (
-                <div className="space-y-4">
-                  {visibleRows.map((row) => (
-                    <OrderCard
-                      key={row.id}
-                      row={row}
-                      active={String(row.id) === String(selectedPOId)}
-                      onSelect={(picked) =>
-                        setSelectedPOId(String(picked?.id || ""))
-                      }
-                      locations={locationOptions}
-                    />
-                  ))}
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
+              <Surface>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Purchase order overview
                 </div>
-              )}
 
-              {visibleCount < purchaseOrders.length ? (
-                <div className="mt-5 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <MetricCard
+                    label="Purchase orders"
+                    value={safeNumber(summary.totalCount)}
+                    sub="Visible under current filters"
+                  />
+                  <MetricCard
+                    label="Draft"
+                    value={safeNumber(summary.draftCount)}
+                    sub="Still being prepared"
+                  />
+                  <MetricCard
+                    label="Approved"
+                    value={safeNumber(summary.approvedCount)}
+                    sub="Ready for procurement"
+                  />
+                  <MetricCard
+                    label="Partially received"
+                    value={safeNumber(summary.partialCount)}
+                    sub="Some stock already arrived"
+                    tone="warn"
+                  />
+                  <MetricCard
+                    label="Received"
+                    value={safeNumber(summary.receivedCount)}
+                    sub="Fully received"
+                  />
+                  <MetricCard
+                    label="Visible total"
+                    value={money(summary.totalAmount, "RWF")}
+                    sub="Mixed-currency display is normalized visually"
+                  />
+                </div>
+              </Surface>
+
+              <Surface>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Purchase order filters
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <FormInput
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Search PO number, supplier, branch, reference"
+                  />
+
+                  <FormSelect
+                    value={locationId}
+                    onChange={(e) => setLocationId(e.target.value)}
                   >
-                    Load 20 more
-                  </button>
-                </div>
-              ) : null}
-            </SectionCard>
-
-            {detailPO ? (
-              <SectionCard
-                title="Selected purchase order"
-                subtitle="Focused owner view of supplier order detail, receiving progress, and printable document."
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusPill status={detailPO?.status} />
-                    <span className="inline-flex items-center rounded-full border border-stone-200 bg-stone-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
-                      {normalizeCurrency(detailPO?.currency)}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
-                    >
-                      Print PO
-                    </button>
-
-                    {canEdit ? (
-                      <AsyncButton
-                        idleText="Edit order"
-                        loadingText="Opening..."
-                        successText="Ready"
-                        onClick={async () => setEditingPO(detailPO)}
-                        variant="secondary"
-                      />
-                    ) : null}
-
-                    {canApprove ? (
-                      <AsyncButton
-                        idleText="Approve order"
-                        loadingText="Opening..."
-                        successText="Ready"
-                        onClick={async () => setApprovingPO(detailPO)}
-                        variant="secondary"
-                      />
-                    ) : null}
-
-                    {canCancel ? (
-                      <AsyncButton
-                        idleText="Cancel order"
-                        loadingText="Opening..."
-                        successText="Ready"
-                        onClick={async () => setCancellingPO(detailPO)}
-                        variant="secondary"
-                      />
-                    ) : null}
-                  </div>
-                </div>
-
-                {detailLoading ? (
-                  <div className="mt-4 grid gap-3">
-                    {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="h-24 animate-pulse rounded-[22px] bg-stone-100 dark:bg-stone-800"
-                      />
+                    <option value="">All branches</option>
+                    {locationOptions.map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {safe(row.name)}{" "}
+                        {safe(row.code) ? `(${safe(row.code)})` : ""}
+                      </option>
                     ))}
+                  </FormSelect>
+
+                  <FormSelect
+                    value={supplierId}
+                    onChange={(e) => setSupplierId(e.target.value)}
+                  >
+                    <option value="">All suppliers</option>
+                    {supplierOptions.map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {safe(row.name)}
+                      </option>
+                    ))}
+                  </FormSelect>
+
+                  <FormSelect
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                  >
+                    <option value="">All statuses</option>
+                    <option value="DRAFT">Draft</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="PARTIALLY_RECEIVED">
+                      Partially received
+                    </option>
+                    <option value="RECEIVED">Received</option>
+                    <option value="CANCELLED">Cancelled</option>
+                  </FormSelect>
+                </div>
+
+                <div className="mt-4 rounded-[22px] border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+                  <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                    Current purchase order
                   </div>
-                ) : (
-                  <>
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                      <StatCard
-                        label="Order"
-                        value={
-                          safe(detailPO?.poNo) || `#${safeNumber(detailPO?.id)}`
+
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <FormSelect
+                      value={selectedPurchaseOrderId}
+                      onChange={(e) =>
+                        setSelectedPurchaseOrderId(e.target.value)
+                      }
+                    >
+                      <option value="">Select purchase order</option>
+                      {purchaseOrders.map((row) => (
+                        <option key={row.id} value={String(row.id)}>
+                          {`${safe(row.poNo) || `PO #${row.id}`} — ${safe(row.supplierName) || "-"}`}
+                        </option>
+                      ))}
+                    </FormSelect>
+
+                    <div className="rounded-[18px] border border-stone-200 bg-white px-3 py-3 text-sm text-stone-900 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100">
+                      Total:{" "}
+                      <b>
+                        {detailLoading
+                          ? "..."
+                          : detailPurchaseOrder
+                            ? money(
+                                detailPurchaseOrder.totalAmount,
+                                detailPurchaseOrder.currency,
+                              )
+                            : "—"}
+                      </b>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 text-[11px] text-stone-500 dark:text-stone-400">
+                    Status:{" "}
+                    <b>
+                      {detailPurchaseOrder
+                        ? safe(detailPurchaseOrder.status)
+                        : "—"}
+                    </b>{" "}
+                    • Supplier:{" "}
+                    <b>
+                      {detailPurchaseOrder
+                        ? safe(detailPurchaseOrder.supplierName)
+                        : "—"}
+                    </b>
+                  </div>
+                </div>
+              </Surface>
+            </div>
+
+            <div className="mt-4 grid gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
+              <Surface>
+                <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Purchase order directory
+                </div>
+                <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                  Select a purchase order to inspect its lines and next actions.
+                </div>
+
+                <div className="mt-4">
+                  {purchaseOrders.length === 0 ? (
+                    <EmptyState text="No purchase orders match the current filters." />
+                  ) : (
+                    <div className="grid gap-3">
+                      {visibleRows.map((row) => (
+                        <PurchaseOrderCard
+                          key={row.id}
+                          row={row}
+                          active={
+                            String(row.id) === String(selectedPurchaseOrderId)
+                          }
+                          onSelect={(picked) =>
+                            setSelectedPurchaseOrderId(String(picked?.id || ""))
+                          }
+                          locations={locationOptions}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {visibleCount < purchaseOrders.length ? (
+                    <div className="mt-5 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setVisibleCount((prev) => prev + PAGE_SIZE)
                         }
-                        sub={safeDate(detailPO?.createdAt)}
-                        valueClassName="text-[17px] leading-tight"
-                      />
+                        className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+                      >
+                        Load 20 more
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </Surface>
 
-                      <StatCard
-                        label="Supplier"
-                        value={safe(detailPO?.supplierName) || "-"}
-                        sub={displayCreatedBy(detailPO)}
-                        valueClassName="text-[17px] leading-tight"
-                      />
-
-                      <StatCard
-                        label="Branch"
-                        value={displayBranch(detailPO, locationOptions)}
-                        sub={safe(detailPO?.locationCode) || "No code"}
-                        valueClassName="text-[17px] leading-tight"
-                      />
-
-                      <StatCard
-                        label="Total"
-                        value={money(detailPO?.totalAmount, detailPO?.currency)}
-                        sub={`${safeNumber(detailPO?.itemsCount)} line${safeNumber(detailPO?.itemsCount) === 1 ? "" : "s"}`}
-                        valueClassName="text-[17px] leading-tight"
-                      />
+              {detailPurchaseOrder ? (
+                <Surface>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                        Selected purchase order
+                      </div>
+                      <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                        Review supplier, branch, lines, dates, and approval
+                        state.
+                      </div>
                     </div>
 
-                    <div className="mt-5 grid gap-4 xl:grid-cols-2">
-                      <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                          Order profile
-                        </p>
+                    <div className="flex flex-wrap gap-2">
+                      {detailStatusUpper !== "CANCELLED" ? (
+                        <AsyncButton
+                          idleText="Edit purchase order"
+                          loadingText="Opening..."
+                          successText="Ready"
+                          onClick={async () =>
+                            setEditingPurchaseOrder(detailPurchaseOrder)
+                          }
+                          variant="secondary"
+                        />
+                      ) : null}
 
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {detailStatusUpper === "DRAFT" ? (
+                        <AsyncButton
+                          idleText="Approve purchase order"
+                          loadingText="Opening..."
+                          successText="Ready"
+                          onClick={async () =>
+                            setApprovingPurchaseOrder(detailPurchaseOrder)
+                          }
+                          variant="secondary"
+                        />
+                      ) : null}
+
+                      {["APPROVED", "PARTIALLY_RECEIVED"].includes(
+                        detailStatusUpper,
+                      ) && hasReceivableLines ? (
+                        <AsyncButton
+                          idleText="Receive goods"
+                          loadingText="Opening..."
+                          successText="Ready"
+                          onClick={async () =>
+                            setReceivingPurchaseOrder(detailPurchaseOrder)
+                          }
+                          variant="secondary"
+                        />
+                      ) : null}
+
+                      {["DRAFT", "APPROVED"].includes(detailStatusUpper) ? (
+                        <AsyncButton
+                          idleText="Cancel purchase order"
+                          loadingText="Opening..."
+                          successText="Ready"
+                          onClick={async () =>
+                            setCancellingPurchaseOrder(detailPurchaseOrder)
+                          }
+                          variant="secondary"
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {detailLoading ? (
+                    <div className="mt-4 grid gap-3">
+                      {[1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="h-24 animate-pulse rounded-[22px] bg-stone-100 dark:bg-stone-800"
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <Pill tone={statusTone(detailPurchaseOrder?.status)}>
+                          {safe(detailPurchaseOrder?.status) || "DRAFT"}
+                        </Pill>
+                        <Pill tone="neutral">
+                          {normalizeCurrency(detailPurchaseOrder?.currency)}
+                        </Pill>
+                        <Pill tone="info">
+                          {safe(detailPurchaseOrder?.poNo) ||
+                            `PO #${detailPurchaseOrder?.id}`}
+                        </Pill>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <MetricCard
+                          label="Supplier"
+                          value={safe(detailPurchaseOrder?.supplierName) || "-"}
+                          sub={
+                            safe(detailPurchaseOrder?.reference) ||
+                            "No reference"
+                          }
+                        />
+                        <MetricCard
+                          label="Branch"
+                          value={displayBranch(
+                            detailPurchaseOrder,
+                            locationOptions,
+                          )}
+                          sub={safe(detailPurchaseOrder?.locationCode) || "-"}
+                        />
+                        <MetricCard
+                          label={`Total (${normalizeCurrency(detailPurchaseOrder?.currency)})`}
+                          value={money(
+                            detailPurchaseOrder?.totalAmount,
+                            detailPurchaseOrder?.currency,
+                          )}
+                          sub="Estimated purchase order amount"
+                        />
+                        <MetricCard
+                          label="Qty ordered vs received"
+                          value={`${safeNumber(detailPurchaseOrder?.qtyOrderedTotal)} / ${safeNumber(detailPurchaseOrder?.qtyReceivedTotal)}`}
+                          sub="Ordered / received"
+                          tone={
+                            safeNumber(detailPurchaseOrder?.qtyReceivedTotal) >
+                            0
+                              ? "warn"
+                              : "default"
+                          }
+                        />
+                      </div>
+
+                      <div className="mt-4 grid gap-3">
+                        <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                          Purchase order profile
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <InfoTile
                             label="Ordered date"
-                            value={safeDate(detailPO?.orderedAt)}
+                            value={safeDate(detailPurchaseOrder?.orderedAt)}
                           />
                           <InfoTile
                             label="Expected date"
-                            value={safeDate(detailPO?.expectedAt)}
+                            value={safeDate(detailPurchaseOrder?.expectedAt)}
+                          />
+                          <InfoTile
+                            label="Approved at"
+                            value={safeDate(detailPurchaseOrder?.approvedAt)}
                           />
                           <InfoTile
                             label="Created by"
-                            value={displayCreatedBy(detailPO)}
-                          />
-                          <InfoTile
-                            label="Approved by"
-                            value={displayApprovedBy(detailPO)}
-                            sub={
-                              detailPO?.approvedAt
-                                ? safeDate(detailPO?.approvedAt)
-                                : ""
-                            }
-                          />
-                          <InfoTile
-                            label="Reference"
-                            value={safe(detailPO?.reference) || "-"}
-                          />
-                          <InfoTile
-                            label="Last updated"
-                            value={safeDate(detailPO?.updatedAt)}
-                          />
-                        </div>
-
-                        <div className="mt-3">
-                          <InfoTile
-                            label="Order note"
                             value={
-                              safe(detailPO?.notes) || "No order note recorded"
+                              safe(detailPurchaseOrder?.createdByName) ||
+                              (detailPurchaseOrder?.createdByUserId != null
+                                ? `User #${detailPurchaseOrder.createdByUserId}`
+                                : "-")
                             }
                           />
                         </div>
+
+                        <InfoTile
+                          label="Internal note"
+                          value={
+                            safe(detailPurchaseOrder?.notes) ||
+                            "No note recorded"
+                          }
+                        />
                       </div>
 
-                      <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                          Receiving progress
-                        </p>
-
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                          <InfoTile
-                            label="Qty ordered"
-                            value={safeNumber(detailPO?.qtyOrderedTotal)}
-                          />
-                          <InfoTile
-                            label="Qty received"
-                            value={safeNumber(detailPO?.qtyReceivedTotal)}
-                          />
-                          <InfoTile
-                            label="Remaining qty"
-                            value={Math.max(
-                              0,
-                              safeNumber(detailPO?.qtyOrderedTotal) -
-                                safeNumber(detailPO?.qtyReceivedTotal),
-                            )}
-                          />
-                          <InfoTile
-                            label="Status"
-                            value={
-                              safe(detailPO?.status)?.replaceAll("_", " ") ||
-                              "-"
-                            }
-                          />
+                      <div className="mt-4 grid gap-3">
+                        <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                          Order lines
                         </div>
-                      </div>
-                    </div>
 
-                    <div className="mt-5">
-                      <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                        Order lines
-                      </div>
-
-                      {(poDetail?.items || []).length === 0 ? (
-                        <EmptyState text="No purchase order items found." />
-                      ) : (
-                        <div className="space-y-3">
-                          {(poDetail?.items || []).map((item) => (
-                            <div
-                              key={item.id}
-                              className="rounded-[22px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950"
-                            >
-                              <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div className="min-w-0 flex-1">
-                                  <div className="text-sm font-black text-stone-950 dark:text-stone-50">
-                                    {safe(
-                                      item?.productDisplayName ||
-                                        item?.productName,
-                                    ) || "-"}
-                                  </div>
-
-                                  <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-                                    SKU:{" "}
-                                    <b className="text-stone-900 dark:text-stone-100">
-                                      {safe(item?.productSku) || "-"}
-                                    </b>
-                                    {" • "}
-                                    Product ID:{" "}
-                                    <b className="text-stone-900 dark:text-stone-100">
+                        {(purchaseOrderDetail?.items || []).length === 0 ? (
+                          <EmptyState text="No purchase order lines found." />
+                        ) : (
+                          <div className="space-y-3">
+                            {(purchaseOrderDetail?.items || []).map((item) => (
+                              <div
+                                key={item.id}
+                                className="rounded-[20px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950"
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+                                      {safe(
+                                        item?.productDisplayName ||
+                                          item?.productName,
+                                      ) || "-"}
+                                    </p>
+                                    <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                                      SKU: {safe(item?.productSku) || "-"} •
+                                      Product ID:{" "}
                                       {item?.productId != null
-                                        ? safeNumber(item?.productId)
+                                        ? item.productId
                                         : "-"}
-                                    </b>
+                                    </p>
                                   </div>
-
-                                  {safe(item?.note) ? (
-                                    <div className="mt-2 text-xs text-stone-500 dark:text-stone-400">
-                                      Note:{" "}
-                                      <b className="text-stone-900 dark:text-stone-100">
-                                        {safe(item.note)}
-                                      </b>
-                                    </div>
-                                  ) : null}
+                                  <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-700 dark:bg-stone-800 dark:text-stone-300">
+                                    {money(
+                                      item?.lineTotal,
+                                      detailPurchaseOrder?.currency,
+                                    )}
+                                  </span>
                                 </div>
 
-                                <div className="shrink-0 text-right">
-                                  <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                                    Line total
-                                  </div>
-                                  <div className="mt-1 text-lg font-black text-stone-950 dark:text-stone-50">
-                                    {money(item?.lineTotal, detailPO?.currency)}
-                                  </div>
+                                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                  <InfoTile
+                                    label="Qty ordered"
+                                    value={safeNumber(item?.qtyOrdered)}
+                                  />
+                                  <InfoTile
+                                    label="Qty received"
+                                    value={safeNumber(item?.qtyReceived)}
+                                  />
+                                  <InfoTile
+                                    label="Unit cost"
+                                    value={money(
+                                      item?.unitCost,
+                                      detailPurchaseOrder?.currency,
+                                    )}
+                                  />
+                                  <InfoTile
+                                    label="Line total"
+                                    value={money(
+                                      item?.lineTotal,
+                                      detailPurchaseOrder?.currency,
+                                    )}
+                                  />
                                 </div>
+
+                                {safe(item?.note) ? (
+                                  <div className="mt-3 rounded-[16px] border border-stone-200 bg-white p-3 text-sm text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
+                                    {safe(item.note)}
+                                  </div>
+                                ) : null}
                               </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </Surface>
+              ) : (
+                <Surface>
+                  <div className="text-sm font-black text-stone-950 dark:text-stone-50">
+                    Selected purchase order
+                  </div>
+                  <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                    This section appears after a purchase order is selected.
+                  </div>
+                  <div className="mt-4">
+                    <EmptyState text="Select a purchase order above to inspect details and order lines." />
+                  </div>
+                </Surface>
+              )}
+            </div>
+          </>
+        )}
+      </SectionShell>
 
-                              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
-                                <InfoTile
-                                  label="Qty ordered"
-                                  value={safeNumber(item?.qtyOrdered)}
-                                />
-                                <InfoTile
-                                  label="Qty received"
-                                  value={safeNumber(item?.qtyReceived)}
-                                />
-                                <InfoTile
-                                  label="Unit cost"
-                                  value={money(
-                                    item?.unitCost,
-                                    detailPO?.currency,
-                                  )}
-                                />
-                                <InfoTile
-                                  label="Purchase unit"
-                                  value={safe(item?.purchaseUnit) || "PIECE"}
-                                  sub={`Stock unit: ${safe(item?.stockUnit) || "PIECE"}`}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-6 hidden">
-                      <PrintablePO
-                        po={detailPO}
-                        items={poDetail?.items || []}
-                        locations={locationOptions}
-                      />
-                    </div>
-                  </>
-                )}
-              </SectionCard>
-            ) : (
-              <SectionCard
-                title="Selected purchase order"
-                subtitle="This section appears after a purchase order is selected."
-              >
-                <EmptyState text="Select a purchase order to inspect details and print the document." />
-              </SectionCard>
-            )}
-          </div>
-        </>
-      )}
-
-      <PurchaseOrderFormModal
-        open={creatingPO}
-        mode="create"
+      <CreatePurchaseOrderModal
+        open={creatingPurchaseOrder}
         suppliers={supplierOptions}
         locations={locationOptions}
-        onClose={() => setCreatingPO(false)}
+        products={productOptions}
+        onClose={() => setCreatingPurchaseOrder(false)}
         onSaved={(result) =>
           handleActionSaved("Purchase order created", result)
         }
       />
 
-      <PurchaseOrderFormModal
-        open={!!editingPO}
-        mode="edit"
+      <EditPurchaseOrderModal
+        open={!!editingPurchaseOrder}
+        purchaseOrder={editingPurchaseOrder}
+        items={purchaseOrderDetail?.items || []}
         suppliers={supplierOptions}
         locations={locationOptions}
-        initialPO={editingPO}
-        initialItems={poDetail?.items || []}
-        onClose={() => setEditingPO(null)}
+        products={productOptions}
+        onClose={() => setEditingPurchaseOrder(null)}
         onSaved={(result) =>
           handleActionSaved("Purchase order updated", result)
         }
       />
 
-      <ApprovePOModal
-        open={!!approvingPO}
-        po={approvingPO}
-        onClose={() => setApprovingPO(null)}
+      <ApprovePurchaseOrderModal
+        open={!!approvingPurchaseOrder}
+        purchaseOrder={approvingPurchaseOrder}
+        onClose={() => setApprovingPurchaseOrder(null)}
         onSaved={(result) =>
           handleActionSaved("Purchase order approved", result)
         }
       />
 
-      <CancelPOModal
-        open={!!cancellingPO}
-        po={cancellingPO}
-        onClose={() => setCancellingPO(null)}
+      <ReceiveGoodsModal
+        open={!!receivingPurchaseOrder}
+        purchaseOrder={receivingPurchaseOrder}
+        items={purchaseOrderDetail?.items || []}
+        locations={locationOptions}
+        onClose={() => setReceivingPurchaseOrder(null)}
+        onSaved={(result) => handleActionSaved("Goods received", result)}
+      />
+
+      <CancelPurchaseOrderModal
+        open={!!cancellingPurchaseOrder}
+        purchaseOrder={cancellingPurchaseOrder}
+        onClose={() => setCancellingPurchaseOrder(null)}
         onSaved={(result) =>
           handleActionSaved("Purchase order cancelled", result)
         }

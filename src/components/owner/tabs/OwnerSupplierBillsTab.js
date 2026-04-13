@@ -40,6 +40,22 @@ function normalizeBillsResponse(result) {
   return [];
 }
 
+function normalizePurchaseOrdersResponse(result) {
+  if (Array.isArray(result)) return result;
+  if (Array.isArray(result?.purchaseOrders)) return result.purchaseOrders;
+  if (Array.isArray(result?.rows)) return result.rows;
+  if (Array.isArray(result?.data)) return result.data;
+  return [];
+}
+
+function normalizeGoodsReceiptsResponse(result) {
+  if (Array.isArray(result)) return result;
+  if (Array.isArray(result?.goodsReceipts)) return result.goodsReceipts;
+  if (Array.isArray(result?.rows)) return result.rows;
+  if (Array.isArray(result?.data)) return result.data;
+  return [];
+}
+
 function normalizeSupplier(row) {
   if (!row) return null;
 
@@ -51,6 +67,49 @@ function normalizeSupplier(row) {
     ),
     sourceType: row.sourceType ?? row.source_type ?? "LOCAL",
     isActive: row.isActive ?? row.is_active ?? true,
+  };
+}
+
+function normalizePurchaseOrder(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id ?? null,
+    supplierId: row.supplierId ?? row.supplier_id ?? null,
+    supplierName: row.supplierName ?? row.supplier_name ?? "",
+    locationId: row.locationId ?? row.location_id ?? null,
+    locationName: row.locationName ?? row.location_name ?? "",
+    locationCode: row.locationCode ?? row.location_code ?? "",
+    poNo: row.poNo ?? row.po_no ?? "",
+    reference: row.reference ?? "",
+    currency: normalizeCurrency(row.currency),
+    status: row.status ?? "DRAFT",
+    totalAmount: Number(row.totalAmount ?? row.total_amount ?? 0),
+    orderedAt: row.orderedAt ?? row.ordered_at ?? null,
+    expectedAt: row.expectedAt ?? row.expected_at ?? null,
+  };
+}
+
+function normalizeGoodsReceipt(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id ?? null,
+    purchaseOrderId: row.purchaseOrderId ?? row.purchase_order_id ?? null,
+    supplierId: row.supplierId ?? row.supplier_id ?? null,
+    supplierName: row.supplierName ?? row.supplier_name ?? "",
+    locationId: row.locationId ?? row.location_id ?? null,
+    locationName: row.locationName ?? row.location_name ?? "",
+    locationCode: row.locationCode ?? row.location_code ?? "",
+    receiptNo: row.receiptNo ?? row.receipt_no ?? "",
+    reference: row.reference ?? "",
+    note: row.note ?? "",
+    totalAmount: Number(row.totalAmount ?? row.total_amount ?? 0),
+    totalLines: Number(row.totalLines ?? row.total_lines ?? 0),
+    totalUnitsReceived: Number(
+      row.totalUnitsReceived ?? row.total_units_received ?? 0,
+    ),
+    receivedAt: row.receivedAt ?? row.received_at ?? null,
   };
 }
 
@@ -73,6 +132,8 @@ function normalizeBill(row) {
     locationId: row.locationId ?? row.location_id ?? null,
     locationName: row.locationName ?? row.location_name ?? "",
     locationCode: row.locationCode ?? row.location_code ?? "",
+    purchaseOrderId: row.purchaseOrderId ?? row.purchase_order_id ?? null,
+    goodsReceiptId: row.goodsReceiptId ?? row.goods_receipt_id ?? null,
     billNo: row.billNo ?? row.bill_no ?? "",
     currency: normalizeCurrency(row.currency),
     totalAmount,
@@ -142,24 +203,18 @@ function displayCreatedBy(row) {
   return "-";
 }
 
-function paymentMethodLabel(v) {
-  const s = safe(v).toUpperCase();
-  if (s === "BANK") return "Bank";
-  if (s === "CASH") return "Cash";
-  if (s === "MOMO") return "MoMo";
-  if (s === "CARD") return "Card";
-  if (s === "OTHER") return "Other";
-  return s || "-";
+function displayPurchaseOrderRef(row) {
+  if (!row?.purchaseOrderId) return "Not linked";
+  if (safe(row?.poNo)) return `${safe(row.poNo)} (#${row.purchaseOrderId})`;
+  return `PO #${row.purchaseOrderId}`;
 }
 
-function statusLabel(status) {
-  const s = safe(status).toUpperCase();
-  if (s === "PARTIALLY_PAID") return "Partially paid";
-  if (s === "PAID") return "Paid";
-  if (s === "OPEN") return "Open";
-  if (s === "DRAFT") return "Draft";
-  if (s === "VOID") return "Void";
-  return s || "-";
+function displayGoodsReceiptRef(row) {
+  if (!row?.goodsReceiptId) return "Not linked";
+  if (safe(row?.receiptNo)) {
+    return `${safe(row.receiptNo)} (#${row.goodsReceiptId})`;
+  }
+  return `GR #${row.goodsReceiptId}`;
 }
 
 function Pill({ tone = "neutral", children }) {
@@ -282,11 +337,9 @@ function BillCard({ row, active, onSelect, locations = [] }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <div className="truncate text-sm font-black text-stone-950 dark:text-stone-50">
-              {safe(row?.billNo)
-                ? `Supplier invoice ${safe(row.billNo)}`
-                : `Supplier bill #${safe(row?.id) || "-"}`}
+              Bill #{safe(row?.billNo || row?.id) || "-"}
             </div>
-            <Pill tone={statusTone(status)}>{statusLabel(status)}</Pill>
+            <Pill tone={statusTone(status)}>{status}</Pill>
             <Pill tone="neutral">{currency}</Pill>
             <Pill tone={row?.isOverdue ? "danger" : "neutral"}>
               {row?.isOverdue
@@ -316,11 +369,22 @@ function BillCard({ row, active, onSelect, locations = [] }) {
               {safeDate(row?.dueDate)}
             </b>
           </div>
+
+          <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+            PO:{" "}
+            <b className="text-stone-900 dark:text-stone-100">
+              {displayPurchaseOrderRef(row)}
+            </b>{" "}
+            • Goods receipt:{" "}
+            <b className="text-stone-900 dark:text-stone-100">
+              {displayGoodsReceiptRef(row)}
+            </b>
+          </div>
         </div>
 
         <div className="shrink-0 text-right">
           <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Balance left
+            Balance
           </div>
           <div className="mt-1 text-lg font-black text-stone-950 dark:text-stone-50">
             {money(row?.balance, currency)}
@@ -334,7 +398,7 @@ function BillCard({ row, active, onSelect, locations = [] }) {
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <div className="rounded-[18px] border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
           <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Bill total
+            Total
           </div>
           <div className="mt-2 text-sm font-bold text-stone-950 dark:text-stone-50">
             {money(row?.totalAmount, currency)}
@@ -342,7 +406,7 @@ function BillCard({ row, active, onSelect, locations = [] }) {
         </div>
         <div className="rounded-[18px] border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
           <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Paid so far
+            Paid
           </div>
           <div className="mt-2 text-sm font-bold text-stone-950 dark:text-stone-50">
             {money(row?.paidAmount, currency)}
@@ -350,7 +414,7 @@ function BillCard({ row, active, onSelect, locations = [] }) {
         </div>
         <div className="rounded-[18px] border border-rose-200 bg-rose-50 p-3 dark:border-rose-900/40 dark:bg-rose-950/20">
           <div className="text-[11px] font-black uppercase tracking-[0.12em] text-rose-700 dark:text-rose-300">
-            Still unpaid
+            Remaining
           </div>
           <div className="mt-2 text-sm font-bold text-rose-700 dark:text-rose-300">
             {money(row?.balance, currency)}
@@ -399,6 +463,8 @@ function billCreateDefaults(suppliers) {
   return {
     supplierId: "",
     locationId: "",
+    purchaseOrderId: "",
+    goodsReceiptId: "",
     billNo: "",
     currency: defaultCurrency || "RWF",
     totalAmount: "",
@@ -413,6 +479,8 @@ function billEditDefaults(bill) {
   return {
     supplierId: String(bill?.supplierId || ""),
     locationId: String(bill?.locationId || ""),
+    purchaseOrderId: String(bill?.purchaseOrderId || ""),
+    goodsReceiptId: String(bill?.goodsReceiptId || ""),
     billNo: safe(bill?.billNo) || "",
     currency: normalizeCurrency(bill?.currency),
     totalAmount: String(bill?.totalAmount ?? ""),
@@ -423,7 +491,31 @@ function billEditDefaults(bill) {
   };
 }
 
-function CreateBillModal({ open, suppliers, locations, onClose, onSaved }) {
+function buildPurchaseOrderOptionLabel(row) {
+  const ref = safe(row?.poNo) || `PO #${row?.id}`;
+  const supplier = safe(row?.supplierName) || "Unknown supplier";
+  const branch = safe(row?.locationCode)
+    ? `${safe(row?.locationName)} (${safe(row?.locationCode)})`
+    : safe(row?.locationName) || "-";
+  return `${ref} — ${supplier} — ${branch}`;
+}
+
+function buildGoodsReceiptOptionLabel(row) {
+  const ref = safe(row?.receiptNo) || `GR #${row?.id}`;
+  const supplier = safe(row?.supplierName) || "Unknown supplier";
+  const poPart = row?.purchaseOrderId ? `PO #${row.purchaseOrderId}` : "No PO";
+  return `${ref} — ${supplier} — ${poPart}`;
+}
+
+function CreateBillModal({
+  open,
+  suppliers,
+  locations,
+  purchaseOrders,
+  goodsReceipts,
+  onClose,
+  onSaved,
+}) {
   if (!open) return null;
 
   return (
@@ -431,13 +523,22 @@ function CreateBillModal({ open, suppliers, locations, onClose, onSaved }) {
       key={`create-bill-${suppliers?.length || 0}`}
       suppliers={suppliers}
       locations={locations}
+      purchaseOrders={purchaseOrders}
+      goodsReceipts={goodsReceipts}
       onClose={onClose}
       onSaved={onSaved}
     />
   );
 }
 
-function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
+function CreateBillModalInner({
+  suppliers,
+  locations,
+  purchaseOrders,
+  goodsReceipts,
+  onClose,
+  onSaved,
+}) {
   const [form, setForm] = useState(() => billCreateDefaults(suppliers));
   const [errorText, setErrorText] = useState("");
 
@@ -449,9 +550,46 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
     [suppliers, form.supplierId],
   );
 
+  const filteredPurchaseOrders = useMemo(() => {
+    const rows = Array.isArray(purchaseOrders) ? purchaseOrders : [];
+    return rows.filter((row) => {
+      if (form.locationId && String(row.locationId) !== String(form.locationId))
+        return false;
+      if (form.supplierId && String(row.supplierId) !== String(form.supplierId))
+        return false;
+      return true;
+    });
+  }, [purchaseOrders, form.locationId, form.supplierId]);
+
+  const filteredGoodsReceipts = useMemo(() => {
+    const rows = Array.isArray(goodsReceipts) ? goodsReceipts : [];
+    return rows.filter((row) => {
+      if (form.locationId && String(row.locationId) !== String(form.locationId))
+        return false;
+      if (form.supplierId && String(row.supplierId) !== String(form.supplierId))
+        return false;
+      if (
+        form.purchaseOrderId &&
+        String(row.purchaseOrderId) !== String(form.purchaseOrderId)
+      )
+        return false;
+      return true;
+    });
+  }, [goodsReceipts, form.locationId, form.supplierId, form.purchaseOrderId]);
+
+  const selectedPurchaseOrder = useMemo(
+    () =>
+      filteredPurchaseOrders.find(
+        (row) => String(row.id) === String(form.purchaseOrderId),
+      ) || null,
+    [filteredPurchaseOrders, form.purchaseOrderId],
+  );
+
   const effectiveCurrency = selectedSupplier?.defaultCurrency
     ? normalizeCurrency(selectedSupplier.defaultCurrency)
-    : normalizeCurrency(form.currency);
+    : selectedPurchaseOrder?.currency
+      ? normalizeCurrency(selectedPurchaseOrder.currency)
+      : normalizeCurrency(form.currency);
 
   async function handleSave() {
     setErrorText("");
@@ -460,6 +598,12 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
       const payload = {
         supplierId: Number(form.supplierId),
         locationId: Number(form.locationId),
+        ...(form.purchaseOrderId
+          ? { purchaseOrderId: Number(form.purchaseOrderId) }
+          : {}),
+        ...(form.goodsReceiptId
+          ? { goodsReceiptId: Number(form.goodsReceiptId) }
+          : {}),
         billNo: form.billNo || undefined,
         currency: effectiveCurrency || undefined,
         totalAmount: Number(form.totalAmount),
@@ -469,7 +613,7 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
         status: form.status || undefined,
       };
 
-      const result = await apiFetch("/owner/supplier-bills", {
+      const result = await apiFetch("/supplier-bills", {
         method: "POST",
         body: payload,
       });
@@ -485,16 +629,10 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
   return (
     <ModalShell
       title="Create supplier bill"
-      subtitle="Record a new supplier amount your business must pay later."
+      subtitle="Create a supplier liability and optionally link it to a purchase order or received stock."
       onClose={onClose}
     >
       <AlertBox message={errorText} />
-
-      <div className="mb-4 rounded-[20px] border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-200">
-        Creating a supplier bill does <b>not</b> mean the supplier has already
-        been paid. You are only recording the amount owed. The payment method is
-        chosen later when you click <b>Add payment</b>.
-      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
@@ -504,7 +642,12 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
           <FormSelect
             value={form.supplierId}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, supplierId: e.target.value }))
+              setForm((prev) => ({
+                ...prev,
+                supplierId: e.target.value,
+                purchaseOrderId: "",
+                goodsReceiptId: "",
+              }))
             }
           >
             <option value="">Choose supplier</option>
@@ -523,7 +666,12 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
           <FormSelect
             value={form.locationId}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, locationId: e.target.value }))
+              setForm((prev) => ({
+                ...prev,
+                locationId: e.target.value,
+                purchaseOrderId: "",
+                goodsReceiptId: "",
+              }))
             }
           >
             <option value="">Choose branch</option>
@@ -535,22 +683,59 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
           </FormSelect>
         </div>
 
+        <div className="md:col-span-2">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Linked purchase order
+          </label>
+          <FormSelect
+            value={form.purchaseOrderId}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                purchaseOrderId: e.target.value,
+                goodsReceiptId: "",
+              }))
+            }
+          >
+            <option value="">No purchase order link</option>
+            {filteredPurchaseOrders.map((row) => (
+              <option key={row.id} value={row.id}>
+                {buildPurchaseOrderOptionLabel(row)}
+              </option>
+            ))}
+          </FormSelect>
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Linked goods receipt
+          </label>
+          <FormSelect
+            value={form.goodsReceiptId}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, goodsReceiptId: e.target.value }))
+            }
+          >
+            <option value="">No goods receipt link</option>
+            {filteredGoodsReceipts.map((row) => (
+              <option key={row.id} value={row.id}>
+                {buildGoodsReceiptOptionLabel(row)}
+              </option>
+            ))}
+          </FormSelect>
+        </div>
+
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Supplier invoice number
+            Bill number
           </label>
           <FormInput
             value={form.billNo}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, billNo: e.target.value }))
             }
-            placeholder="Number written on supplier invoice or paper"
+            placeholder="Example: INV-2026-014"
           />
-          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-            {
-              "This is the number from the supplier's invoice, receipt, paper, or message. You can leave it empty if there is no number."
-            }
-          </p>
         </div>
 
         <div>
@@ -562,21 +747,19 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
             onChange={(e) =>
               setForm((prev) => ({ ...prev, currency: e.target.value }))
             }
-            disabled={!!selectedSupplier?.defaultCurrency}
+            disabled={
+              !!selectedSupplier?.defaultCurrency ||
+              !!selectedPurchaseOrder?.currency
+            }
           >
             <option value="RWF">RWF</option>
             <option value="USD">USD</option>
           </FormSelect>
-          {selectedSupplier?.defaultCurrency ? (
-            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-              Locked to supplier default currency.
-            </p>
-          ) : null}
         </div>
 
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Bill total
+            Total amount
           </label>
           <FormInput
             type="number"
@@ -640,7 +823,7 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
             }
             rows={4}
             className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-            placeholder="Optional note about this bill"
+            placeholder="Bill note"
           />
         </div>
       </div>
@@ -653,7 +836,6 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
         >
           Cancel
         </button>
-
         <AsyncButton
           idleText="Create supplier bill"
           loadingText="Creating..."
@@ -665,7 +847,16 @@ function CreateBillModalInner({ suppliers, locations, onClose, onSaved }) {
   );
 }
 
-function EditBillModal({ open, bill, suppliers, locations, onClose, onSaved }) {
+function EditBillModal({
+  open,
+  bill,
+  suppliers,
+  locations,
+  purchaseOrders,
+  goodsReceipts,
+  onClose,
+  onSaved,
+}) {
   if (!open || !bill) return null;
 
   return (
@@ -674,13 +865,23 @@ function EditBillModal({ open, bill, suppliers, locations, onClose, onSaved }) {
       bill={bill}
       suppliers={suppliers}
       locations={locations}
+      purchaseOrders={purchaseOrders}
+      goodsReceipts={goodsReceipts}
       onClose={onClose}
       onSaved={onSaved}
     />
   );
 }
 
-function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
+function EditBillModalInner({
+  bill,
+  suppliers,
+  locations,
+  purchaseOrders,
+  goodsReceipts,
+  onClose,
+  onSaved,
+}) {
   const [form, setForm] = useState(() => billEditDefaults(bill));
   const [errorText, setErrorText] = useState("");
 
@@ -692,9 +893,46 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
     [suppliers, form.supplierId],
   );
 
+  const filteredPurchaseOrders = useMemo(() => {
+    const rows = Array.isArray(purchaseOrders) ? purchaseOrders : [];
+    return rows.filter((row) => {
+      if (form.locationId && String(row.locationId) !== String(form.locationId))
+        return false;
+      if (form.supplierId && String(row.supplierId) !== String(form.supplierId))
+        return false;
+      return true;
+    });
+  }, [purchaseOrders, form.locationId, form.supplierId]);
+
+  const filteredGoodsReceipts = useMemo(() => {
+    const rows = Array.isArray(goodsReceipts) ? goodsReceipts : [];
+    return rows.filter((row) => {
+      if (form.locationId && String(row.locationId) !== String(form.locationId))
+        return false;
+      if (form.supplierId && String(row.supplierId) !== String(form.supplierId))
+        return false;
+      if (
+        form.purchaseOrderId &&
+        String(row.purchaseOrderId) !== String(form.purchaseOrderId)
+      )
+        return false;
+      return true;
+    });
+  }, [goodsReceipts, form.locationId, form.supplierId, form.purchaseOrderId]);
+
+  const selectedPurchaseOrder = useMemo(
+    () =>
+      filteredPurchaseOrders.find(
+        (row) => String(row.id) === String(form.purchaseOrderId),
+      ) || null,
+    [filteredPurchaseOrders, form.purchaseOrderId],
+  );
+
   const effectiveCurrency = selectedSupplier?.defaultCurrency
     ? normalizeCurrency(selectedSupplier.defaultCurrency)
-    : normalizeCurrency(form.currency);
+    : selectedPurchaseOrder?.currency
+      ? normalizeCurrency(selectedPurchaseOrder.currency)
+      : normalizeCurrency(form.currency);
 
   async function handleSave() {
     setErrorText("");
@@ -703,6 +941,12 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
       const payload = {
         supplierId: Number(form.supplierId),
         locationId: Number(form.locationId),
+        purchaseOrderId: form.purchaseOrderId
+          ? Number(form.purchaseOrderId)
+          : null,
+        goodsReceiptId: form.goodsReceiptId
+          ? Number(form.goodsReceiptId)
+          : null,
         billNo: form.billNo || undefined,
         currency: effectiveCurrency || undefined,
         totalAmount: Number(form.totalAmount),
@@ -712,7 +956,7 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
         status: form.status || undefined,
       };
 
-      const result = await apiFetch(`/owner/supplier-bills/${bill.id}`, {
+      const result = await apiFetch(`/supplier-bills/${bill.id}`, {
         method: "PATCH",
         body: payload,
       });
@@ -728,7 +972,7 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
   return (
     <ModalShell
       title={`Edit supplier bill #${bill.id}`}
-      subtitle="Update the supplier, branch, amount, dates, and bill details."
+      subtitle="Update supplier, branch, linked procurement records, bill details, dates, and amount."
       onClose={onClose}
     >
       <AlertBox message={errorText} />
@@ -741,7 +985,12 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
           <FormSelect
             value={form.supplierId}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, supplierId: e.target.value }))
+              setForm((prev) => ({
+                ...prev,
+                supplierId: e.target.value,
+                purchaseOrderId: "",
+                goodsReceiptId: "",
+              }))
             }
           >
             <option value="">Choose supplier</option>
@@ -760,7 +1009,12 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
           <FormSelect
             value={form.locationId}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, locationId: e.target.value }))
+              setForm((prev) => ({
+                ...prev,
+                locationId: e.target.value,
+                purchaseOrderId: "",
+                goodsReceiptId: "",
+              }))
             }
           >
             <option value="">Choose branch</option>
@@ -772,20 +1026,58 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
           </FormSelect>
         </div>
 
+        <div className="md:col-span-2">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Linked purchase order
+          </label>
+          <FormSelect
+            value={form.purchaseOrderId}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                purchaseOrderId: e.target.value,
+                goodsReceiptId: "",
+              }))
+            }
+          >
+            <option value="">No purchase order link</option>
+            {filteredPurchaseOrders.map((row) => (
+              <option key={row.id} value={row.id}>
+                {buildPurchaseOrderOptionLabel(row)}
+              </option>
+            ))}
+          </FormSelect>
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Linked goods receipt
+          </label>
+          <FormSelect
+            value={form.goodsReceiptId}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, goodsReceiptId: e.target.value }))
+            }
+          >
+            <option value="">No goods receipt link</option>
+            {filteredGoodsReceipts.map((row) => (
+              <option key={row.id} value={row.id}>
+                {buildGoodsReceiptOptionLabel(row)}
+              </option>
+            ))}
+          </FormSelect>
+        </div>
+
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Supplier invoice number
+            Bill number
           </label>
           <FormInput
             value={form.billNo}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, billNo: e.target.value }))
             }
-            placeholder="Number written on supplier invoice or paper"
           />
-          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-            {"This is the supplier's own number for this bill."}
-          </p>
         </div>
 
         <div>
@@ -797,21 +1089,19 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
             onChange={(e) =>
               setForm((prev) => ({ ...prev, currency: e.target.value }))
             }
-            disabled={!!selectedSupplier?.defaultCurrency}
+            disabled={
+              !!selectedSupplier?.defaultCurrency ||
+              !!selectedPurchaseOrder?.currency
+            }
           >
             <option value="RWF">RWF</option>
             <option value="USD">USD</option>
           </FormSelect>
-          {selectedSupplier?.defaultCurrency ? (
-            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-              Locked to supplier default currency.
-            </p>
-          ) : null}
         </div>
 
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Bill total
+            Total amount
           </label>
           <FormInput
             type="number"
@@ -819,7 +1109,6 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
             onChange={(e) =>
               setForm((prev) => ({ ...prev, totalAmount: e.target.value }))
             }
-            placeholder="0"
           />
         </div>
 
@@ -877,7 +1166,6 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
             }
             rows={4}
             className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-            placeholder="Optional note about this bill"
           />
         </div>
       </div>
@@ -890,7 +1178,6 @@ function EditBillModalInner({ bill, suppliers, locations, onClose, onSaved }) {
         >
           Cancel
         </button>
-
         <AsyncButton
           idleText="Save supplier bill"
           loadingText="Saving..."
@@ -937,13 +1224,10 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
         paidAt: form.paidAt || undefined,
       };
 
-      const result = await apiFetch(
-        `/owner/supplier-bills/${bill.id}/payments`,
-        {
-          method: "POST",
-          body: payload,
-        },
-      );
+      const result = await apiFetch(`/supplier-bills/${bill.id}/payments`, {
+        method: "POST",
+        body: payload,
+      });
 
       onSaved?.(result);
     } catch (e) {
@@ -956,11 +1240,10 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
   return (
     <ModalShell
       title={`Add payment to bill #${bill.id}`}
-      subtitle={`Choose how the supplier was actually paid. Remaining balance now: ${money(bill.balance, bill.currency)}`}
+      subtitle={`Remaining balance: ${money(bill.balance, bill.currency)}`}
       onClose={onClose}
     >
       <AlertBox message={errorText} />
-
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
@@ -972,13 +1255,11 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
             onChange={(e) =>
               setForm((prev) => ({ ...prev, amount: e.target.value }))
             }
-            placeholder="0"
           />
         </div>
-
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            How was it paid?
+            Payment method
           </label>
           <FormSelect
             value={form.method}
@@ -993,7 +1274,6 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
             <option value="OTHER">Other</option>
           </FormSelect>
         </div>
-
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Reference
@@ -1003,10 +1283,8 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
             onChange={(e) =>
               setForm((prev) => ({ ...prev, reference: e.target.value }))
             }
-            placeholder="Bank slip, transfer code, receipt number"
           />
         </div>
-
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Paid at
@@ -1019,7 +1297,6 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
             }
           />
         </div>
-
         <div className="md:col-span-2">
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Payment note
@@ -1031,7 +1308,6 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
             }
             rows={4}
             className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-            placeholder="Optional note about this payment"
           />
         </div>
       </div>
@@ -1044,7 +1320,6 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
         >
           Cancel
         </button>
-
         <AsyncButton
           idleText="Record payment"
           loadingText="Recording..."
@@ -1070,18 +1345,14 @@ function VoidBillModal({ open, bill, onClose, onSaved }) {
 }
 
 function VoidBillModalInner({ bill, onClose, onSaved }) {
-  const [reason, setReason] = useState("");
   const [errorText, setErrorText] = useState("");
 
   async function handleVoid() {
     setErrorText("");
 
     try {
-      const result = await apiFetch(`/owner/supplier-bills/${bill.id}/void`, {
-        method: "POST",
-        body: {
-          reason: reason || undefined,
-        },
+      const result = await apiFetch(`/supplier-bills/${bill.id}`, {
+        method: "DELETE",
       });
 
       onSaved?.(result);
@@ -1095,32 +1366,17 @@ function VoidBillModalInner({ bill, onClose, onSaved }) {
   return (
     <ModalShell
       title={`Void bill #${bill.id}`}
-      subtitle="Use this only if this supplier bill should no longer count."
+      subtitle="This should only be used for bills that should no longer count."
       onClose={onClose}
     >
       <AlertBox message={errorText} />
-
       <Surface className="bg-rose-50 dark:bg-rose-950/20">
         <div className="text-sm text-rose-800 dark:text-rose-200">
-          Bill total: <strong>{money(bill.totalAmount, bill.currency)}</strong>
+          Bill amount: <strong>{money(bill.totalAmount, bill.currency)}</strong>
           <br />
           Paid so far: <strong>{money(bill.paidAmount, bill.currency)}</strong>
         </div>
       </Surface>
-
-      <div className="mt-4">
-        <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-          Reason
-        </label>
-        <textarea
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          rows={4}
-          className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-          placeholder="Why is this bill being voided?"
-        />
-      </div>
-
       <div className="mt-5 flex justify-end gap-3">
         <button
           type="button"
@@ -1129,7 +1385,6 @@ function VoidBillModalInner({ bill, onClose, onSaved }) {
         >
           Cancel
         </button>
-
         <AsyncButton
           idleText="Void bill"
           loadingText="Voiding..."
@@ -1150,6 +1405,8 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
   const [summary, setSummary] = useState(null);
   const [bills, setBills] = useState([]);
   const [supplierOptions, setSupplierOptions] = useState([]);
+  const [purchaseOrderOptions, setPurchaseOrderOptions] = useState([]);
+  const [goodsReceiptOptions, setGoodsReceiptOptions] = useState([]);
   const [selectedBillId, setSelectedBillId] = useState("");
   const [billDetail, setBillDetail] = useState({
     bill: null,
@@ -1176,6 +1433,24 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
   const detailBill = billDetail?.bill || selectedBill || null;
 
+  const linkedPurchaseOrder = useMemo(() => {
+    if (!detailBill?.purchaseOrderId) return null;
+    return (
+      purchaseOrderOptions.find(
+        (row) => String(row.id) === String(detailBill.purchaseOrderId),
+      ) || null
+    );
+  }, [detailBill?.purchaseOrderId, purchaseOrderOptions]);
+
+  const linkedGoodsReceipt = useMemo(() => {
+    if (!detailBill?.goodsReceiptId) return null;
+    return (
+      goodsReceiptOptions.find(
+        (row) => String(row.id) === String(detailBill.goodsReceiptId),
+      ) || null
+    );
+  }, [detailBill?.goodsReceiptId, goodsReceiptOptions]);
+
   const locationOptions = useMemo(() => {
     return Array.isArray(locations)
       ? locations.filter(
@@ -1189,7 +1464,6 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
       const result = await apiFetch(`/owner/suppliers?limit=200`, {
         method: "GET",
       });
-
       setSupplierOptions(
         Array.isArray(result?.suppliers)
           ? result.suppliers.map(normalizeSupplier).filter(Boolean)
@@ -1197,6 +1471,36 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
       );
     } catch {
       setSupplierOptions([]);
+    }
+  }
+
+  async function loadPurchaseOrderOptions() {
+    try {
+      const result = await apiFetch(`/purchase-orders?limit=200`, {
+        method: "GET",
+      });
+      setPurchaseOrderOptions(
+        normalizePurchaseOrdersResponse(result)
+          .map(normalizePurchaseOrder)
+          .filter(Boolean),
+      );
+    } catch {
+      setPurchaseOrderOptions([]);
+    }
+  }
+
+  async function loadGoodsReceiptOptions() {
+    try {
+      const result = await apiFetch(`/goods-receipts?limit=200`, {
+        method: "GET",
+      });
+      setGoodsReceiptOptions(
+        normalizeGoodsReceiptsResponse(result)
+          .map(normalizeGoodsReceipt)
+          .filter(Boolean),
+      );
+    } catch {
+      setGoodsReceiptOptions([]);
     }
   }
 
@@ -1213,8 +1517,8 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
     const suffix = params.toString() ? `?${params.toString()}` : "";
 
     const [summaryRes, listRes] = await Promise.allSettled([
-      apiFetch(`/owner/supplier-bills/summary${suffix}`, { method: "GET" }),
-      apiFetch(`/owner/supplier-bills${suffix}`, { method: "GET" }),
+      apiFetch(`/supplier-bills/summary${suffix}`, { method: "GET" }),
+      apiFetch(`/supplier-bills${suffix}`, { method: "GET" }),
     ]);
 
     let firstError = "";
@@ -1233,7 +1537,6 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
       const rows = normalizeBillsResponse(listRes.value)
         .map(normalizeBill)
         .filter(Boolean);
-
       setBills(rows);
       setSelectedBillId((prev) => {
         const next =
@@ -1266,10 +1569,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
     setDetailLoading(true);
     try {
-      const result = await apiFetch(`/owner/supplier-bills/${id}`, {
-        method: "GET",
-      });
-
+      const result = await apiFetch(`/supplier-bills/${id}`, { method: "GET" });
       setBillDetail(normalizeBillDetail(result));
     } catch {
       setBillDetail({ bill: null, items: [], payments: [] });
@@ -1280,6 +1580,8 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
   useEffect(() => {
     loadSupplierOptions();
+    loadPurchaseOrderOptions();
+    loadGoodsReceiptOptions();
   }, []);
 
   useEffect(() => {
@@ -1303,7 +1605,11 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
     setPaymentBill(null);
     setVoidBill(null);
 
-    await loadList();
+    await Promise.all([
+      loadList(),
+      loadPurchaseOrderOptions(),
+      loadGoodsReceiptOptions(),
+    ]);
 
     if (nextBillId) {
       setSelectedBillId(String(nextBillId));
@@ -1324,7 +1630,13 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
         loadingText="Loading..."
         successText="Done"
         onClick={async () => {
-          await Promise.all([loadList(), loadDetail(selectedBillId)]);
+          await Promise.all([
+            loadSupplierOptions(),
+            loadPurchaseOrderOptions(),
+            loadGoodsReceiptOptions(),
+            loadList(),
+            loadDetail(selectedBillId),
+          ]);
         }}
       />
 
@@ -1344,7 +1656,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
       <SectionShell
         title="Supplier bills"
-        hint="Track what your business owes suppliers, what has already been paid, and what still remains unpaid."
+        hint="Supplier liabilities, due dates, installments, procurement linkage, and unpaid balances."
         right={headerRight}
       >
         {loading ? (
@@ -1368,17 +1680,17 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                   <MetricCard
                     label="Supplier bills"
                     value={safeNumber(summary?.billsCount)}
-                    sub="Recorded supplier bills"
+                    sub="Recorded supplier invoices"
                   />
                   <MetricCard
-                    label="Paid so far"
+                    label="Paid"
                     value={safeNumber(summary?.paidAmount).toLocaleString()}
-                    sub="Already settled"
+                    sub="Settled amount"
                   />
                   <MetricCard
-                    label="Partly paid"
+                    label="Partial"
                     value={safeNumber(summary?.partiallyPaidCount)}
-                    sub="Bills with partial payment"
+                    sub="Installment bills"
                   />
                   <MetricCard
                     label="Overdue bills"
@@ -1387,25 +1699,14 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                     tone="danger"
                   />
                   <MetricCard
-                    label="Still unpaid (RWF)"
-                    value={money(summary?.balanceRWF, "RWF")}
-                    sub="Open RWF balance"
+                    label="Outstanding"
+                    value={safeNumber(summary?.balance).toLocaleString()}
+                    sub="Open liability total"
                   />
                   <MetricCard
-                    label="Still unpaid (USD)"
-                    value={money(summary?.balanceUSD, "USD")}
-                    sub="Open USD balance"
-                  />
-                  <MetricCard
-                    label="Overdue (RWF)"
-                    value={money(summary?.overdueRWF, "RWF")}
-                    sub="Late RWF bills"
-                    tone="danger"
-                  />
-                  <MetricCard
-                    label="Overdue (USD)"
-                    value={money(summary?.overdueUSD, "USD")}
-                    sub="Late USD bills"
+                    label="Overdue amount"
+                    value={safeNumber(summary?.overdueAmount).toLocaleString()}
+                    sub="Late unpaid amount"
                     tone="danger"
                   />
                 </div>
@@ -1413,16 +1714,15 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
               <Surface>
                 <div className="text-sm font-black text-stone-950 dark:text-stone-50">
-                  Find a supplier bill
+                  Bill filters
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <FormInput
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="Search supplier, invoice number, note, branch"
+                    placeholder="Search supplier, bill number, note, PO, GR"
                   />
-
                   <FormSelect
                     value={locationId}
                     onChange={(e) => setLocationId(e.target.value)}
@@ -1435,7 +1735,6 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                       </option>
                     ))}
                   </FormSelect>
-
                   <FormSelect
                     value={supplierId}
                     onChange={(e) => setSupplierId(e.target.value)}
@@ -1447,7 +1746,6 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                       </option>
                     ))}
                   </FormSelect>
-
                   <FormSelect
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
@@ -1480,7 +1778,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                     </FormSelect>
 
                     <div className="rounded-[18px] border border-stone-200 bg-white px-3 py-3 text-sm text-stone-900 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100">
-                      Remaining now:{" "}
+                      Balance:{" "}
                       <b>
                         {detailLoading
                           ? "..."
@@ -1492,9 +1790,8 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                   </div>
 
                   <div className="mt-2 text-[11px] text-stone-500 dark:text-stone-400">
-                    Status:{" "}
-                    <b>{detailBill ? statusLabel(detailBill.status) : "—"}</b> •
-                    Supplier:{" "}
+                    Status: <b>{detailBill ? safe(detailBill.status) : "—"}</b>{" "}
+                    • Supplier:{" "}
                     <b>{detailBill ? safe(detailBill.supplierName) : "—"}</b>
                   </div>
                 </div>
@@ -1504,15 +1801,16 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
             <div className="mt-4 grid gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
               <Surface>
                 <div className="text-sm font-black text-stone-950 dark:text-stone-50">
-                  Supplier bills list
+                  Supplier bills directory
                 </div>
                 <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-                  Pick a bill to review its details and payment history.
+                  Select a bill to inspect details, linked procurement records,
+                  items, and installment payments.
                 </div>
 
                 <div className="mt-4">
                   {bills.length === 0 ? (
-                    <EmptyState text="No supplier bills match the current filters." />
+                    <EmptyState text="No supplier bills match the current owner filters." />
                   ) : (
                     <div className="grid gap-3">
                       {visibleRows.map((row) => (
@@ -1553,8 +1851,8 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                         Selected supplier bill
                       </div>
                       <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-                        Full owner view of this supplier amount and every
-                        payment already made against it.
+                        Focused owner view of supplier liability, procurement
+                        linkage, and bill activity.
                       </div>
                     </div>
 
@@ -1607,7 +1905,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                     <>
                       <div className="mt-4 flex flex-wrap items-center gap-2">
                         <Pill tone={statusTone(detailBill?.status)}>
-                          {statusLabel(detailBill?.status)}
+                          {safe(detailBill?.status) || "OPEN"}
                         </Pill>
                         <Pill tone="neutral">
                           {normalizeCurrency(detailBill?.currency)}
@@ -1625,7 +1923,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                         <MetricCard
                           label="Supplier"
                           value={safe(detailBill?.supplierName) || "-"}
-                          sub={`Invoice / bill #${safe(detailBill?.billNo) || safe(detailBill?.id) || "-"}`}
+                          sub={`Bill #${safe(detailBill?.billNo) || safe(detailBill?.id) || "-"}`}
                         />
                         <MetricCard
                           label="Branch"
@@ -1633,19 +1931,48 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                           sub={displayBranchSub(detailBill, locationOptions)}
                         />
                         <MetricCard
-                          label={`Balance left (${normalizeCurrency(detailBill?.currency)})`}
+                          label={`Balance (${normalizeCurrency(detailBill?.currency)})`}
                           value={money(
                             detailBill?.balance,
                             detailBill?.currency,
                           )}
-                          sub="Still unpaid"
+                          sub="Outstanding amount"
                           tone="danger"
                         />
                         <MetricCard
                           label="Created by"
                           value={displayCreatedBy(detailBill)}
-                          sub={statusLabel(detailBill?.status) || "-"}
+                          sub={safe(detailBill?.status) || "-"}
                         />
+                      </div>
+
+                      <div className="mt-4 grid gap-3">
+                        <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                          Procurement linkage
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <InfoTile
+                            label="Purchase order link"
+                            value={
+                              linkedPurchaseOrder
+                                ? buildPurchaseOrderOptionLabel(
+                                    linkedPurchaseOrder,
+                                  )
+                                : displayPurchaseOrderRef(detailBill)
+                            }
+                          />
+                          <InfoTile
+                            label="Goods receipt link"
+                            value={
+                              linkedGoodsReceipt
+                                ? buildGoodsReceiptOptionLabel(
+                                    linkedGoodsReceipt,
+                                  )
+                                : displayGoodsReceiptRef(detailBill)
+                            }
+                          />
+                        </div>
                       </div>
 
                       <div className="mt-4 grid gap-3">
@@ -1680,26 +2007,26 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
                       <div className="mt-4 grid gap-3">
                         <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                          Money view
+                          Financial view
                         </div>
 
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                           <InfoTile
-                            label={`Bill total (${normalizeCurrency(detailBill?.currency)})`}
+                            label={`Total (${normalizeCurrency(detailBill?.currency)})`}
                             value={money(
                               detailBill?.totalAmount,
                               detailBill?.currency,
                             )}
                           />
                           <InfoTile
-                            label={`Paid so far (${normalizeCurrency(detailBill?.currency)})`}
+                            label={`Paid (${normalizeCurrency(detailBill?.currency)})`}
                             value={money(
                               detailBill?.paidAmount,
                               detailBill?.currency,
                             )}
                           />
                           <InfoTile
-                            label={`Still unpaid (${normalizeCurrency(detailBill?.currency)})`}
+                            label={`Remaining (${normalizeCurrency(detailBill?.currency)})`}
                             value={money(
                               detailBill?.balance,
                               detailBill?.currency,
@@ -1776,12 +2103,12 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
 
                         <Surface className="bg-stone-50 dark:bg-stone-950">
                           <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                            Payment history
+                            Bill payments
                           </div>
 
                           {(billDetail?.payments || []).length === 0 ? (
                             <div className="mt-4">
-                              <EmptyState text="No payments recorded yet." />
+                              <EmptyState text="No payment installments recorded yet." />
                             </div>
                           ) : (
                             <div className="mt-4 space-y-3">
@@ -1793,7 +2120,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                                   <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div className="min-w-0">
                                       <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-                                        {paymentMethodLabel(payment?.method)}
+                                        {safe(payment?.method) || "-"}
                                       </p>
                                       <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
                                         {safeDate(payment?.paidAt)}
@@ -1814,17 +2141,6 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                                       </span>
                                       <span className="text-right break-all font-semibold text-stone-900 dark:text-stone-100">
                                         {safe(payment?.reference) || "-"}
-                                      </span>
-                                    </div>
-                                    <div className="flex justify-between gap-4">
-                                      <span className="text-stone-500 dark:text-stone-400">
-                                        Created by
-                                      </span>
-                                      <span className="text-right font-semibold text-stone-900 dark:text-stone-100">
-                                        {safe(payment?.createdByName) ||
-                                          (payment?.createdByUserId != null
-                                            ? `User #${payment.createdByUserId}`
-                                            : "-")}
                                       </span>
                                     </div>
                                   </div>
@@ -1850,7 +2166,7 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
                     This section appears after a supplier bill is selected.
                   </div>
                   <div className="mt-4">
-                    <EmptyState text="Select a supplier bill above to inspect its details and payment history." />
+                    <EmptyState text="Select a supplier bill above to inspect details and payments." />
                   </div>
                 </Surface>
               )}
@@ -1863,6 +2179,8 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
         open={creatingBill}
         suppliers={supplierOptions}
         locations={locationOptions}
+        purchaseOrders={purchaseOrderOptions}
+        goodsReceipts={goodsReceiptOptions}
         onClose={() => setCreatingBill(false)}
         onSaved={(result) => handleActionSaved("Supplier bill created", result)}
       />
@@ -1872,6 +2190,8 @@ export default function OwnerSupplierBillsTab({ locations = [] }) {
         bill={editingBill}
         suppliers={supplierOptions}
         locations={locationOptions}
+        purchaseOrders={purchaseOrderOptions}
+        goodsReceipts={goodsReceiptOptions}
         onClose={() => setEditingBill(null)}
         onSaved={(result) => handleActionSaved("Supplier bill updated", result)}
       />

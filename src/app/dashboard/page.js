@@ -466,6 +466,7 @@ export default function DashboardPage() {
       closeAllBranchModals();
       await loadWorkspace();
       setActiveTab("branches");
+      updateUrlTab("branches");
       setSuccessText("Branch created successfully.");
     } catch (error) {
       setModalError(
@@ -594,6 +595,7 @@ export default function DashboardPage() {
       closeAllUserModals();
       await loadWorkspace();
       setActiveTab("staff");
+      updateUrlTab("staff");
       setSuccessText("User created successfully.");
     } catch (error) {
       setModalError(
