@@ -18,10 +18,19 @@ import { apiFetch } from "../../../lib/api";
 
 const PAGE_SIZE = 20;
 
+function cx(...classes) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function normalizeCurrency(v) {
+  const s = String(v || "RWF")
+    .trim()
+    .toUpperCase();
+  return s || "RWF";
+}
+
 function money(v, currency = "RWF") {
-  return `${String(currency || "RWF").toUpperCase()} ${safeNumber(
-    v,
-  ).toLocaleString()}`;
+  return `${normalizeCurrency(currency)} ${safeNumber(v).toLocaleString()}`;
 }
 
 function normalizeListResponse(result) {
@@ -39,6 +48,18 @@ function normalizeSummaryResponse(result) {
 
 function normalizeBreakdownResponse(result) {
   return result?.breakdown || result || {};
+}
+
+function normalizeLoansResponse(result) {
+  if (Array.isArray(result)) return result;
+  if (Array.isArray(result?.loans)) return result.loans;
+  if (Array.isArray(result?.rows)) return result.rows;
+  if (Array.isArray(result?.data)) return result.data;
+  return [];
+}
+
+function normalizeLoanSummaryResponse(result) {
+  return result?.summary || result || {};
 }
 
 function normalizeMovement(row) {
@@ -84,6 +105,49 @@ function normalizeMovement(row) {
   };
 }
 
+function normalizeLoan(row) {
+  if (!row) return null;
+
+  const principalAmount = Number(
+    row.principalAmount ?? row.principal_amount ?? row.amount ?? 0,
+  );
+  const repaidAmount = Number(row.repaidAmount ?? row.repaid_amount ?? 0);
+  const remainingAmount =
+    row.remainingAmount != null
+      ? Number(row.remainingAmount)
+      : Math.max(0, principalAmount - repaidAmount);
+
+  return {
+    id: row.id ?? null,
+    locationId: row.locationId ?? row.location_id ?? null,
+    locationName: row.locationName ?? row.location_name ?? "",
+    locationCode: row.locationCode ?? row.location_code ?? "",
+    receiverType: String(
+      row.receiverType ?? row.receiver_type ?? "OTHER",
+    ).toUpperCase(),
+    receiverName: row.receiverName ?? row.receiver_name ?? "",
+    receiverPhone: row.receiverPhone ?? row.receiver_phone ?? "",
+    customerId: row.customerId ?? row.customer_id ?? null,
+    customerName: row.customerName ?? row.customer_name ?? "",
+    principalAmount,
+    repaidAmount,
+    remainingAmount,
+    currency: normalizeCurrency(row.currency),
+    method: String(row.method || "OTHER").toUpperCase(),
+    status: String(row.status || "OPEN").toUpperCase(),
+    reference: row.reference ?? "",
+    note: row.note ?? "",
+    issuedAt:
+      row.issuedAt ?? row.issued_at ?? row.createdAt ?? row.created_at ?? null,
+    dueDate: row.dueDate ?? row.due_date ?? null,
+    createdAt: row.createdAt ?? row.created_at ?? null,
+    updatedAt: row.updatedAt ?? row.updated_at ?? null,
+    createdByUserId: row.createdByUserId ?? row.created_by_user_id ?? null,
+    createdByName: row.createdByName ?? row.created_by_name ?? "",
+    repaymentsCount: Number(row.repaymentsCount ?? row.repayments_count ?? 0),
+  };
+}
+
 function displayBranch(row) {
   if (safe(row?.locationName)) {
     return safe(row?.locationCode)
@@ -101,8 +165,11 @@ function displayBranch(row) {
 function displayActor(row) {
   if (safe(row?.actorName)) return safe(row.actorName);
   if (safe(row?.cashierName)) return safe(row.cashierName);
+  if (safe(row?.createdByName)) return safe(row.createdByName);
   if (row?.actorUserId != null) return `User #${safeNumber(row.actorUserId)}`;
   if (row?.cashierId != null) return `User #${safeNumber(row.cashierId)}`;
+  if (row?.createdByUserId != null)
+    return `User #${safeNumber(row.createdByUserId)}`;
   return "-";
 }
 
@@ -116,6 +183,8 @@ function movementTypeLabel(value) {
   if (v === "EXPENSE") return "Expense";
   if (v === "REFUND") return "Refund";
   if (v === "DEPOSIT_OUT") return "Money sent out";
+  if (v === "OWNER_LOAN_OUT") return "Owner loan out";
+  if (v === "OWNER_LOAN_REPAYMENT_IN") return "Owner loan repayment";
   return safe(value) || "Movement";
 }
 
@@ -124,7 +193,7 @@ function movementTone(value) {
     .trim()
     .toUpperCase();
 
-  if (v === "CUSTOMER_PAYMENT") {
+  if (v === "CUSTOMER_PAYMENT" || v === "OWNER_LOAN_REPAYMENT_IN") {
     return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300";
   }
 
@@ -132,7 +201,7 @@ function movementTone(value) {
     return "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300";
   }
 
-  if (v === "EXPENSE") {
+  if (v === "EXPENSE" || v === "OWNER_LOAN_OUT") {
     return "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300";
   }
 
@@ -221,6 +290,15 @@ function counterpartyLabel(row) {
     return "Money moved out";
   }
 
+  if (
+    movementType === "OWNER_LOAN_OUT" ||
+    movementType === "OWNER_LOAN_REPAYMENT_IN"
+  ) {
+    if (safe(row?.payeeName)) return safe(row.payeeName);
+    if (safe(row?.customerName)) return safe(row.customerName);
+    return "Loan receiver";
+  }
+
   return "-";
 }
 
@@ -267,17 +345,514 @@ function MovementChip({ text, className = "" }) {
   );
 }
 
+function statusTone(status) {
+  const v = String(status || "")
+    .trim()
+    .toUpperCase();
+  if (v === "OPEN") {
+    return "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300";
+  }
+  if (v === "PARTIALLY_REPAID") {
+    return "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300";
+  }
+  if (v === "REPAID") {
+    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300";
+  }
+  if (v === "VOID") {
+    return "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300";
+  }
+  return "bg-stone-100 text-stone-700 dark:bg-stone-900 dark:text-stone-300";
+}
+
+function loanReceiverLabel(loan) {
+  if (String(loan?.receiverType || "").toUpperCase() === "CUSTOMER") {
+    if (safe(loan?.customerName)) return safe(loan.customerName);
+    if (safe(loan?.receiverName)) return safe(loan.receiverName);
+    return "Customer";
+  }
+
+  if (safe(loan?.receiverName)) return safe(loan.receiverName);
+  if (safe(loan?.receiverPhone)) return safe(loan.receiverPhone);
+  return "Other receiver";
+}
+
+function loanReceiverSub(loan) {
+  const parts = [];
+  if (safe(loan?.receiverType))
+    parts.push(String(loan.receiverType).toUpperCase());
+  if (safe(loan?.receiverPhone)) parts.push(safe(loan.receiverPhone));
+  return parts.length ? parts.join(" • ") : "-";
+}
+
+function ModalShell({ title, subtitle, onClose, children }) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/50 p-4 backdrop-blur-[2px]">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[30px] border border-stone-200 bg-white shadow-[0_30px_80px_rgba(2,6,23,0.22)] dark:border-stone-800 dark:bg-stone-900">
+        <div className="flex items-start justify-between gap-4 border-b border-stone-200 p-5 dark:border-stone-800">
+          <div>
+            <h3 className="text-xl font-black text-stone-950 dark:text-stone-50">
+              {title}
+            </h3>
+            {subtitle ? (
+              <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-stone-300 text-stone-600 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function CreateLoanModal({ open, locations = [], onClose, onSaved }) {
+  if (!open) return null;
+
+  return (
+    <CreateLoanModalInner
+      key={`create-loan-${locations.length}`}
+      locations={locations}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function CreateLoanModalInner({ locations = [], onClose, onSaved }) {
+  const [form, setForm] = useState({
+    locationId: locations[0]?.id ? String(locations[0].id) : "",
+    receiverType: "OTHER",
+    customerId: "",
+    receiverName: "",
+    receiverPhone: "",
+    amount: "",
+    currency: "RWF",
+    method: "CASH",
+    reference: "",
+    note: "",
+    dueDate: "",
+  });
+  const [errorText, setErrorText] = useState("");
+
+  async function handleSave() {
+    setErrorText("");
+
+    try {
+      const payload = {
+        locationId: Number(form.locationId),
+        receiverType: form.receiverType,
+        ...(form.customerId ? { customerId: Number(form.customerId) } : {}),
+        ...(form.receiverName ? { receiverName: form.receiverName } : {}),
+        ...(form.receiverPhone ? { receiverPhone: form.receiverPhone } : {}),
+        amount: Number(form.amount),
+        currency: form.currency || "RWF",
+        method: form.method,
+        ...(form.reference ? { reference: form.reference } : {}),
+        ...(form.note ? { note: form.note } : {}),
+        ...(form.dueDate ? { dueDate: form.dueDate } : {}),
+      };
+
+      const result = await apiFetch("/owner-loans", {
+        method: "POST",
+        body: payload,
+      });
+
+      onSaved?.(result);
+    } catch (e) {
+      setErrorText(e?.data?.error || e?.message || "Failed to create loan");
+    }
+  }
+
+  return (
+    <ModalShell
+      title="Create owner loan"
+      subtitle="Lend business money to a customer or another receiver and track what remains unpaid."
+      onClose={onClose}
+    >
+      <AlertBox message={errorText} />
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <FormSelect
+          label="Branch"
+          value={form.locationId}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, locationId: e.target.value }))
+          }
+        >
+          <option value="">Choose branch</option>
+          {locations.map((row) => (
+            <option key={row?.id} value={String(row?.id)}>
+              {safe(row?.name)}
+              {safe(row?.code) ? ` (${safe(row.code)})` : ""}
+            </option>
+          ))}
+        </FormSelect>
+
+        <FormSelect
+          label="Receiver type"
+          value={form.receiverType}
+          onChange={(e) =>
+            setForm((prev) => ({
+              ...prev,
+              receiverType: e.target.value,
+              customerId: "",
+            }))
+          }
+        >
+          <option value="OTHER">Other</option>
+          <option value="CUSTOMER">Customer</option>
+        </FormSelect>
+
+        <FormInput
+          label="Receiver name"
+          value={form.receiverName}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, receiverName: e.target.value }))
+          }
+          placeholder="Person or business receiving the money"
+        />
+
+        <FormInput
+          label="Receiver phone"
+          value={form.receiverPhone}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, receiverPhone: e.target.value }))
+          }
+          placeholder="Phone number"
+        />
+
+        <FormInput
+          label="Amount"
+          type="number"
+          value={form.amount}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, amount: e.target.value }))
+          }
+          placeholder="0"
+        />
+
+        <FormSelect
+          label="Method"
+          value={form.method}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, method: e.target.value }))
+          }
+        >
+          <option value="CASH">Cash</option>
+          <option value="MOMO">Mobile money</option>
+          <option value="BANK">Bank</option>
+          <option value="CARD">Card</option>
+          <option value="OTHER">Other</option>
+        </FormSelect>
+
+        <FormSelect
+          label="Currency"
+          value={form.currency}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, currency: e.target.value }))
+          }
+        >
+          <option value="RWF">RWF</option>
+          <option value="USD">USD</option>
+        </FormSelect>
+
+        <FormInput
+          label="Due date"
+          type="date"
+          value={form.dueDate}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, dueDate: e.target.value }))
+          }
+        />
+
+        <div className="md:col-span-2">
+          <FormInput
+            label="Reference"
+            value={form.reference}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, reference: e.target.value }))
+            }
+            placeholder="Transfer reference, memo, or agreement ref"
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Note
+          </label>
+          <textarea
+            value={form.note}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, note: e.target.value }))
+            }
+            rows={4}
+            className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
+            placeholder="Why is this money being lent out?"
+          />
+        </div>
+      </div>
+
+      <div className="mt-5 flex justify-end gap-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          Cancel
+        </button>
+
+        <AsyncButton
+          idleText="Create loan"
+          loadingText="Creating..."
+          successText="Created"
+          onClick={handleSave}
+        />
+      </div>
+    </ModalShell>
+  );
+}
+
+function RepayLoanModal({ open, loan, onClose, onSaved }) {
+  if (!open || !loan) return null;
+
+  return (
+    <RepayLoanModalInner
+      key={`repay-loan-${loan.id}-${loan.remainingAmount ?? 0}`}
+      loan={loan}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function RepayLoanModalInner({ loan, onClose, onSaved }) {
+  const [form, setForm] = useState(() => ({
+    amount: String(loan?.remainingAmount ?? ""),
+    method: "CASH",
+    reference: "",
+    note: "",
+  }));
+  const [errorText, setErrorText] = useState("");
+
+  async function handleSave() {
+    setErrorText("");
+
+    try {
+      const payload = {
+        amount: Number(form.amount),
+        method: form.method,
+        ...(form.reference ? { reference: form.reference } : {}),
+        ...(form.note ? { note: form.note } : {}),
+      };
+
+      const result = await apiFetch(`/owner-loans/${loan.id}/repayments`, {
+        method: "POST",
+        body: payload,
+      });
+
+      onSaved?.(result);
+    } catch (e) {
+      setErrorText(
+        e?.data?.error || e?.message || "Failed to record repayment",
+      );
+    }
+  }
+
+  return (
+    <ModalShell
+      title={`Record repayment for loan #${loan.id}`}
+      subtitle={`Remaining balance: ${money(loan?.remainingAmount, loan?.currency)}`}
+      onClose={onClose}
+    >
+      <AlertBox message={errorText} />
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <FormInput
+          label="Amount"
+          type="number"
+          value={form.amount}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, amount: e.target.value }))
+          }
+          placeholder="0"
+        />
+
+        <FormSelect
+          label="Method"
+          value={form.method}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, method: e.target.value }))
+          }
+        >
+          <option value="CASH">Cash</option>
+          <option value="MOMO">Mobile money</option>
+          <option value="BANK">Bank</option>
+          <option value="CARD">Card</option>
+          <option value="OTHER">Other</option>
+        </FormSelect>
+
+        <div className="md:col-span-2">
+          <FormInput
+            label="Reference"
+            value={form.reference}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, reference: e.target.value }))
+            }
+            placeholder="Repayment reference"
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Note
+          </label>
+          <textarea
+            value={form.note}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, note: e.target.value }))
+            }
+            rows={4}
+            className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
+            placeholder="Repayment note"
+          />
+        </div>
+      </div>
+
+      <div className="mt-5 flex justify-end gap-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          Cancel
+        </button>
+
+        <AsyncButton
+          idleText="Record repayment"
+          loadingText="Recording..."
+          successText="Recorded"
+          onClick={handleSave}
+        />
+      </div>
+    </ModalShell>
+  );
+}
+
+function VoidLoanModal({ open, loan, onClose, onSaved }) {
+  if (!open || !loan) return null;
+
+  return (
+    <VoidLoanModalInner
+      key={`void-loan-${loan.id}-${loan.updatedAt || ""}`}
+      loan={loan}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function VoidLoanModalInner({ loan, onClose, onSaved }) {
+  const [note, setNote] = useState("");
+  const [errorText, setErrorText] = useState("");
+
+  async function handleVoid() {
+    setErrorText("");
+
+    try {
+      const result = await apiFetch(`/owner-loans/${loan.id}/void`, {
+        method: "POST",
+        body: {
+          ...(note ? { note } : {}),
+        },
+      });
+
+      onSaved?.(result);
+    } catch (e) {
+      setErrorText(e?.data?.error || e?.message || "Failed to void loan");
+    }
+  }
+
+  return (
+    <ModalShell
+      title={`Void loan #${loan.id}`}
+      subtitle="Only void a loan that should no longer count as active."
+      onClose={onClose}
+    >
+      <AlertBox message={errorText} />
+
+      <div className="rounded-[20px] border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-950/20">
+        <div className="text-sm text-rose-800 dark:text-rose-200">
+          Receiver: <strong>{loanReceiverLabel(loan)}</strong>
+          <br />
+          Principal:{" "}
+          <strong>{money(loan?.principalAmount, loan?.currency)}</strong>
+          <br />
+          Repaid: <strong>{money(loan?.repaidAmount, loan?.currency)}</strong>
+          <br />
+          Remaining:{" "}
+          <strong>{money(loan?.remainingAmount, loan?.currency)}</strong>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+          Note
+        </label>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={4}
+          className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
+          placeholder="Why is this loan being voided?"
+        />
+      </div>
+
+      <div className="mt-5 flex justify-end gap-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          Cancel
+        </button>
+
+        <AsyncButton
+          idleText="Void loan"
+          loadingText="Voiding..."
+          successText="Voided"
+          onClick={handleVoid}
+          variant="secondary"
+        />
+      </div>
+    </ModalShell>
+  );
+}
+
 export default function OwnerPaymentsTab({ locations = [] }) {
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshState, setRefreshState] = useState("idle");
   const [errorText, setErrorText] = useState("");
+  const [successText, setSuccessText] = useState("");
 
   const [summary, setSummary] = useState(null);
   const [breakdown, setBreakdown] = useState(null);
   const [movements, setMovements] = useState([]);
 
+  const [loanSummary, setLoanSummary] = useState(null);
+  const [loans, setLoans] = useState([]);
+
   const [selectedMovementId, setSelectedMovementId] = useState(null);
+  const [selectedLoanId, setSelectedLoanId] = useState(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const [locationId, setLocationId] = useState("");
@@ -287,6 +862,10 @@ export default function OwnerPaymentsTab({ locations = [] }) {
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+
+  const [creatingLoan, setCreatingLoan] = useState(false);
+  const [repayingLoan, setRepayingLoan] = useState(null);
+  const [voidingLoan, setVoidingLoan] = useState(null);
 
   const locationOptions = useMemo(() => {
     return Array.isArray(locations)
@@ -301,6 +880,12 @@ export default function OwnerPaymentsTab({ locations = [] }) {
       .map(normalizeMovement)
       .filter(Boolean);
   }, [movements]);
+
+  const normalizedLoans = useMemo(() => {
+    return (Array.isArray(loans) ? loans : [])
+      .map(normalizeLoan)
+      .filter(Boolean);
+  }, [loans]);
 
   const filteredMovements = useMemo(() => {
     const q = String(search || "")
@@ -350,6 +935,47 @@ export default function OwnerPaymentsTab({ locations = [] }) {
     });
   }, [normalizedMovements, search, direction, movementType]);
 
+  const filteredLoans = useMemo(() => {
+    const q = String(search || "")
+      .trim()
+      .toLowerCase();
+
+    return normalizedLoans.filter((loan) => {
+      if (locationId && String(loan?.locationId) !== String(locationId)) {
+        return false;
+      }
+
+      if (method) {
+        const loanMethod = String(loan?.method || "").toUpperCase();
+        if (loanMethod !== String(method).toUpperCase()) return false;
+      }
+
+      if (!q) return true;
+
+      const hay = [
+        loan?.id,
+        loan?.receiverType,
+        loan?.receiverName,
+        loan?.receiverPhone,
+        loan?.customerName,
+        loan?.reference,
+        loan?.note,
+        loan?.method,
+        loan?.status,
+        loan?.locationName,
+        loan?.locationCode,
+        loan?.principalAmount,
+        loan?.repaidAmount,
+        loan?.remainingAmount,
+      ]
+        .map((x) => String(x ?? ""))
+        .join(" ")
+        .toLowerCase();
+
+      return hay.includes(q);
+    });
+  }, [normalizedLoans, search, locationId, method]);
+
   const visibleRows = useMemo(() => {
     return filteredMovements.slice(0, visibleCount);
   }, [filteredMovements, visibleCount]);
@@ -367,6 +993,15 @@ export default function OwnerPaymentsTab({ locations = [] }) {
     );
   }, [filteredMovements, selectedMovementId, visibleRows]);
 
+  const selectedLoan = useMemo(() => {
+    if (selectedLoanId == null) return filteredLoans[0] || null;
+    return (
+      filteredLoans.find(
+        (loan) => String(loan.id) === String(selectedLoanId),
+      ) || null
+    );
+  }, [filteredLoans, selectedLoanId]);
+
   const cards = useMemo(() => {
     const totals = summary?.totals || {};
     return {
@@ -379,6 +1014,18 @@ export default function OwnerPaymentsTab({ locations = [] }) {
       moneyOutCount: Number(totals.moneyOutCount ?? 0),
     };
   }, [summary]);
+
+  const ownerLoanCards = useMemo(() => {
+    return {
+      loansCount: Number(loanSummary?.loansCount ?? 0),
+      openLoansCount: Number(loanSummary?.openLoansCount ?? 0),
+      partiallyRepaidCount: Number(loanSummary?.partiallyRepaidCount ?? 0),
+      repaidLoansCount: Number(loanSummary?.repaidLoansCount ?? 0),
+      totalPrincipalAmount: Number(loanSummary?.totalPrincipalAmount ?? 0),
+      totalRepaidAmount: Number(loanSummary?.totalRepaidAmount ?? 0),
+      totalRemainingAmount: Number(loanSummary?.totalRemainingAmount ?? 0),
+    };
+  }, [loanSummary]);
 
   const byMethodRows = useMemo(() => {
     return Array.isArray(breakdown?.byMethod) ? breakdown.byMethod : [];
@@ -443,12 +1090,17 @@ export default function OwnerPaymentsTab({ locations = [] }) {
       const summaryUrl = `/owner/payments/summary${query ? `?${query}` : ""}`;
       const breakdownUrl = `/owner/payments/breakdown${query ? `?${query}` : ""}`;
       const listUrl = `/owner/payments${query ? `?${query}` : ""}`;
+      const loanSummaryUrl = `/owner-loans/summary${query ? `?${query}` : ""}`;
+      const loansUrl = `/owner-loans${query ? `?${query}` : ""}`;
 
-      const [summaryRes, breakdownRes, listRes] = await Promise.allSettled([
-        apiFetch(summaryUrl, { method: "GET" }),
-        apiFetch(breakdownUrl, { method: "GET" }),
-        apiFetch(listUrl, { method: "GET" }),
-      ]);
+      const [summaryRes, breakdownRes, listRes, loanSummaryRes, loansRes] =
+        await Promise.allSettled([
+          apiFetch(summaryUrl, { method: "GET" }),
+          apiFetch(breakdownUrl, { method: "GET" }),
+          apiFetch(listUrl, { method: "GET" }),
+          apiFetch(loanSummaryUrl, { method: "GET" }),
+          apiFetch(loansUrl, { method: "GET" }),
+        ]);
 
       let nextError = "";
 
@@ -494,12 +1146,47 @@ export default function OwnerPaymentsTab({ locations = [] }) {
           "Payments list request failed";
       }
 
+      if (loanSummaryRes.status === "fulfilled") {
+        setLoanSummary(normalizeLoanSummaryResponse(loanSummaryRes.value));
+      } else {
+        setLoanSummary(null);
+        nextError =
+          loanSummaryRes.reason?.data?.error ||
+          loanSummaryRes.reason?.message ||
+          nextError ||
+          "Owner loans summary request failed";
+      }
+
+      if (loansRes.status === "fulfilled") {
+        const rows = normalizeLoansResponse(loansRes.value)
+          .map(normalizeLoan)
+          .filter(Boolean);
+
+        setLoans(rows);
+        setSelectedLoanId((prev) =>
+          prev && rows.some((x) => String(x.id) === String(prev))
+            ? prev
+            : (rows[0]?.id ?? null),
+        );
+      } else {
+        setLoans([]);
+        setSelectedLoanId(null);
+        nextError =
+          loansRes.reason?.data?.error ||
+          loansRes.reason?.message ||
+          nextError ||
+          "Owner loans list request failed";
+      }
+
       setErrorText(nextError);
     } catch (e) {
       setSummary(null);
       setBreakdown(null);
       setMovements([]);
       setSelectedMovementId(null);
+      setLoanSummary(null);
+      setLoans([]);
+      setSelectedLoanId(null);
       setErrorText(
         e?.data?.error || e?.message || "Failed to load owner payments",
       );
@@ -513,6 +1200,23 @@ export default function OwnerPaymentsTab({ locations = [] }) {
     await loadData();
     setRefreshState("success");
     setTimeout(() => setRefreshState("idle"), 900);
+  }
+
+  async function handleLoanActionSaved(actionText, result) {
+    setSuccessText(actionText);
+    const nextLoanId = result?.loan?.id ?? selectedLoanId ?? null;
+
+    setCreatingLoan(false);
+    setRepayingLoan(null);
+    setVoidingLoan(null);
+
+    await loadData();
+
+    if (nextLoanId != null) {
+      setSelectedLoanId(nextLoanId);
+    }
+
+    setTimeout(() => setSuccessText(""), 2200);
   }
 
   useEffect(() => {
@@ -544,15 +1248,16 @@ export default function OwnerPaymentsTab({ locations = [] }) {
 
   return (
     <div className="space-y-5">
+      {errorText ? <AlertBox tone="danger">{errorText}</AlertBox> : null}
+      {successText ? <AlertBox tone="success">{successText}</AlertBox> : null}
+
       <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         <SectionCard
           title="Money in, money out, and net position"
           subtitle="Owner view of money received, money that left, and the net result across branches and payment methods."
         >
           <div className="grid gap-4">
-            {errorText ? <AlertBox tone="danger">{errorText}</AlertBox> : null}
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               <StatCard
                 label="Money in"
                 value={money(cards.totalMoneyIn)}
@@ -582,39 +1287,39 @@ export default function OwnerPaymentsTab({ locations = [] }) {
               />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <div className="rounded-2xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-[10px] sm:text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                   Cash net
                 </p>
-                <p className="mt-2 text-lg font-black text-stone-950 dark:text-stone-50">
+                <p className="mt-1 sm:mt-2 text-sm sm:text-lg font-black text-stone-950 dark:text-stone-50">
                   {money(quickStats.cashNet)}
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+              <div className="rounded-2xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-[10px] sm:text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                   Mobile money net
                 </p>
-                <p className="mt-2 text-lg font-black text-stone-950 dark:text-stone-50">
+                <p className="mt-1 sm:mt-2 text-sm sm:text-lg font-black text-stone-950 dark:text-stone-50">
                   {money(quickStats.momoNet)}
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+              <div className="rounded-2xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-[10px] sm:text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                   Bank net
                 </p>
-                <p className="mt-2 text-lg font-black text-stone-950 dark:text-stone-50">
+                <p className="mt-1 sm:mt-2 text-sm sm:text-lg font-black text-stone-950 dark:text-stone-50">
                   {money(quickStats.bankNet)}
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
-                <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+              <div className="rounded-2xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-[10px] sm:text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                   Card net
                 </p>
-                <p className="mt-2 text-lg font-black text-stone-950 dark:text-stone-50">
+                <p className="mt-1 sm:mt-2 text-sm sm:text-lg font-black text-stone-950 dark:text-stone-50">
                   {money(quickStats.cardNet)}
                 </p>
               </div>
@@ -700,6 +1405,292 @@ export default function OwnerPaymentsTab({ locations = [] }) {
           </div>
         </SectionCard>
       </div>
+
+      <SectionCard
+        title="Owner loans"
+        subtitle="Track money the business lent out, how much has been repaid, and what remains unpaid."
+        right={
+          <AsyncButton
+            idleText="Create loan"
+            loadingText="Opening..."
+            successText="Ready"
+            onClick={async () => setCreatingLoan(true)}
+          />
+        }
+      >
+        <div className="grid gap-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              label="Loans"
+              value={safeNumber(ownerLoanCards.loansCount)}
+              sub="All visible loans"
+              valueClassName="text-[17px] leading-tight"
+            />
+            <StatCard
+              label="Open loans"
+              value={safeNumber(ownerLoanCards.openLoansCount)}
+              sub="Still unpaid"
+              valueClassName="text-[17px] leading-tight text-amber-700 dark:text-amber-300"
+            />
+            <StatCard
+              label="Total lent out"
+              value={money(ownerLoanCards.totalPrincipalAmount)}
+              sub="Principal amount"
+              valueClassName="text-[17px] leading-tight text-rose-700 dark:text-rose-300"
+            />
+            <StatCard
+              label="Still remaining"
+              value={money(ownerLoanCards.totalRemainingAmount)}
+              sub="Outstanding balance"
+              valueClassName="text-[17px] leading-tight text-amber-700 dark:text-amber-300"
+            />
+          </div>
+
+          {loading ? (
+            <div className="grid gap-3">
+              <div className="h-24 animate-pulse rounded-2xl bg-stone-100 dark:bg-stone-900" />
+              <div className="h-24 animate-pulse rounded-2xl bg-stone-100 dark:bg-stone-900" />
+            </div>
+          ) : filteredLoans.length === 0 ? (
+            <EmptyState text="No owner loans found for the selected filters." />
+          ) : (
+            <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+              <div className="grid gap-3">
+                {filteredLoans.map((loan) => {
+                  const isSelected =
+                    selectedLoan && String(selectedLoan.id) === String(loan.id);
+
+                  return (
+                    <button
+                      key={`loan-${loan.id}`}
+                      type="button"
+                      onClick={() => setSelectedLoanId(loan.id)}
+                      className={cx(
+                        "w-full rounded-[24px] border p-4 text-left transition",
+                        isSelected
+                          ? "border-stone-900 bg-stone-100 dark:border-stone-100 dark:bg-stone-900"
+                          : "border-stone-200 bg-white hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-950 dark:hover:bg-stone-900",
+                      )}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <MovementChip
+                              text={String(loan?.status || "OPEN")}
+                              className={statusTone(loan?.status)}
+                            />
+                            <MovementChip
+                              text={methodLabel(loan?.method)}
+                              className={methodTone(loan?.method)}
+                            />
+                            <MovementChip
+                              text={String(loan?.receiverType || "OTHER")}
+                              className="bg-stone-100 text-stone-700 dark:bg-stone-900 dark:text-stone-300"
+                            />
+                          </div>
+
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                Receiver
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-stone-950 dark:text-stone-50">
+                                {loanReceiverLabel(loan)}
+                              </p>
+                              <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                                {loanReceiverSub(loan)}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                Branch
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-stone-950 dark:text-stone-50">
+                                {displayBranch(loan)}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                Principal
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-rose-700 dark:text-rose-300">
+                                {money(loan?.principalAmount, loan?.currency)}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                Remaining
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-amber-700 dark:text-amber-300">
+                                {money(loan?.remainingAmount, loan?.currency)}
+                              </p>
+                            </div>
+                          </div>
+
+                          {(safe(loan?.reference) || safe(loan?.note)) && (
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                              <div>
+                                <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                  Reference
+                                </p>
+                                <p className="mt-1 break-words text-sm text-stone-700 dark:text-stone-300">
+                                  {safe(loan?.reference) || "No reference"}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                                  Note
+                                </p>
+                                <p className="mt-1 break-words text-sm text-stone-700 dark:text-stone-300">
+                                  {safe(loan?.note) || "No note"}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="shrink-0 text-right">
+                          <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                            Repaid
+                          </p>
+                          <p className="mt-1 text-lg font-black text-emerald-700 dark:text-emerald-300">
+                            {money(loan?.repaidAmount, loan?.currency)}
+                          </p>
+                          <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+                            {safeDate(loan?.issuedAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedLoan ? (
+                <div className="rounded-[24px] border border-stone-200 bg-stone-50 p-5 dark:border-stone-800 dark:bg-stone-950">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-stone-950 dark:text-stone-50">
+                        Selected loan
+                      </p>
+                      <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                        Review owner loan profile and take the next action.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {String(selectedLoan?.status || "").toUpperCase() !==
+                        "REPAID" &&
+                      String(selectedLoan?.status || "").toUpperCase() !==
+                        "VOID" ? (
+                        <AsyncButton
+                          idleText="Record repayment"
+                          loadingText="Opening..."
+                          successText="Ready"
+                          onClick={async () => setRepayingLoan(selectedLoan)}
+                          variant="secondary"
+                        />
+                      ) : null}
+
+                      {String(selectedLoan?.status || "").toUpperCase() !==
+                        "VOID" &&
+                      safeNumber(selectedLoan?.repaidAmount) <= 0 ? (
+                        <AsyncButton
+                          idleText="Void loan"
+                          loadingText="Opening..."
+                          successText="Ready"
+                          onClick={async () => setVoidingLoan(selectedLoan)}
+                          variant="secondary"
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <StatCard
+                      label="Receiver"
+                      value={loanReceiverLabel(selectedLoan)}
+                      sub={loanReceiverSub(selectedLoan)}
+                      valueClassName="text-[17px] leading-tight"
+                    />
+                    <StatCard
+                      label="Branch"
+                      value={displayBranch(selectedLoan)}
+                      sub={safeDate(selectedLoan?.issuedAt)}
+                      valueClassName="text-[17px] leading-tight"
+                    />
+                    <StatCard
+                      label="Principal"
+                      value={money(
+                        selectedLoan?.principalAmount,
+                        selectedLoan?.currency,
+                      )}
+                      sub={methodLabel(selectedLoan?.method)}
+                      valueClassName="text-[17px] leading-tight text-rose-700 dark:text-rose-300"
+                    />
+                    <StatCard
+                      label="Remaining"
+                      value={money(
+                        selectedLoan?.remainingAmount,
+                        selectedLoan?.currency,
+                      )}
+                      sub={`${safeNumber(selectedLoan?.repaymentsCount)} repayment(s)`}
+                      valueClassName="text-[17px] leading-tight text-amber-700 dark:text-amber-300"
+                    />
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+                      <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                        Status
+                      </p>
+                      <div className="mt-2">
+                        <MovementChip
+                          text={String(selectedLoan?.status || "OPEN")}
+                          className={statusTone(selectedLoan?.status)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+                      <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                        Created by
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-stone-950 dark:text-stone-50">
+                        {displayActor(selectedLoan)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900 sm:col-span-2">
+                      <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                        Reference
+                      </p>
+                      <p className="mt-2 break-words text-sm font-semibold text-stone-950 dark:text-stone-50">
+                        {safe(selectedLoan?.reference) || "No reference"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900 sm:col-span-2">
+                      <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                        Note
+                      </p>
+                      <p className="mt-2 break-words text-sm font-semibold text-stone-950 dark:text-stone-50">
+                        {safe(selectedLoan?.note) || "No note recorded"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState text="Select a loan to inspect details and take actions." />
+              )}
+            </div>
+          )}
+        </div>
+      </SectionCard>
 
       <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
@@ -857,7 +1848,7 @@ export default function OwnerPaymentsTab({ locations = [] }) {
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.6fr_0.8fr]">
             <FormInput
               label="Search"
-              placeholder="Search by person, supplier, note, reference, sale, bill, expense or refund"
+              placeholder="Search by person, supplier, note, reference, sale, bill, expense, refund, or loan"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -885,6 +1876,10 @@ export default function OwnerPaymentsTab({ locations = [] }) {
               <option value="EXPENSE">Expense</option>
               <option value="REFUND">Refund</option>
               <option value="DEPOSIT_OUT">Money sent out</option>
+              <option value="OWNER_LOAN_OUT">Owner loan out</option>
+              <option value="OWNER_LOAN_REPAYMENT_IN">
+                Owner loan repayment
+              </option>
             </FormSelect>
           </div>
 
@@ -1028,10 +2023,9 @@ export default function OwnerPaymentsTab({ locations = [] }) {
                   <button
                     type="button"
                     onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
-                    disabled={loadingMore}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800"
                   >
-                    {loadingMore ? "Loading..." : "Load more"}
+                    Load more
                   </button>
                 </div>
               ) : null}
@@ -1184,6 +2178,31 @@ export default function OwnerPaymentsTab({ locations = [] }) {
           <EmptyState text="Select a movement above to inspect its detail." />
         </SectionCard>
       )}
+
+      <CreateLoanModal
+        open={creatingLoan}
+        locations={locationOptions}
+        onClose={() => setCreatingLoan(false)}
+        onSaved={(result) =>
+          handleLoanActionSaved("Owner loan created", result)
+        }
+      />
+
+      <RepayLoanModal
+        open={!!repayingLoan}
+        loan={repayingLoan}
+        onClose={() => setRepayingLoan(null)}
+        onSaved={(result) =>
+          handleLoanActionSaved("Loan repayment recorded", result)
+        }
+      />
+
+      <VoidLoanModal
+        open={!!voidingLoan}
+        loan={voidingLoan}
+        onClose={() => setVoidingLoan(null)}
+        onSaved={(result) => handleLoanActionSaved("Loan voided", result)}
+      />
     </div>
   );
 }

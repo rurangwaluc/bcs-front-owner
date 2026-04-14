@@ -10,6 +10,10 @@ import {
   safeDate,
   safeNumber,
 } from "../OwnerShared";
+import {
+  downloadPurchaseOrderPdf,
+  previewPurchaseOrderPdf,
+} from "../../../lib/purchaseOrdersPdf";
 import { useEffect, useMemo, useState } from "react";
 
 import AsyncButton from "../../AsyncButton";
@@ -30,6 +34,15 @@ function normalizeCurrency(v) {
 
 function money(v, currency = "RWF") {
   return `${normalizeCurrency(currency)} ${safeNumber(v).toLocaleString()}`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function normalizePurchaseOrdersResponse(result) {
@@ -326,10 +339,21 @@ function PurchaseOrderCard({ row, active, onSelect, locations = [] }) {
   );
 }
 
-function ModalShell({ title, subtitle, onClose, children }) {
+function ModalShell({
+  title,
+  subtitle,
+  onClose,
+  children,
+  maxWidth = "max-w-5xl",
+}) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/50 p-4 backdrop-blur-[2px]">
-      <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[30px] border border-stone-200 bg-white shadow-[0_30px_80px_rgba(2,6,23,0.22)] dark:border-stone-800 dark:bg-stone-900">
+      <div
+        className={cx(
+          "max-h-[90vh] w-full overflow-y-auto rounded-[30px] border border-stone-200 bg-white shadow-[0_30px_80px_rgba(2,6,23,0.22)] dark:border-stone-800 dark:bg-stone-900",
+          maxWidth,
+        )}
+      >
         <div className="flex items-start justify-between gap-4 border-b border-stone-200 p-5 dark:border-stone-800">
           <div>
             <h3 className="text-xl font-black text-stone-950 dark:text-stone-50">
@@ -680,6 +704,142 @@ function ReceiveGoodsLineEditor({ line, currency, onChange }) {
       </div>
     </div>
   );
+}
+
+function buildPrintHtml({ purchaseOrder, items, locations = [] }) {
+  const poRef = safe(purchaseOrder?.poNo) || `PO #${purchaseOrder?.id || "-"}`;
+  const branch = displayBranch(purchaseOrder, locations);
+  const notes = safe(purchaseOrder?.notes) || "No internal note recorded.";
+  const rows = (Array.isArray(items) ? items : [])
+    .map((item, index) => {
+      const name = safe(item?.productDisplayName || item?.productName) || "-";
+      const sku = safe(item?.productSku) || "-";
+      const qtyOrdered = safeNumber(item?.qtyOrdered);
+      const qtyReceived = safeNumber(item?.qtyReceived);
+      const unitCost = money(item?.unitCost, purchaseOrder?.currency);
+      const lineTotal = money(item?.lineTotal, purchaseOrder?.currency);
+      return `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${escapeHtml(name)}</td>
+          <td>${escapeHtml(sku)}</td>
+          <td>${qtyOrdered}</td>
+          <td>${qtyReceived}</td>
+          <td>${escapeHtml(unitCost)}</td>
+          <td>${escapeHtml(lineTotal)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  return `
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(poRef)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; margin: 32px; color: #111827; }
+    .top { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
+    .title { font-size: 28px; font-weight: 800; margin: 0 0 8px; }
+    .muted { color: #6b7280; font-size: 12px; }
+    .pill { display: inline-block; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-right: 8px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px; }
+    .label { font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 800; letter-spacing: .08em; }
+    .value { margin-top: 8px; font-size: 14px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+    th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; font-size: 12px; vertical-align: top; }
+    th { background: #f9fafb; text-transform: uppercase; font-size: 11px; letter-spacing: .06em; }
+    .section-title { margin-top: 28px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; }
+    .note { border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px; margin-top: 10px; font-size: 13px; white-space: pre-wrap; }
+    .totals { margin-top: 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    @media print { body { margin: 18px; } }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <div class="title">Purchase Order</div>
+      <div class="muted">Reference: ${escapeHtml(poRef)}</div>
+    </div>
+    <div>
+      <span class="pill">${escapeHtml(safe(purchaseOrder?.status) || "DRAFT")}</span>
+      <span class="pill">${escapeHtml(normalizeCurrency(purchaseOrder?.currency))}</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="label">Supplier</div><div class="value">${escapeHtml(safe(purchaseOrder?.supplierName) || "-")}</div></div>
+    <div class="card"><div class="label">Branch</div><div class="value">${escapeHtml(branch)}</div></div>
+    <div class="card"><div class="label">Ordered date</div><div class="value">${escapeHtml(safeDate(purchaseOrder?.orderedAt))}</div></div>
+    <div class="card"><div class="label">Expected date</div><div class="value">${escapeHtml(safeDate(purchaseOrder?.expectedAt))}</div></div>
+    <div class="card"><div class="label">Approved at</div><div class="value">${escapeHtml(safeDate(purchaseOrder?.approvedAt))}</div></div>
+    <div class="card"><div class="label">Created by</div><div class="value">${escapeHtml(safe(purchaseOrder?.createdByName) || (purchaseOrder?.createdByUserId != null ? `User #${purchaseOrder.createdByUserId}` : "-"))}</div></div>
+  </div>
+
+  <div class="section-title">Order lines</div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Item</th>
+        <th>SKU</th>
+        <th>Qty ordered</th>
+        <th>Qty received</th>
+        <th>Unit cost</th>
+        <th>Line total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || `<tr><td colspan="7">No purchase order lines found.</td></tr>`}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="card"><div class="label">Items count</div><div class="value">${safeNumber(purchaseOrder?.itemsCount)}</div></div>
+    <div class="card"><div class="label">Qty ordered total</div><div class="value">${safeNumber(purchaseOrder?.qtyOrderedTotal)}</div></div>
+    <div class="card"><div class="label">Qty received total</div><div class="value">${safeNumber(purchaseOrder?.qtyReceivedTotal)}</div></div>
+    <div class="card"><div class="label">Subtotal</div><div class="value">${escapeHtml(money(purchaseOrder?.subtotalAmount, purchaseOrder?.currency))}</div></div>
+    <div class="card"><div class="label">Total</div><div class="value">${escapeHtml(money(purchaseOrder?.totalAmount, purchaseOrder?.currency))}</div></div>
+    <div class="card"><div class="label">Reference</div><div class="value">${escapeHtml(safe(purchaseOrder?.reference) || "-")}</div></div>
+  </div>
+
+  <div class="section-title">Internal note</div>
+  <div class="note">${escapeHtml(notes)}</div>
+</body>
+</html>
+  `;
+}
+
+function openPurchaseOrderPrintWindow({
+  purchaseOrder,
+  items,
+  locations = [],
+}) {
+  if (typeof window === "undefined") return;
+
+  const html = buildPrintHtml({ purchaseOrder, items, locations });
+  const printWindow = window.open(
+    "",
+    "_blank",
+    "noopener,noreferrer,width=1100,height=800",
+  );
+  if (!printWindow) return;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+
+  setTimeout(() => {
+    try {
+      printWindow.print();
+    } catch {
+      // ignore
+    }
+  }, 250);
 }
 
 function CreatePurchaseOrderModal({
@@ -1459,6 +1619,7 @@ function ApprovePurchaseOrderModal({ open, purchaseOrder, onClose, onSaved }) {
       title={`Approve ${safe(purchaseOrder?.poNo) || `PO #${purchaseOrder?.id}`}`}
       subtitle="Approving confirms this purchase order is ready for real procurement work."
       onClose={onClose}
+      maxWidth="max-w-2xl"
     >
       <AlertBox message={errorText} />
 
@@ -1526,6 +1687,7 @@ function CancelPurchaseOrderModal({ open, purchaseOrder, onClose, onSaved }) {
       title={`Cancel ${safe(purchaseOrder?.poNo) || `PO #${purchaseOrder?.id}`}`}
       subtitle="Only cancel if this purchase order should no longer be used."
       onClose={onClose}
+      maxWidth="max-w-2xl"
     >
       <AlertBox message={errorText} />
 
@@ -1608,7 +1770,6 @@ function ReceiveGoodsModalInner({
   const [errorText, setErrorText] = useState("");
 
   const receiveLines = Array.isArray(form.items) ? form.items : [];
-
   const activeLines = receiveLines.filter(
     (line) => safeNumber(line?.qtyReceiveNow) > 0,
   );
@@ -1874,6 +2035,216 @@ function ReceiveGoodsModalInner({
   );
 }
 
+function PreviewPurchaseOrderModal({
+  open,
+  purchaseOrder,
+  items,
+  locations,
+  onClose,
+}) {
+  if (!open || !purchaseOrder) return null;
+
+  return (
+    <ModalShell
+      title={`Preview ${safe(purchaseOrder?.poNo) || `PO #${purchaseOrder?.id}`}`}
+      subtitle="Use Print or Download PDF to open the browser print dialog. Choose Save as PDF there if you want a PDF file."
+      onClose={onClose}
+      maxWidth="max-w-6xl"
+    >
+      <div className="flex flex-wrap justify-end gap-3">
+        <button
+          type="button"
+          onClick={() =>
+            openPurchaseOrderPrintWindow({ purchaseOrder, items, locations })
+          }
+          className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          Print
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            openPurchaseOrderPrintWindow({ purchaseOrder, items, locations })
+          }
+          className="rounded-[18px] border border-stone-300 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+        >
+          Download PDF
+        </button>
+      </div>
+
+      <div className="mt-4 rounded-[28px] border border-stone-200 bg-stone-50 p-6 dark:border-stone-800 dark:bg-stone-950">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5 dark:border-stone-800">
+          <div>
+            <div className="text-2xl font-black text-stone-950 dark:text-stone-50">
+              Purchase Order
+            </div>
+            <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+              {safe(purchaseOrder?.poNo) || `PO #${purchaseOrder?.id}`}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Pill tone={statusTone(purchaseOrder?.status)}>
+              {safe(purchaseOrder?.status) || "DRAFT"}
+            </Pill>
+            <Pill tone="neutral">
+              {normalizeCurrency(purchaseOrder?.currency)}
+            </Pill>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <InfoTile
+            label="Supplier"
+            value={safe(purchaseOrder?.supplierName) || "-"}
+          />
+          <InfoTile
+            label="Branch"
+            value={displayBranch(purchaseOrder, locations)}
+          />
+          <InfoTile
+            label="Reference"
+            value={safe(purchaseOrder?.reference) || "-"}
+          />
+          <InfoTile
+            label="Ordered date"
+            value={safeDate(purchaseOrder?.orderedAt)}
+          />
+          <InfoTile
+            label="Expected date"
+            value={safeDate(purchaseOrder?.expectedAt)}
+          />
+          <InfoTile
+            label="Approved at"
+            value={safeDate(purchaseOrder?.approvedAt)}
+          />
+          <InfoTile
+            label="Created by"
+            value={
+              safe(purchaseOrder?.createdByName) ||
+              (purchaseOrder?.createdByUserId != null
+                ? `User #${purchaseOrder.createdByUserId}`
+                : "-")
+            }
+          />
+          <InfoTile
+            label="Items count"
+            value={safeNumber(purchaseOrder?.itemsCount)}
+          />
+          <InfoTile
+            label={`Total (${normalizeCurrency(purchaseOrder?.currency)})`}
+            value={money(purchaseOrder?.totalAmount, purchaseOrder?.currency)}
+          />
+        </div>
+
+        <div className="mt-6">
+          <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Order lines
+          </div>
+
+          {(Array.isArray(items) ? items : []).length === 0 ? (
+            <div className="mt-4">
+              <EmptyState text="No purchase order lines found." />
+            </div>
+          ) : (
+            <div className="mt-4 overflow-x-auto rounded-[22px] border border-stone-200 dark:border-stone-800">
+              <table className="min-w-full divide-y divide-stone-200 dark:divide-stone-800">
+                <thead className="bg-stone-100 dark:bg-stone-900">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                      #
+                    </th>
+                    <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                      Item
+                    </th>
+                    <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                      SKU
+                    </th>
+                    <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                      Qty ordered
+                    </th>
+                    <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                      Qty received
+                    </th>
+                    <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                      Unit cost
+                    </th>
+                    <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                      Line total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-200 bg-white dark:divide-stone-800 dark:bg-stone-950">
+                  {items.map((item, index) => (
+                    <tr key={item.id || index}>
+                      <td className="px-4 py-3 text-sm text-stone-700 dark:text-stone-300">
+                        {index + 1}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-semibold text-stone-950 dark:text-stone-50">
+                        {safe(item?.productDisplayName || item?.productName) ||
+                          "-"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-stone-700 dark:text-stone-300">
+                        {safe(item?.productSku) || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-stone-700 dark:text-stone-300">
+                        {safeNumber(item?.qtyOrdered)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-stone-700 dark:text-stone-300">
+                        {safeNumber(item?.qtyReceived)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-stone-700 dark:text-stone-300">
+                        {money(item?.unitCost, purchaseOrder?.currency)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-stone-700 dark:text-stone-300">
+                        {money(item?.lineTotal, purchaseOrder?.currency)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Qty ordered total"
+            value={safeNumber(purchaseOrder?.qtyOrderedTotal)}
+            sub="All lines"
+          />
+          <MetricCard
+            label="Qty received total"
+            value={safeNumber(purchaseOrder?.qtyReceivedTotal)}
+            sub="All receipts so far"
+          />
+          <MetricCard
+            label={`Subtotal (${normalizeCurrency(purchaseOrder?.currency)})`}
+            value={money(
+              purchaseOrder?.subtotalAmount,
+              purchaseOrder?.currency,
+            )}
+            sub="Before total"
+          />
+          <MetricCard
+            label={`Total (${normalizeCurrency(purchaseOrder?.currency)})`}
+            value={money(purchaseOrder?.totalAmount, purchaseOrder?.currency)}
+            sub="Purchase order value"
+          />
+        </div>
+
+        <div className="mt-6">
+          <div className="text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Internal note
+          </div>
+          <div className="mt-3 rounded-[20px] border border-stone-200 bg-white p-4 text-sm text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
+            {safe(purchaseOrder?.notes) || "No internal note recorded."}
+          </div>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
 export default function OwnerPurchaseOrdersTab({ locations = [] }) {
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
@@ -1902,6 +2273,7 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
   const [approvingPurchaseOrder, setApprovingPurchaseOrder] = useState(null);
   const [cancellingPurchaseOrder, setCancellingPurchaseOrder] = useState(null);
   const [receivingPurchaseOrder, setReceivingPurchaseOrder] = useState(null);
+  const [previewingPurchaseOrder, setPreviewingPurchaseOrder] = useState(null);
 
   const selectedPurchaseOrder = !selectedPurchaseOrderId
     ? null
@@ -2349,12 +2721,45 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
                         Selected purchase order
                       </div>
                       <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-                        Review supplier, branch, lines, dates, and approval
-                        state.
+                        Review supplier, branch, lines, dates, approval state,
+                        and document output.
                       </div>
                     </div>
 
                     <div className="flex flex-wrap gap-2">
+                      <AsyncButton
+                        idleText="Preview"
+                        loadingText="Opening..."
+                        successText="Ready"
+                        onClick={async () =>
+                          setPreviewingPurchaseOrder(detailPurchaseOrder)
+                        }
+                        variant="secondary"
+                      />
+
+                      <AsyncButton
+                        idleText="Preview PDF"
+                        loadingText="Opening..."
+                        successText="Opened"
+                        onClick={async () => {
+                          await previewPurchaseOrderPdf(detailPurchaseOrder.id);
+                        }}
+                        variant="secondary"
+                      />
+
+                      <AsyncButton
+                        idleText="Download PDF"
+                        loadingText="Downloading..."
+                        successText="Downloaded"
+                        onClick={async () => {
+                          await downloadPurchaseOrderPdf(
+                            detailPurchaseOrder.id,
+                            `${safe(detailPurchaseOrder?.poNo) || `purchase-order-${detailPurchaseOrder.id}`}.pdf`,
+                          );
+                        }}
+                        variant="secondary"
+                      />
+
                       {detailStatusUpper !== "CANCELLED" ? (
                         <AsyncButton
                           idleText="Edit purchase order"
@@ -2650,6 +3055,14 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
         onSaved={(result) =>
           handleActionSaved("Purchase order cancelled", result)
         }
+      />
+
+      <PreviewPurchaseOrderModal
+        open={!!previewingPurchaseOrder}
+        purchaseOrder={previewingPurchaseOrder}
+        items={purchaseOrderDetail?.items || []}
+        locations={locationOptions}
+        onClose={() => setPreviewingPurchaseOrder(null)}
       />
     </div>
   );
