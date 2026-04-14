@@ -62,6 +62,25 @@ function normalizeLoanSummaryResponse(result) {
   return result?.summary || result || {};
 }
 
+function normalizeCustomersResponse(result) {
+  if (Array.isArray(result)) return result;
+  if (Array.isArray(result?.customers)) return result.customers;
+  if (Array.isArray(result?.rows)) return result.rows;
+  if (Array.isArray(result?.data)) return result.data;
+  return [];
+}
+
+function normalizeCustomer(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id ?? null,
+    name: row.name ?? row.customerName ?? row.customer_name ?? "",
+    phone: row.phone ?? row.customerPhone ?? row.customer_phone ?? "",
+    email: row.email ?? row.customerEmail ?? row.customer_email ?? "",
+  };
+}
+
 function normalizeMovement(row) {
   if (!row) return null;
 
@@ -415,6 +434,140 @@ function ModalShell({ title, subtitle, onClose, children }) {
   );
 }
 
+function SearchableCustomerPicker({
+  disabled = false,
+  selectedCustomer = null,
+  onPick,
+}) {
+  const [query, setQuery] = useState(selectedCustomer?.name || "");
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorText, setErrorText] = useState("");
+
+  useEffect(() => {
+    setQuery(selectedCustomer?.name || "");
+  }, [selectedCustomer?.id, selectedCustomer?.name]);
+
+  useEffect(() => {
+    if (disabled) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+
+    const q = String(query || "").trim();
+    if (q.length < 2) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+
+    let alive = true;
+
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      setErrorText("");
+
+      try {
+        const result = await apiFetch(
+          `/customers/search?q=${encodeURIComponent(q)}&limit=10`,
+          { method: "GET" },
+        );
+
+        if (!alive) return;
+
+        const rows = normalizeCustomersResponse(result)
+          .map(normalizeCustomer)
+          .filter(Boolean);
+
+        setResults(rows);
+        setOpen(true);
+      } catch (e) {
+        if (!alive) return;
+        setResults([]);
+        setOpen(false);
+        setErrorText(
+          e?.data?.error || e?.message || "Failed to search customers",
+        );
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [query, disabled]);
+
+  return (
+    <div className="relative md:col-span-2">
+      <FormInput
+        label="Search customer"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+        placeholder="Type customer name or phone"
+        disabled={disabled}
+      />
+
+      {selectedCustomer?.id ? (
+        <div className="mt-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200">
+          Selected: <b>{selectedCustomer.name || "Unnamed customer"}</b>
+          {selectedCustomer.phone ? ` • ${selectedCustomer.phone}` : ""}
+          {selectedCustomer.email ? ` • ${selectedCustomer.email}` : ""}
+        </div>
+      ) : null}
+
+      {errorText ? (
+        <div className="mt-2 text-xs text-rose-600 dark:text-rose-300">
+          {errorText}
+        </div>
+      ) : null}
+
+      {open && !disabled ? (
+        <div className="absolute z-30 mt-2 max-h-72 w-full overflow-auto rounded-2xl border border-stone-200 bg-white p-2 shadow-xl dark:border-stone-800 dark:bg-stone-950">
+          {loading ? (
+            <div className="px-3 py-3 text-sm text-stone-500 dark:text-stone-400">
+              Searching customers...
+            </div>
+          ) : results.length === 0 ? (
+            <div className="px-3 py-3 text-sm text-stone-500 dark:text-stone-400">
+              No customer found
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              {results.map((customer) => (
+                <button
+                  key={String(customer.id)}
+                  type="button"
+                  onClick={() => {
+                    onPick?.(customer);
+                    setQuery(customer.name || customer.phone || "");
+                    setOpen(false);
+                  }}
+                  className="rounded-xl border border-stone-200 px-3 py-3 text-left transition hover:bg-stone-50 dark:border-stone-800 dark:hover:bg-stone-900"
+                >
+                  <div className="text-sm font-semibold text-stone-950 dark:text-stone-50">
+                    {customer.name || "Unnamed customer"}
+                  </div>
+                  <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                    {customer.phone || "No phone"}
+                    {customer.email ? ` • ${customer.email}` : ""}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CreateLoanModal({ open, locations = [], onClose, onSaved }) {
   if (!open) return null;
 
@@ -435,6 +588,7 @@ function CreateLoanModalInner({ locations = [], onClose, onSaved }) {
     customerId: "",
     receiverName: "",
     receiverPhone: "",
+    receiverEmail: "",
     amount: "",
     currency: "RWF",
     method: "CASH",
@@ -442,18 +596,68 @@ function CreateLoanModalInner({ locations = [], onClose, onSaved }) {
     note: "",
     dueDate: "",
   });
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [errorText, setErrorText] = useState("");
+
+  function handleReceiverTypeChange(nextType) {
+    setForm((prev) => ({
+      ...prev,
+      receiverType: nextType,
+      customerId: "",
+      receiverName: nextType === "CUSTOMER" ? "" : prev.receiverName,
+      receiverPhone: nextType === "CUSTOMER" ? "" : prev.receiverPhone,
+      receiverEmail: nextType === "CUSTOMER" ? "" : prev.receiverEmail,
+    }));
+    setSelectedCustomer(null);
+  }
+
+  function handlePickCustomer(customer) {
+    setSelectedCustomer(customer);
+
+    setForm((prev) => ({
+      ...prev,
+      customerId: customer?.id ? String(customer.id) : "",
+      receiverName: customer?.name || "",
+      receiverPhone: customer?.phone || "",
+      receiverEmail: customer?.email || "",
+    }));
+  }
 
   async function handleSave() {
     setErrorText("");
+
+    if (!form.locationId) {
+      setErrorText("Please choose a branch");
+      return;
+    }
+
+    if (!form.amount || Number(form.amount) <= 0) {
+      setErrorText("Please enter a valid amount");
+      return;
+    }
+
+    if (form.receiverType === "CUSTOMER" && !form.customerId) {
+      setErrorText("Please search and select an existing customer");
+      return;
+    }
+
+    if (!String(form.receiverName || "").trim()) {
+      setErrorText("Receiver name is required");
+      return;
+    }
 
     try {
       const payload = {
         locationId: Number(form.locationId),
         receiverType: form.receiverType,
         ...(form.customerId ? { customerId: Number(form.customerId) } : {}),
-        ...(form.receiverName ? { receiverName: form.receiverName } : {}),
-        ...(form.receiverPhone ? { receiverPhone: form.receiverPhone } : {}),
+        receiverName: String(form.receiverName || "").trim(),
+        ...(form.receiverPhone
+          ? { receiverPhone: String(form.receiverPhone).trim() }
+          : {}),
+        ...(form.receiverEmail
+          ? { receiverEmail: String(form.receiverEmail).trim() }
+          : {}),
         amount: Number(form.amount),
         currency: form.currency || "RWF",
         method: form.method,
@@ -501,17 +705,18 @@ function CreateLoanModalInner({ locations = [], onClose, onSaved }) {
         <FormSelect
           label="Receiver type"
           value={form.receiverType}
-          onChange={(e) =>
-            setForm((prev) => ({
-              ...prev,
-              receiverType: e.target.value,
-              customerId: "",
-            }))
-          }
+          onChange={(e) => handleReceiverTypeChange(e.target.value)}
         >
           <option value="OTHER">Other</option>
           <option value="CUSTOMER">Customer</option>
         </FormSelect>
+
+        {form.receiverType === "CUSTOMER" ? (
+          <SearchableCustomerPicker
+            selectedCustomer={selectedCustomer}
+            onPick={handlePickCustomer}
+          />
+        ) : null}
 
         <FormInput
           label="Receiver name"
@@ -520,6 +725,7 @@ function CreateLoanModalInner({ locations = [], onClose, onSaved }) {
             setForm((prev) => ({ ...prev, receiverName: e.target.value }))
           }
           placeholder="Person or business receiving the money"
+          disabled={form.receiverType === "CUSTOMER"}
         />
 
         <FormInput
@@ -529,6 +735,17 @@ function CreateLoanModalInner({ locations = [], onClose, onSaved }) {
             setForm((prev) => ({ ...prev, receiverPhone: e.target.value }))
           }
           placeholder="Phone number"
+          disabled={form.receiverType === "CUSTOMER"}
+        />
+
+        <FormInput
+          label="Receiver email"
+          value={form.receiverEmail}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, receiverEmail: e.target.value }))
+          }
+          placeholder="Optional email"
+          disabled={form.receiverType === "CUSTOMER"}
         />
 
         <FormInput
