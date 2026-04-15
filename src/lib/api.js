@@ -1,3 +1,5 @@
+"use client";
+
 function normalizeBase(v) {
   const s = String(v || "").trim();
   if (!s) return "";
@@ -8,15 +10,32 @@ const BASE = normalizeBase(process.env.NEXT_PUBLIC_API_BASE);
 
 async function readBodySafe(res) {
   const ct = res.headers.get("content-type") || "";
-  if (ct.includes("application/json")) return res.json();
-  const text = await res.text();
-  return { error: text };
+
+  if (ct.includes("application/json")) {
+    try {
+      return await res.json();
+    } catch {
+      return {};
+    }
+  }
+
+  try {
+    const text = await res.text();
+    return text ? { error: text } : {};
+  } catch {
+    return {};
+  }
 }
 
 function buildQuery(params = {}) {
+  const source =
+    params && typeof params === "object" && !Array.isArray(params)
+      ? params
+      : {};
+
   const qs = new URLSearchParams();
 
-  Object.entries(params).forEach(([key, value]) => {
+  Object.entries(source).forEach(([key, value]) => {
     if (value === undefined || value === null || value === "") return;
     qs.set(key, String(value));
   });
@@ -32,19 +51,32 @@ export async function apiFetch(path, opts = {}) {
     );
   }
 
+  const safeOpts =
+    opts && typeof opts === "object" && !Array.isArray(opts) ? opts : {};
+
   const url = `${BASE}${path}`;
-  const hasBody = opts.body !== undefined && opts.body !== null;
+  const hasBody =
+    Object.prototype.hasOwnProperty.call(safeOpts, "body") &&
+    safeOpts.body !== undefined &&
+    safeOpts.body !== null;
+
+  const safeHeaders =
+    safeOpts.headers &&
+    typeof safeOpts.headers === "object" &&
+    !Array.isArray(safeOpts.headers)
+      ? safeOpts.headers
+      : {};
 
   const headers = {
-    ...(opts.headers || {}),
+    ...safeHeaders,
     ...(hasBody ? { "Content-Type": "application/json" } : {}),
   };
 
   const res = await fetch(url, {
-    method: opts.method || "GET",
+    method: safeOpts.method || "GET",
     headers,
     credentials: "include",
-    body: hasBody ? JSON.stringify(opts.body) : undefined,
+    body: hasBody ? JSON.stringify(safeOpts.body) : undefined,
   });
 
   const data = await readBodySafe(res);

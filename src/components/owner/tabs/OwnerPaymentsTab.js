@@ -94,6 +94,8 @@ function normalizeMovement(row) {
     expenseId: row.expenseId ?? row.expense_id ?? null,
     refundId: row.refundId ?? row.refund_id ?? null,
     depositId: row.depositId ?? row.deposit_id ?? null,
+    ownerLoanId: row.ownerLoanId ?? row.owner_loan_id ?? null,
+    repaymentId: row.repaymentId ?? row.repayment_id ?? null,
 
     locationId: row.location?.id ?? row.locationId ?? row.location_id ?? null,
 
@@ -134,7 +136,9 @@ function normalizeLoan(row) {
   const remainingAmount =
     row.remainingAmount != null
       ? Number(row.remainingAmount)
-      : Math.max(0, principalAmount - repaidAmount);
+      : row.balanceAmount != null
+        ? Number(row.balanceAmount)
+        : Math.max(0, principalAmount - repaidAmount);
 
   return {
     id: row.id ?? null,
@@ -146,18 +150,30 @@ function normalizeLoan(row) {
     ).toUpperCase(),
     receiverName: row.receiverName ?? row.receiver_name ?? "",
     receiverPhone: row.receiverPhone ?? row.receiver_phone ?? "",
+    receiverEmail: row.receiverEmail ?? row.receiver_email ?? "",
     customerId: row.customerId ?? row.customer_id ?? null,
     customerName: row.customerName ?? row.customer_name ?? "",
     principalAmount,
     repaidAmount,
     remainingAmount,
     currency: normalizeCurrency(row.currency),
-    method: String(row.method || "OTHER").toUpperCase(),
+    method: String(
+      row.method ??
+        row.disbursementMethod ??
+        row.disbursement_method ??
+        "OTHER",
+    ).toUpperCase(),
     status: String(row.status || "OPEN").toUpperCase(),
     reference: row.reference ?? "",
     note: row.note ?? "",
     issuedAt:
-      row.issuedAt ?? row.issued_at ?? row.createdAt ?? row.created_at ?? null,
+      row.issuedAt ??
+      row.issued_at ??
+      row.disbursedAt ??
+      row.disbursed_at ??
+      row.createdAt ??
+      row.created_at ??
+      null,
     dueDate: row.dueDate ?? row.due_date ?? null,
     createdAt: row.createdAt ?? row.created_at ?? null,
     updatedAt: row.updatedAt ?? row.updated_at ?? null,
@@ -202,8 +218,8 @@ function movementTypeLabel(value) {
   if (v === "EXPENSE") return "Expense";
   if (v === "REFUND") return "Refund";
   if (v === "DEPOSIT_OUT") return "Money sent out";
-  if (v === "OWNER_LOAN_OUT") return "Owner loan out";
-  if (v === "OWNER_LOAN_REPAYMENT_IN") return "Owner loan repayment";
+  if (v === "OWNER_LOAN_OUT") return "Money given out as loan";
+  if (v === "OWNER_LOAN_REPAYMENT_IN") return "Loan repayment received";
   return safe(value) || "Movement";
 }
 
@@ -346,6 +362,18 @@ function movementEntityLabel(row) {
     return `Money-out #${safeNumber(row.depositId)}`;
   }
 
+  if (movementType === "OWNER_LOAN_OUT" && row?.ownerLoanId != null) {
+    return `Loan #${safeNumber(row.ownerLoanId)}`;
+  }
+
+  if (
+    movementType === "OWNER_LOAN_REPAYMENT_IN" &&
+    row?.ownerLoanId != null &&
+    row?.repaymentId != null
+  ) {
+    return `Loan #${safeNumber(row.ownerLoanId)} repayment #${safeNumber(row.repaymentId)}`;
+  }
+
   return "-";
 }
 
@@ -397,9 +425,15 @@ function loanReceiverLabel(loan) {
 
 function loanReceiverSub(loan) {
   const parts = [];
-  if (safe(loan?.receiverType))
-    parts.push(String(loan.receiverType).toUpperCase());
+  if (safe(loan?.receiverType)) {
+    parts.push(
+      String(loan.receiverType).toUpperCase() === "CUSTOMER"
+        ? "Customer"
+        : "Other person",
+    );
+  }
   if (safe(loan?.receiverPhone)) parts.push(safe(loan.receiverPhone));
+  if (safe(loan?.receiverEmail)) parts.push(safe(loan.receiverEmail));
   return parts.length ? parts.join(" • ") : "-";
 }
 
@@ -436,6 +470,7 @@ function ModalShell({ title, subtitle, onClose, children }) {
 
 function SearchableCustomerPicker({
   disabled = false,
+  locationId = "",
   selectedCustomer = null,
   onPick,
 }) {
@@ -453,6 +488,7 @@ function SearchableCustomerPicker({
     if (disabled) {
       setResults([]);
       setOpen(false);
+      setErrorText("");
       return;
     }
 
@@ -460,6 +496,14 @@ function SearchableCustomerPicker({
     if (q.length < 2) {
       setResults([]);
       setOpen(false);
+      setErrorText("");
+      return;
+    }
+
+    if (!locationId) {
+      setResults([]);
+      setOpen(false);
+      setErrorText("Choose the branch first.");
       return;
     }
 
@@ -471,7 +515,7 @@ function SearchableCustomerPicker({
 
       try {
         const result = await apiFetch(
-          `/customers/search?q=${encodeURIComponent(q)}&limit=10`,
+          `/customers/search?q=${encodeURIComponent(q)}&locationId=${encodeURIComponent(locationId)}&limit=10`,
           { method: "GET" },
         );
 
@@ -499,24 +543,27 @@ function SearchableCustomerPicker({
       alive = false;
       clearTimeout(timer);
     };
-  }, [query, disabled]);
+  }, [query, disabled, locationId]);
 
   return (
     <div className="relative md:col-span-2">
+      <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+        Find customer
+      </label>
+
       <FormInput
-        label="Search customer"
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
           setOpen(true);
         }}
-        placeholder="Type customer name or phone"
-        disabled={disabled}
+        placeholder="Search by customer name or phone number"
+        disabled={disabled || !locationId}
       />
 
       {selectedCustomer?.id ? (
         <div className="mt-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200">
-          Selected: <b>{selectedCustomer.name || "Unnamed customer"}</b>
+          Chosen customer: <b>{selectedCustomer.name || "Unnamed customer"}</b>
           {selectedCustomer.phone ? ` • ${selectedCustomer.phone}` : ""}
           {selectedCustomer.email ? ` • ${selectedCustomer.email}` : ""}
         </div>
@@ -528,15 +575,15 @@ function SearchableCustomerPicker({
         </div>
       ) : null}
 
-      {open && !disabled ? (
+      {open && !disabled && !!locationId ? (
         <div className="absolute z-30 mt-2 max-h-72 w-full overflow-auto rounded-2xl border border-stone-200 bg-white p-2 shadow-xl dark:border-stone-800 dark:bg-stone-950">
           {loading ? (
             <div className="px-3 py-3 text-sm text-stone-500 dark:text-stone-400">
-              Searching customers...
+              Looking for customers...
             </div>
           ) : results.length === 0 ? (
             <div className="px-3 py-3 text-sm text-stone-500 dark:text-stone-400">
-              No customer found
+              No matching customer found
             </div>
           ) : (
             <div className="grid gap-2">
@@ -623,46 +670,71 @@ function CreateLoanModalInner({ locations = [], onClose, onSaved }) {
     }));
   }
 
+  function updateField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
   async function handleSave() {
     setErrorText("");
 
-    if (!form.locationId) {
-      setErrorText("Please choose a branch");
+    const parsedLocationId = Number(form.locationId);
+    const parsedCustomerId =
+      form.customerId === "" || form.customerId == null
+        ? null
+        : Number(form.customerId);
+    const parsedAmount = Number(form.amount);
+
+    if (
+      !form.locationId ||
+      !Number.isFinite(parsedLocationId) ||
+      parsedLocationId <= 0
+    ) {
+      setErrorText("Please choose the branch giving out the money.");
       return;
     }
 
-    if (!form.amount || Number(form.amount) <= 0) {
-      setErrorText("Please enter a valid amount");
+    if (!form.amount || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setErrorText("Please enter a valid amount.");
       return;
     }
 
-    if (form.receiverType === "CUSTOMER" && !form.customerId) {
-      setErrorText("Please search and select an existing customer");
-      return;
+    if (form.receiverType === "CUSTOMER") {
+      if (
+        !parsedCustomerId ||
+        !Number.isFinite(parsedCustomerId) ||
+        parsedCustomerId <= 0
+      ) {
+        setErrorText("Please search and choose an existing customer.");
+        return;
+      }
     }
 
     if (!String(form.receiverName || "").trim()) {
-      setErrorText("Receiver name is required");
+      setErrorText("Please enter who received the money.");
       return;
     }
 
     try {
       const payload = {
-        locationId: Number(form.locationId),
+        locationId: parsedLocationId,
         receiverType: form.receiverType,
-        ...(form.customerId ? { customerId: Number(form.customerId) } : {}),
+        ...(parsedCustomerId ? { customerId: parsedCustomerId } : {}),
         receiverName: String(form.receiverName || "").trim(),
-        ...(form.receiverPhone
+        ...(String(form.receiverPhone || "").trim()
           ? { receiverPhone: String(form.receiverPhone).trim() }
           : {}),
-        ...(form.receiverEmail
+        ...(String(form.receiverEmail || "").trim()
           ? { receiverEmail: String(form.receiverEmail).trim() }
           : {}),
-        amount: Number(form.amount),
+        principalAmount: parsedAmount,
         currency: form.currency || "RWF",
-        method: form.method,
-        ...(form.reference ? { reference: form.reference } : {}),
-        ...(form.note ? { note: form.note } : {}),
+        disbursementMethod: form.method || "CASH",
+        ...(String(form.reference || "").trim()
+          ? { reference: String(form.reference).trim() }
+          : {}),
+        ...(String(form.note || "").trim()
+          ? { note: String(form.note).trim() }
+          : {}),
         ...(form.dueDate ? { dueDate: form.dueDate } : {}),
       };
 
@@ -671,150 +743,186 @@ function CreateLoanModalInner({ locations = [], onClose, onSaved }) {
         body: payload,
       });
 
-      onSaved?.(result);
+      onSaved?.(result && typeof result === "object" ? result : {});
     } catch (e) {
-      setErrorText(e?.data?.error || e?.message || "Failed to create loan");
+      setErrorText(e?.data?.error || e?.message || "Failed to create loan.");
     }
+  }
+
+  function handleLocationChange(nextLocationId) {
+    setSelectedCustomer(null);
+
+    setForm((prev) => ({
+      ...prev,
+      locationId: nextLocationId,
+      customerId: "",
+      ...(prev.receiverType === "CUSTOMER"
+        ? {
+            receiverName: "",
+            receiverPhone: "",
+            receiverEmail: "",
+          }
+        : {}),
+    }));
   }
 
   return (
     <ModalShell
-      title="Create owner loan"
-      subtitle="Lend business money to a customer or another receiver and track what remains unpaid."
+      title="Record money given out"
+      subtitle="Save money the business has given to someone and track what is still unpaid."
       onClose={onClose}
     >
       <AlertBox message={errorText} />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <FormSelect
-          label="Branch"
-          value={form.locationId}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, locationId: e.target.value }))
-          }
-        >
-          <option value="">Choose branch</option>
-          {locations.map((row) => (
-            <option key={row?.id} value={String(row?.id)}>
-              {safe(row?.name)}
-              {safe(row?.code) ? ` (${safe(row.code)})` : ""}
-            </option>
-          ))}
-        </FormSelect>
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Branch giving out the money
+          </label>
+          <FormSelect
+            value={form.locationId}
+            onChange={(e) => handleLocationChange(e.target.value)}
+          >
+            <option value="">Choose branch</option>
+            {locations.map((row) => (
+              <option key={row?.id} value={String(row?.id)}>
+                {safe(row?.name)}
+                {safe(row?.code) ? ` (${safe(row.code)})` : ""}
+              </option>
+            ))}
+          </FormSelect>
+        </div>
 
-        <FormSelect
-          label="Receiver type"
-          value={form.receiverType}
-          onChange={(e) => handleReceiverTypeChange(e.target.value)}
-        >
-          <option value="OTHER">Other</option>
-          <option value="CUSTOMER">Customer</option>
-        </FormSelect>
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Who got this money?
+          </label>
+          <FormSelect
+            value={form.receiverType}
+            onChange={(e) => handleReceiverTypeChange(e.target.value)}
+          >
+            <option value="OTHER">Someone else</option>
+            <option value="CUSTOMER">A customer already in the system</option>
+          </FormSelect>
+        </div>
 
         {form.receiverType === "CUSTOMER" ? (
           <SearchableCustomerPicker
+            locationId={form.locationId}
             selectedCustomer={selectedCustomer}
             onPick={handlePickCustomer}
           />
         ) : null}
 
-        <FormInput
-          label="Receiver name"
-          value={form.receiverName}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, receiverName: e.target.value }))
-          }
-          placeholder="Person or business receiving the money"
-          disabled={form.receiverType === "CUSTOMER"}
-        />
-
-        <FormInput
-          label="Receiver phone"
-          value={form.receiverPhone}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, receiverPhone: e.target.value }))
-          }
-          placeholder="Phone number"
-          disabled={form.receiverType === "CUSTOMER"}
-        />
-
-        <FormInput
-          label="Receiver email"
-          value={form.receiverEmail}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, receiverEmail: e.target.value }))
-          }
-          placeholder="Optional email"
-          disabled={form.receiverType === "CUSTOMER"}
-        />
-
-        <FormInput
-          label="Amount"
-          type="number"
-          value={form.amount}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, amount: e.target.value }))
-          }
-          placeholder="0"
-        />
-
-        <FormSelect
-          label="Method"
-          value={form.method}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, method: e.target.value }))
-          }
-        >
-          <option value="CASH">Cash</option>
-          <option value="MOMO">Mobile money</option>
-          <option value="BANK">Bank</option>
-          <option value="CARD">Card</option>
-          <option value="OTHER">Other</option>
-        </FormSelect>
-
-        <FormSelect
-          label="Currency"
-          value={form.currency}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, currency: e.target.value }))
-          }
-        >
-          <option value="RWF">RWF</option>
-          <option value="USD">USD</option>
-        </FormSelect>
-
-        <FormInput
-          label="Due date"
-          type="date"
-          value={form.dueDate}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, dueDate: e.target.value }))
-          }
-        />
-
-        <div className="md:col-span-2">
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Name of the person who got the money
+          </label>
           <FormInput
-            label="Reference"
-            value={form.reference}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, reference: e.target.value }))
-            }
-            placeholder="Transfer reference, memo, or agreement ref"
+            value={form.receiverName}
+            onChange={(e) => updateField("receiverName", e.target.value)}
+            placeholder="Enter full name"
+            disabled={form.receiverType === "CUSTOMER"}
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Phone number
+          </label>
+          <FormInput
+            value={form.receiverPhone}
+            onChange={(e) => updateField("receiverPhone", e.target.value)}
+            placeholder="Enter phone number"
+            disabled={form.receiverType === "CUSTOMER"}
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Email address
+          </label>
+          <FormInput
+            value={form.receiverEmail}
+            onChange={(e) => updateField("receiverEmail", e.target.value)}
+            placeholder="Optional email address"
+            disabled={form.receiverType === "CUSTOMER"}
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            How much money was given?
+          </label>
+          <FormInput
+            type="number"
+            value={form.amount}
+            onChange={(e) => updateField("amount", e.target.value)}
+            placeholder="Enter amount"
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            How was the money sent?
+          </label>
+          <FormSelect
+            value={form.method}
+            onChange={(e) => updateField("method", e.target.value)}
+          >
+            <option value="CASH">Cash</option>
+            <option value="MOMO">Mobile money</option>
+            <option value="BANK">Bank transfer</option>
+            <option value="CARD">Card</option>
+            <option value="OTHER">Other</option>
+          </FormSelect>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Currency
+          </label>
+          <FormSelect
+            value={form.currency}
+            onChange={(e) => updateField("currency", e.target.value)}
+          >
+            <option value="RWF">RWF</option>
+            <option value="USD">USD</option>
+          </FormSelect>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Expected repayment date
+          </label>
+          <FormInput
+            type="date"
+            value={form.dueDate}
+            onChange={(e) => updateField("dueDate", e.target.value)}
           />
         </div>
 
         <div className="md:col-span-2">
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Note
+            Reference or proof
+          </label>
+          <FormInput
+            value={form.reference}
+            onChange={(e) => updateField("reference", e.target.value)}
+            placeholder="Transfer code, receipt number, or short reference"
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Reason for giving out this money
           </label>
           <textarea
             value={form.note}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, note: e.target.value }))
-            }
+            onChange={(e) => updateField("note", e.target.value)}
             rows={4}
             className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-            placeholder="Why is this money being lent out?"
+            placeholder="Describe why this money was given and any important details"
           />
         </div>
       </div>
@@ -829,9 +937,9 @@ function CreateLoanModalInner({ locations = [], onClose, onSaved }) {
         </button>
 
         <AsyncButton
-          idleText="Create loan"
-          loadingText="Creating..."
-          successText="Created"
+          idleText="Save loan"
+          loadingText="Saving..."
+          successText="Saved"
           onClick={handleSave}
         />
       </div>
@@ -894,33 +1002,43 @@ function RepayLoanModalInner({ loan, onClose, onSaved }) {
       <AlertBox message={errorText} />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <FormInput
-          label="Amount"
-          type="number"
-          value={form.amount}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, amount: e.target.value }))
-          }
-          placeholder="0"
-        />
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Amount being paid back
+          </label>
+          <FormInput
+            type="number"
+            value={form.amount}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, amount: e.target.value }))
+            }
+            placeholder="0"
+          />
+        </div>
 
-        <FormSelect
-          label="Method"
-          value={form.method}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, method: e.target.value }))
-          }
-        >
-          <option value="CASH">Cash</option>
-          <option value="MOMO">Mobile money</option>
-          <option value="BANK">Bank</option>
-          <option value="CARD">Card</option>
-          <option value="OTHER">Other</option>
-        </FormSelect>
+        <div>
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            How was the money received?
+          </label>
+          <FormSelect
+            value={form.method}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, method: e.target.value }))
+            }
+          >
+            <option value="CASH">Cash</option>
+            <option value="MOMO">Mobile money</option>
+            <option value="BANK">Bank</option>
+            <option value="CARD">Card</option>
+            <option value="OTHER">Other</option>
+          </FormSelect>
+        </div>
 
         <div className="md:col-span-2">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Reference or proof
+          </label>
           <FormInput
-            label="Reference"
             value={form.reference}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, reference: e.target.value }))
@@ -940,7 +1058,7 @@ function RepayLoanModalInner({ loan, onClose, onSaved }) {
             }
             rows={4}
             className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-            placeholder="Repayment note"
+            placeholder="Add anything important about this repayment"
           />
         </div>
       </div>
@@ -985,11 +1103,16 @@ function VoidLoanModalInner({ loan, onClose, onSaved }) {
   async function handleVoid() {
     setErrorText("");
 
+    if (!String(note || "").trim()) {
+      setErrorText("Please explain why this loan is being cancelled.");
+      return;
+    }
+
     try {
       const result = await apiFetch(`/owner-loans/${loan.id}/void`, {
         method: "POST",
         body: {
-          ...(note ? { note } : {}),
+          reason: String(note || "").trim(),
         },
       });
 
@@ -1023,14 +1146,14 @@ function VoidLoanModalInner({ loan, onClose, onSaved }) {
 
       <div className="mt-4">
         <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-          Note
+          Reason for cancelling this loan
         </label>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={4}
           className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
-          placeholder="Why is this loan being voided?"
+          placeholder="Explain why this loan should no longer count"
         />
       </div>
 
@@ -1143,6 +1266,8 @@ export default function OwnerPaymentsTab({ locations = [] }) {
         row?.expenseId,
         row?.refundId,
         row?.depositId,
+        row?.ownerLoanId,
+        row?.repaymentId,
       ]
         .map((x) => String(x ?? ""))
         .join(" ")
@@ -1174,6 +1299,7 @@ export default function OwnerPaymentsTab({ locations = [] }) {
         loan?.receiverType,
         loan?.receiverName,
         loan?.receiverPhone,
+        loan?.receiverEmail,
         loan?.customerName,
         loan?.reference,
         loan?.note,
@@ -1235,12 +1361,12 @@ export default function OwnerPaymentsTab({ locations = [] }) {
   const ownerLoanCards = useMemo(() => {
     return {
       loansCount: Number(loanSummary?.loansCount ?? 0),
-      openLoansCount: Number(loanSummary?.openLoansCount ?? 0),
-      partiallyRepaidCount: Number(loanSummary?.partiallyRepaidCount ?? 0),
-      repaidLoansCount: Number(loanSummary?.repaidLoansCount ?? 0),
+      openLoansCount: Number(loanSummary?.openCount ?? 0),
+      partiallyRepaidCount: Number(loanSummary?.partialCount ?? 0),
+      repaidLoansCount: Number(loanSummary?.repaidCount ?? 0),
       totalPrincipalAmount: Number(loanSummary?.totalPrincipalAmount ?? 0),
       totalRepaidAmount: Number(loanSummary?.totalRepaidAmount ?? 0),
-      totalRemainingAmount: Number(loanSummary?.totalRemainingAmount ?? 0),
+      totalRemainingAmount: Number(loanSummary?.outstandingAmount ?? 0),
     };
   }, [loanSummary]);
 
@@ -1298,17 +1424,35 @@ export default function OwnerPaymentsTab({ locations = [] }) {
     return params.toString();
   }
 
-  async function loadData() {
+  async function loadData(locationIdOverride = null) {
     setLoading(true);
     setErrorText("");
 
     try {
       const query = buildParams();
+
+      const selectedLoanLocationId =
+        locationIdOverride ||
+        locationId ||
+        (locationOptions[0]?.id ? String(locationOptions[0].id) : "");
+
+      const loanParams = new URLSearchParams();
+      if (selectedLoanLocationId) {
+        loanParams.set("locationId", selectedLoanLocationId);
+      }
+      if (search) {
+        loanParams.set("q", search);
+      }
+      loanParams.set("limit", "100");
+      loanParams.set("offset", "0");
+
+      const loanQuery = loanParams.toString();
+
       const summaryUrl = `/owner/payments/summary${query ? `?${query}` : ""}`;
       const breakdownUrl = `/owner/payments/breakdown${query ? `?${query}` : ""}`;
       const listUrl = `/owner/payments${query ? `?${query}` : ""}`;
-      const loanSummaryUrl = `/owner-loans/summary${query ? `?${query}` : ""}`;
-      const loansUrl = `/owner-loans${query ? `?${query}` : ""}`;
+      const loanSummaryUrl = `/owner-loans/summary${loanQuery ? `?${loanQuery}` : ""}`;
+      const loansUrl = `/owner-loans${loanQuery ? `?${loanQuery}` : ""}`;
 
       const [summaryRes, breakdownRes, listRes, loanSummaryRes, loansRes] =
         await Promise.allSettled([
@@ -1421,13 +1565,21 @@ export default function OwnerPaymentsTab({ locations = [] }) {
 
   async function handleLoanActionSaved(actionText, result) {
     setSuccessText(actionText);
-    const nextLoanId = result?.loan?.id ?? selectedLoanId ?? null;
+
+    const createdLoan = result?.loan || result || null;
+    const nextLoanId = createdLoan?.id ?? selectedLoanId ?? null;
+    const nextLoanLocationId =
+      createdLoan?.locationId != null ? String(createdLoan.locationId) : null;
 
     setCreatingLoan(false);
     setRepayingLoan(null);
     setVoidingLoan(null);
 
-    await loadData();
+    if (nextLoanLocationId) {
+      setLocationId(nextLoanLocationId);
+    }
+
+    await loadData(nextLoanLocationId);
 
     if (nextLoanId != null) {
       setSelectedLoanId(nextLoanId);
@@ -1550,7 +1702,6 @@ export default function OwnerPaymentsTab({ locations = [] }) {
         >
           <div className="grid gap-3">
             <FormSelect
-              label="Branch"
               value={locationId}
               onChange={(e) => setLocationId(e.target.value)}
             >
@@ -1564,7 +1715,6 @@ export default function OwnerPaymentsTab({ locations = [] }) {
             </FormSelect>
 
             <FormSelect
-              label="Payment method"
               value={method}
               onChange={(e) => setMethod(e.target.value)}
             >
@@ -1578,14 +1728,12 @@ export default function OwnerPaymentsTab({ locations = [] }) {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <FormInput
-                label="From date"
                 type="date"
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
               />
 
               <FormInput
-                label="To date"
                 type="date"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
@@ -1594,10 +1742,8 @@ export default function OwnerPaymentsTab({ locations = [] }) {
 
             <div className="flex flex-wrap gap-2 pt-1">
               <AsyncButton
-                type="button"
                 variant="secondary"
-                state={refreshState}
-                text="Refresh"
+                idleText="Refresh"
                 loadingText="Refreshing..."
                 successText="Done"
                 onClick={refreshNow}
@@ -1701,7 +1847,13 @@ export default function OwnerPaymentsTab({ locations = [] }) {
                               className={methodTone(loan?.method)}
                             />
                             <MovementChip
-                              text={String(loan?.receiverType || "OTHER")}
+                              text={
+                                String(
+                                  loan?.receiverType || "OTHER",
+                                ).toUpperCase() === "CUSTOMER"
+                                  ? "Customer"
+                                  : "Other person"
+                              }
                               className="bg-stone-100 text-stone-700 dark:bg-stone-900 dark:text-stone-300"
                             />
                           </div>
@@ -2064,14 +2216,12 @@ export default function OwnerPaymentsTab({ locations = [] }) {
         <div className="grid gap-4">
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.6fr_0.8fr]">
             <FormInput
-              label="Search"
               placeholder="Search by person, supplier, note, reference, sale, bill, expense, refund, or loan"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
 
             <FormSelect
-              label="Direction"
               value={direction}
               onChange={(e) => setDirection(e.target.value)}
             >
@@ -2081,7 +2231,6 @@ export default function OwnerPaymentsTab({ locations = [] }) {
             </FormSelect>
 
             <FormSelect
-              label="Movement type"
               value={movementType}
               onChange={(e) => setMovementType(e.target.value)}
             >
