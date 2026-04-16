@@ -402,8 +402,8 @@ function buildCreateDefaults(suppliers, locations) {
   return {
     supplierId: firstSupplier?.id ? String(firstSupplier.id) : "",
     locationId: firstLocation?.id ? String(firstLocation.id) : "",
-    poNo: makeAutoPoNo(firstLocationCode),
-    reference: makeAutoReference(firstLocationCode),
+    poNo: makeAutoPoNo(firstLocationCode, 1),
+    reference: makeAutoReference(firstLocationCode, 1),
     currency: normalizeCurrency(firstSupplier?.defaultCurrency || "RWF"),
     orderedAt: "",
     expectedAt: "",
@@ -441,6 +441,114 @@ function buildEditDefaults(purchaseOrder, items) {
           }))
         : [makeEmptyLine()],
   };
+}
+
+function normalizeProductSearchText(product) {
+  const name = safe(product?.name);
+  const sku = safe(product?.sku);
+  if (name && sku) return `${name} ${sku}`;
+  return name || sku || "";
+}
+
+function ProductSearchPicker({ products = [], value = "", onSelect }) {
+  const [query, setQuery] = useState("");
+
+  const selectedProduct = useMemo(() => {
+    return (
+      (Array.isArray(products) ? products : []).find(
+        (product) => String(product?.id) === String(value),
+      ) || null
+    );
+  }, [products, value]);
+
+  const filteredProducts = useMemo(() => {
+    const rows = Array.isArray(products) ? products : [];
+    const q = safe(query).toLowerCase();
+
+    const activeRows = rows.filter((product) => product?.isActive !== false);
+
+    if (!q) return activeRows.slice(0, 12);
+
+    return activeRows
+      .filter((product) =>
+        normalizeProductSearchText(product).toLowerCase().includes(q),
+      )
+      .slice(0, 12);
+  }, [products, query]);
+
+  return (
+    <div className="grid gap-3">
+      <FormInput
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={
+          selectedProduct
+            ? `Selected: ${safe(selectedProduct.name)}${safe(selectedProduct.sku) ? ` (${safe(selectedProduct.sku)})` : ""}`
+            : "Search by product name or SKU"
+        }
+      />
+
+      <div className="max-h-56 overflow-auto rounded-[18px] border border-stone-200 bg-white p-2 dark:border-stone-800 dark:bg-stone-900">
+        <button
+          type="button"
+          onClick={() => {
+            setQuery("");
+            onSelect?.(null);
+          }}
+          className={cx(
+            "mb-2 w-full rounded-[16px] border px-3 py-3 text-left transition",
+            !value
+              ? "border-stone-900 bg-stone-100 dark:border-stone-100 dark:bg-stone-950"
+              : "border-stone-200 bg-stone-50 hover:bg-stone-100 dark:border-stone-800 dark:bg-stone-950 dark:hover:bg-stone-800",
+          )}
+        >
+          <div className="text-sm font-semibold text-stone-950 dark:text-stone-50">
+            Manual line / no linked product
+          </div>
+          <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+            Use this if the supplier item is not yet linked to a product.
+          </div>
+        </button>
+
+        {filteredProducts.length === 0 ? (
+          <div className="rounded-[16px] border border-dashed border-stone-300 px-3 py-4 text-sm text-stone-500 dark:border-stone-700 dark:text-stone-400">
+            No matching product found.
+          </div>
+        ) : (
+          <div className="grid gap-2">
+            {filteredProducts.map((product) => {
+              const active = String(product?.id) === String(value);
+
+              return (
+                <button
+                  key={String(product.id)}
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    onSelect?.(product);
+                  }}
+                  className={cx(
+                    "w-full rounded-[16px] border px-3 py-3 text-left transition",
+                    active
+                      ? "border-stone-900 bg-stone-100 dark:border-stone-100 dark:bg-stone-950"
+                      : "border-stone-200 bg-stone-50 hover:bg-stone-100 dark:border-stone-800 dark:bg-stone-950 dark:hover:bg-stone-800",
+                  )}
+                >
+                  <div className="text-sm font-semibold text-stone-950 dark:text-stone-50">
+                    {safe(product?.name) || "Unnamed product"}
+                  </div>
+                  <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                    {safe(product?.sku) ? `SKU: ${safe(product.sku)} • ` : ""}
+                    Default cost: {money(product?.costPrice, "RWF")}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PurchaseOrderLineEditor({
@@ -485,40 +593,38 @@ function PurchaseOrderLineEditor({
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div>
+        <div className="lg:col-span-2">
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Product
+            Search and choose product
           </label>
-          <FormSelect
+          <ProductSearchPicker
+            products={products}
             value={line.productId}
-            onChange={(e) => {
-              const nextId = e.target.value;
-              const picked =
-                products.find((p) => String(p.id) === String(nextId)) || null;
+            onSelect={(picked) => {
+              if (!picked) {
+                onChange({
+                  ...line,
+                  productId: "",
+                });
+                return;
+              }
 
               onChange({
                 ...line,
-                productId: nextId,
-                productName: picked ? safe(picked.name) : line.productName,
-                unitCost: picked
-                  ? String(safeNumber(picked.costPrice) || 0)
-                  : line.unitCost,
+                productId: String(picked.id),
+                productName: safe(picked.name),
+                unitCost:
+                  line?.unitCost !== "" && line?.unitCost != null
+                    ? line.unitCost
+                    : String(safeNumber(picked.costPrice) || 0),
               });
             }}
-          >
-            <option value="">Manual line / no product linked</option>
-            {products.map((product) => (
-              <option key={product.id} value={String(product.id)}>
-                {safe(product.name)}
-                {safe(product.sku) ? ` (${safe(product.sku)})` : ""}
-              </option>
-            ))}
-          </FormSelect>
+          />
         </div>
 
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Item name
+            Item name shown on the order
           </label>
           <FormInput
             value={line.productName}
@@ -531,12 +637,16 @@ function PurchaseOrderLineEditor({
             <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
               Linked product: {effectiveName}
             </p>
-          ) : null}
+          ) : (
+            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+              You can also keep this as a manual supplier item.
+            </p>
+          )}
         </div>
 
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Qty ordered
+            Quantity to order
           </label>
           <FormInput
             type="number"
@@ -549,7 +659,7 @@ function PurchaseOrderLineEditor({
 
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Unit cost ({normalizeCurrency(currency)})
+            Price for one item ({normalizeCurrency(currency)})
           </label>
           <FormInput
             type="number"
@@ -872,38 +982,100 @@ function pad2(v) {
   return String(v).padStart(2, "0");
 }
 
-function makeAutoPoNo(locationCode = "") {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = pad2(now.getMonth() + 1);
-  const day = pad2(now.getDate());
-
-  const branchPart =
-    safe(locationCode || "MAIN")
-      .replace(/[^A-Za-z0-9]/g, "")
-      .toUpperCase()
-      .slice(0, 8) || "MAIN";
-
-  const randomPart = Math.floor(1000 + Math.random() * 9000);
-
-  return `PO-${branchPart}-${year}${month}${day}-${randomPart}`;
+function buildAutoCodeDatePart(date = new Date()) {
+  const year = date.getFullYear();
+  const month = pad2(date.getMonth() + 1);
+  const day = pad2(date.getDate());
+  return `${year}${month}${day}`;
 }
 
-function makeAutoReference(locationCode = "") {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = pad2(now.getMonth() + 1);
-  const day = pad2(now.getDate());
-
-  const branchPart =
+function buildAutoCodeBranchPart(locationCode = "") {
+  return (
     safe(locationCode || "MAIN")
       .replace(/[^A-Za-z0-9]/g, "")
       .toUpperCase()
-      .slice(0, 8) || "MAIN";
+      .slice(0, 8) || "MAIN"
+  );
+}
 
-  const randomPart = Math.floor(1000 + Math.random() * 9000);
+function buildAutoCode(
+  prefix,
+  locationCode = "",
+  sequence = 1,
+  date = new Date(),
+) {
+  const branchPart = buildAutoCodeBranchPart(locationCode);
+  const datePart = buildAutoCodeDatePart(date);
+  const seqPart = String(Math.max(1, safeNumber(sequence) || 1)).padStart(
+    4,
+    "0",
+  );
+  return `${prefix}-${branchPart}-${datePart}-${seqPart}`;
+}
 
-  return `REF-${branchPart}-${year}${month}${day}-${randomPart}`;
+function makeAutoPoNo(locationCode = "", sequence = 1) {
+  return buildAutoCode("PO", locationCode, sequence);
+}
+
+function makeAutoReference(locationCode = "", sequence = 1) {
+  return buildAutoCode("REF", locationCode, sequence);
+}
+
+function extractAutoCodeSequence(
+  value = "",
+  prefix = "",
+  locationCode = "",
+  date = new Date(),
+) {
+  const branchPart = buildAutoCodeBranchPart(locationCode);
+  const datePart = buildAutoCodeDatePart(date);
+  const expectedPrefix = `${prefix}-${branchPart}-${datePart}-`;
+  const raw = safe(value);
+
+  if (!raw.startsWith(expectedPrefix)) return 0;
+
+  const tail = raw.slice(expectedPrefix.length);
+  const seq = Number(tail);
+  return Number.isInteger(seq) && seq > 0 ? seq : 0;
+}
+
+async function buildNextAutoCodes({ locationId, locations = [] }) {
+  const code = findLocationCode(locations, locationId);
+  const suffix = locationId
+    ? `?locationId=${encodeURIComponent(locationId)}`
+    : "";
+
+  let rows = [];
+
+  try {
+    const result = await apiFetch(`/purchase-orders${suffix}`, {
+      method: "GET",
+    });
+
+    rows = normalizePurchaseOrdersResponse(result)
+      .map(normalizePurchaseOrder)
+      .filter(Boolean);
+  } catch {
+    rows = [];
+  }
+
+  const poMax = rows.reduce((maxValue, row) => {
+    return Math.max(maxValue, extractAutoCodeSequence(row?.poNo, "PO", code));
+  }, 0);
+
+  const refMax = rows.reduce((maxValue, row) => {
+    return Math.max(
+      maxValue,
+      extractAutoCodeSequence(row?.reference, "REF", code),
+    );
+  }, 0);
+
+  const nextSequence = Math.max(poMax, refMax, 0) + 1;
+
+  return {
+    poNo: makeAutoPoNo(code, nextSequence),
+    reference: makeAutoReference(code, nextSequence),
+  };
 }
 
 function findLocationCode(locations = [], locationId = "") {
@@ -926,6 +1098,7 @@ function CreatePurchaseOrderModalInner({
     buildCreateDefaults(suppliers, locations),
   );
   const [errorText, setErrorText] = useState("");
+  const [codeLoading, setCodeLoading] = useState(false);
 
   const selectedSupplier = useMemo(
     () =>
@@ -968,15 +1141,46 @@ function CreatePurchaseOrderModalInner({
   }
 
   function handleLocationChange(nextLocationId) {
-    const nextLocationCode = findLocationCode(locations, nextLocationId);
-
     setForm((prev) => ({
       ...prev,
       locationId: nextLocationId,
-      poNo: makeAutoPoNo(nextLocationCode),
-      reference: makeAutoReference(nextLocationCode),
+      poNo: "",
+      reference: "",
     }));
   }
+
+  useEffect(() => {
+    let alive = true;
+
+    async function refreshAutoCodes() {
+      if (!form.locationId) return;
+
+      setCodeLoading(true);
+
+      try {
+        const nextCodes = await buildNextAutoCodes({
+          locationId: form.locationId,
+          locations,
+        });
+
+        if (!alive) return;
+
+        setForm((prev) => ({
+          ...prev,
+          poNo: nextCodes.poNo,
+          reference: nextCodes.reference,
+        }));
+      } finally {
+        if (alive) setCodeLoading(false);
+      }
+    }
+
+    refreshAutoCodes();
+
+    return () => {
+      alive = false;
+    };
+  }, [form.locationId, locations]);
 
   async function handleSave() {
     setErrorText("");
@@ -1000,6 +1204,13 @@ function CreatePurchaseOrderModalInner({
 
       if (!formItems.length) {
         setErrorText("Please add at least one order line.");
+        return;
+      }
+
+      if (!safe(form.poNo) || !safe(form.reference)) {
+        setErrorText(
+          "Please wait a moment for the order number and reference to finish generating.",
+        );
         return;
       }
 
@@ -1106,7 +1317,7 @@ function CreatePurchaseOrderModalInner({
                   value={form.poNo}
                   readOnly
                   disabled
-                  placeholder="Auto-generated"
+                  placeholder={codeLoading ? "Generating..." : "Auto-generated"}
                 />
               </div>
 
@@ -1118,7 +1329,7 @@ function CreatePurchaseOrderModalInner({
                   value={form.reference}
                   readOnly
                   disabled
-                  placeholder="Auto-generated"
+                  placeholder={codeLoading ? "Generating..." : "Auto-generated"}
                 />
               </div>
 
@@ -1264,8 +1475,8 @@ function CreatePurchaseOrderModalInner({
                 After review, it can be approved before stock starts arriving.
               </p>
               <p>
-                The order number and reference are generated automatically to
-                keep records consistent.
+                The order number and reference are generated automatically in
+                daily order, so the next one becomes 0001, 0002, 0003 and so on.
               </p>
             </div>
 
@@ -1280,7 +1491,7 @@ function CreatePurchaseOrderModalInner({
 
               <AsyncButton
                 idleText="Create purchase order"
-                loadingText="Creating..."
+                loadingText={codeLoading ? "Preparing..." : "Creating..."}
                 successText="Created"
                 onClick={handleSave}
               />
