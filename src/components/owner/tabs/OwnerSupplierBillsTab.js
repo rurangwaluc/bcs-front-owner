@@ -167,6 +167,15 @@ function findLocationMeta(locations, locationId) {
   return rows.find((row) => String(row?.id) === String(locationId)) || null;
 }
 
+function findLocationCode(locations = [], locationId = "") {
+  const row =
+    (Array.isArray(locations) ? locations : []).find(
+      (item) => String(item?.id) === String(locationId),
+    ) || null;
+
+  return safe(row?.code) || safe(row?.name) || "BRANCH";
+}
+
 function displayBranch(row, locations = []) {
   if (safe(row?.locationName)) {
     return safe(row?.locationCode)
@@ -186,6 +195,94 @@ function displayBranch(row, locations = []) {
   }
 
   return "-";
+}
+
+function padBillSequence(value, size = 3) {
+  return String(Math.max(1, Number(value) || 1)).padStart(size, "0");
+}
+
+function formatBillCodeDate(value) {
+  const raw = String(value || "").trim();
+
+  if (raw) {
+    const direct = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (direct) return `${direct[1]}${direct[2]}${direct[3]}`;
+
+    const d = new Date(raw);
+    if (Number.isFinite(d.getTime())) {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      return `${y}${m}${day}`;
+    }
+  }
+
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(now.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${day}`;
+}
+
+function formatBillIsoDay(value) {
+  const raw = String(value || "").trim();
+
+  if (raw) {
+    const direct = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (direct) return `${direct[1]}-${direct[2]}-${direct[3]}`;
+
+    const d = new Date(raw);
+    if (Number.isFinite(d.getTime())) {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+  }
+
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(now.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function makeAutoSupplierBillNo(locationCode, sequence, codeDate) {
+  const branch = safe(locationCode || "BRANCH").toUpperCase();
+  return `BILL-${branch}-${codeDate}-${padBillSequence(sequence, 3)}`;
+}
+
+async function buildNextSupplierBillNo({
+  locationId,
+  locations,
+  issuedDate = "",
+}) {
+  const branchCode = findLocationCode(locations, locationId) || "BRANCH";
+  const isoDay = formatBillIsoDay(issuedDate);
+  const codeDate = formatBillCodeDate(issuedDate);
+
+  const params = new URLSearchParams();
+  params.set("locationId", String(locationId));
+  params.set("from", isoDay);
+  params.set("to", isoDay);
+  params.set("limit", "200");
+
+  const result = await apiFetch(`/owner/supplier-bills?${params.toString()}`, {
+    method: "GET",
+  });
+
+  const rows = normalizeBillsResponse(result)
+    .map(normalizeBill)
+    .filter(Boolean);
+
+  const sameDayRows = rows.filter((row) => {
+    if (String(row?.locationId || "") !== String(locationId)) return false;
+    return formatBillIsoDay(row?.issuedDate) === isoDay;
+  });
+
+  const nextSequence = sameDayRows.length + 1;
+
+  return makeAutoSupplierBillNo(branchCode, nextSequence, codeDate);
 }
 
 function displayBranchSub(row, locations = []) {
@@ -501,10 +598,35 @@ function buildPurchaseOrderOptionLabel(row) {
 }
 
 function buildGoodsReceiptOptionLabel(row) {
-  const ref = safe(row?.receiptNo) || `GR #${row?.id}`;
-  const supplier = safe(row?.supplierName) || "Unknown supplier";
-  const poPart = row?.purchaseOrderId ? `PO #${row.purchaseOrderId}` : "No PO";
-  return `${ref} — ${supplier} — ${poPart}`;
+  if (!row) return "Goods receipt";
+
+  const receiptNo =
+    safe(row.receiptNo) ||
+    safe(row.grnNo) ||
+    safe(row.goodsReceiptNo) ||
+    `GRN-${safeNumber(row.id)}`;
+
+  const supplierName = safe(row.supplierName);
+  const branchName = safe(row.locationName);
+  const branchCode = safe(row.locationCode);
+  const poNo = safe(row.purchaseOrderNo) || safe(row.poNo);
+  const receivedAt =
+    safeDate(row.receivedAt || row.createdAt || row.created_at) || "";
+  const total =
+    row.totalAmount != null
+      ? money(row.totalAmount, row.currency || "RWF")
+      : "";
+
+  const parts = [
+    receiptNo,
+    supplierName,
+    branchName ? `${branchName}${branchCode ? ` (${branchCode})` : ""}` : "",
+    poNo ? `PO ${poNo}` : "",
+    total,
+    receivedAt,
+  ].filter(Boolean);
+
+  return parts.join(" • ");
 }
 
 function CreateBillModal({
@@ -541,6 +663,7 @@ function CreateBillModalInner({
 }) {
   const [form, setForm] = useState(() => billCreateDefaults(suppliers));
   const [errorText, setErrorText] = useState("");
+  const [billNoLoading, setBillNoLoading] = useState(false);
 
   const selectedSupplier = useMemo(
     () =>
@@ -553,10 +676,18 @@ function CreateBillModalInner({
   const filteredPurchaseOrders = useMemo(() => {
     const rows = Array.isArray(purchaseOrders) ? purchaseOrders : [];
     return rows.filter((row) => {
-      if (form.locationId && String(row.locationId) !== String(form.locationId))
+      if (
+        form.locationId &&
+        String(row.locationId) !== String(form.locationId)
+      ) {
         return false;
-      if (form.supplierId && String(row.supplierId) !== String(form.supplierId))
+      }
+      if (
+        form.supplierId &&
+        String(row.supplierId) !== String(form.supplierId)
+      ) {
         return false;
+      }
       return true;
     });
   }, [purchaseOrders, form.locationId, form.supplierId]);
@@ -564,15 +695,24 @@ function CreateBillModalInner({
   const filteredGoodsReceipts = useMemo(() => {
     const rows = Array.isArray(goodsReceipts) ? goodsReceipts : [];
     return rows.filter((row) => {
-      if (form.locationId && String(row.locationId) !== String(form.locationId))
+      if (
+        form.locationId &&
+        String(row.locationId) !== String(form.locationId)
+      ) {
         return false;
-      if (form.supplierId && String(row.supplierId) !== String(form.supplierId))
+      }
+      if (
+        form.supplierId &&
+        String(row.supplierId) !== String(form.supplierId)
+      ) {
         return false;
+      }
       if (
         form.purchaseOrderId &&
         String(row.purchaseOrderId) !== String(form.purchaseOrderId)
-      )
+      ) {
         return false;
+      }
       return true;
     });
   }, [goodsReceipts, form.locationId, form.supplierId, form.purchaseOrderId]);
@@ -591,10 +731,147 @@ function CreateBillModalInner({
       ? normalizeCurrency(selectedPurchaseOrder.currency)
       : normalizeCurrency(form.currency);
 
+  function handleSupplierChange(nextSupplierId) {
+    setForm((prev) => ({
+      ...prev,
+      supplierId: nextSupplierId,
+      purchaseOrderId: "",
+      goodsReceiptId: "",
+      billNo: "",
+      totalAmount: "",
+    }));
+  }
+
+  function handleLocationChange(nextLocationId) {
+    setForm((prev) => ({
+      ...prev,
+      locationId: nextLocationId,
+      purchaseOrderId: "",
+      goodsReceiptId: "",
+      billNo: "",
+      totalAmount: "",
+    }));
+  }
+
+  function handlePurchaseOrderChange(nextPurchaseOrderId) {
+    const picked =
+      filteredPurchaseOrders.find(
+        (row) => String(row.id) === String(nextPurchaseOrderId),
+      ) || null;
+
+    setForm((prev) => ({
+      ...prev,
+      purchaseOrderId: nextPurchaseOrderId,
+      goodsReceiptId: "",
+      totalAmount: picked ? String(safeNumber(picked.totalAmount ?? 0)) : "",
+    }));
+  }
+
+  function handleGoodsReceiptChange(nextGoodsReceiptId) {
+    const picked =
+      filteredGoodsReceipts.find(
+        (row) => String(row.id) === String(nextGoodsReceiptId),
+      ) || null;
+
+    setForm((prev) => {
+      const shouldUseGoodsReceiptAmount =
+        picked &&
+        (!prev.purchaseOrderId ||
+          !safe(prev.totalAmount) ||
+          Number(prev.totalAmount) <= 0);
+
+      return {
+        ...prev,
+        goodsReceiptId: nextGoodsReceiptId,
+        totalAmount: shouldUseGoodsReceiptAmount
+          ? String(safeNumber(picked.totalAmount ?? 0))
+          : prev.totalAmount,
+      };
+    });
+  }
+
+  useEffect(() => {
+    let alive = true;
+
+    async function refreshBillNo() {
+      const currentLocationId = String(form.locationId || "").trim();
+      if (!currentLocationId) return;
+
+      setBillNoLoading(true);
+
+      try {
+        const nextBillNo = await buildNextSupplierBillNo({
+          locationId: currentLocationId,
+          locations,
+          issuedDate: form.issuedDate,
+        });
+
+        if (!alive) return;
+
+        setForm((prev) => {
+          if (String(prev.locationId || "").trim() !== currentLocationId) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            billNo: safe(nextBillNo),
+          };
+        });
+      } catch (e) {
+        if (!alive) return;
+        setErrorText(
+          e?.data?.error ||
+            e?.message ||
+            "Failed to generate supplier bill number.",
+        );
+      } finally {
+        if (alive) setBillNoLoading(false);
+      }
+    }
+
+    refreshBillNo();
+
+    return () => {
+      alive = false;
+    };
+  }, [form.locationId, form.issuedDate, locations]);
+
   async function handleSave() {
     setErrorText("");
 
     try {
+      if (
+        !Number.isFinite(Number(form.supplierId)) ||
+        Number(form.supplierId) <= 0
+      ) {
+        setErrorText("Please choose a supplier.");
+        return;
+      }
+
+      if (
+        !Number.isFinite(Number(form.locationId)) ||
+        Number(form.locationId) <= 0
+      ) {
+        setErrorText("Please choose a branch.");
+        return;
+      }
+
+      if (
+        !Number.isFinite(Number(form.totalAmount)) ||
+        Number(form.totalAmount) <= 0
+      ) {
+        setErrorText("Please enter a valid total amount.");
+        return;
+      }
+
+      if (billNoLoading || !safe(form.billNo)) {
+        setErrorText(
+          "Please wait a moment for the bill number to finish generating.",
+        );
+        return;
+      }
+
       const payload = {
         supplierId: Number(form.supplierId),
         locationId: Number(form.locationId),
@@ -604,16 +881,16 @@ function CreateBillModalInner({
         ...(form.goodsReceiptId
           ? { goodsReceiptId: Number(form.goodsReceiptId) }
           : {}),
-        billNo: form.billNo || undefined,
+        billNo: safe(form.billNo),
         currency: effectiveCurrency || undefined,
         totalAmount: Number(form.totalAmount),
         issuedDate: form.issuedDate || undefined,
         dueDate: form.dueDate || undefined,
-        note: form.note || undefined,
+        note: safe(form.note) || undefined,
         status: form.status || undefined,
       };
 
-      const result = await apiFetch("/supplier-bills", {
+      const result = await apiFetch("/owner/supplier-bills", {
         method: "POST",
         body: payload,
       });
@@ -641,17 +918,10 @@ function CreateBillModalInner({
           </label>
           <FormSelect
             value={form.supplierId}
-            onChange={(e) =>
-              setForm((prev) => ({
-                ...prev,
-                supplierId: e.target.value,
-                purchaseOrderId: "",
-                goodsReceiptId: "",
-              }))
-            }
+            onChange={(e) => handleSupplierChange(e.target.value)}
           >
             <option value="">Choose supplier</option>
-            {suppliers.map((row) => (
+            {(Array.isArray(suppliers) ? suppliers : []).map((row) => (
               <option key={row.id} value={row.id}>
                 {safe(row.name)}
               </option>
@@ -665,17 +935,10 @@ function CreateBillModalInner({
           </label>
           <FormSelect
             value={form.locationId}
-            onChange={(e) =>
-              setForm((prev) => ({
-                ...prev,
-                locationId: e.target.value,
-                purchaseOrderId: "",
-                goodsReceiptId: "",
-              }))
-            }
+            onChange={(e) => handleLocationChange(e.target.value)}
           >
             <option value="">Choose branch</option>
-            {locations.map((row) => (
+            {(Array.isArray(locations) ? locations : []).map((row) => (
               <option key={row.id} value={row.id}>
                 {safe(row.name)} {safe(row.code) ? `(${safe(row.code)})` : ""}
               </option>
@@ -689,13 +952,7 @@ function CreateBillModalInner({
           </label>
           <FormSelect
             value={form.purchaseOrderId}
-            onChange={(e) =>
-              setForm((prev) => ({
-                ...prev,
-                purchaseOrderId: e.target.value,
-                goodsReceiptId: "",
-              }))
-            }
+            onChange={(e) => handlePurchaseOrderChange(e.target.value)}
           >
             <option value="">No purchase order link</option>
             {filteredPurchaseOrders.map((row) => (
@@ -704,6 +961,10 @@ function CreateBillModalInner({
               </option>
             ))}
           </FormSelect>
+          <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+            When a purchase order is selected, the bill amount is filled
+            automatically from that purchase order total.
+          </p>
         </div>
 
         <div className="md:col-span-2">
@@ -712,9 +973,7 @@ function CreateBillModalInner({
           </label>
           <FormSelect
             value={form.goodsReceiptId}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, goodsReceiptId: e.target.value }))
-            }
+            onChange={(e) => handleGoodsReceiptChange(e.target.value)}
           >
             <option value="">No goods receipt link</option>
             {filteredGoodsReceipts.map((row) => (
@@ -723,18 +982,21 @@ function CreateBillModalInner({
               </option>
             ))}
           </FormSelect>
+          <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+            Shows receipt number, supplier, branch, received date, and total
+            value.
+          </p>
         </div>
 
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Bill number
+            Bill number (automatic)
           </label>
           <FormInput
             value={form.billNo}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, billNo: e.target.value }))
-            }
-            placeholder="Example: INV-2026-014"
+            readOnly
+            disabled
+            placeholder={billNoLoading ? "Generating..." : "Auto-generated"}
           />
         </div>
 
@@ -769,6 +1031,10 @@ function CreateBillModalInner({
             }
             placeholder="0"
           />
+          <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+            Auto-filled from the selected purchase order. You can still adjust
+            it if the supplier bill differs.
+          </p>
         </div>
 
         <div>
@@ -794,7 +1060,11 @@ function CreateBillModalInner({
             type="date"
             value={form.issuedDate}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, issuedDate: e.target.value }))
+              setForm((prev) => ({
+                ...prev,
+                issuedDate: e.target.value,
+                billNo: "",
+              }))
             }
           />
         </div>
@@ -838,7 +1108,7 @@ function CreateBillModalInner({
         </button>
         <AsyncButton
           idleText="Create supplier bill"
-          loadingText="Creating..."
+          loadingText={billNoLoading ? "Preparing..." : "Creating..."}
           successText="Created"
           onClick={handleSave}
         />
@@ -956,7 +1226,7 @@ function EditBillModalInner({
         status: form.status || undefined,
       };
 
-      const result = await apiFetch(`/supplier-bills/${bill.id}`, {
+      const result = await apiFetch(`/owner/supplier-bills/${bill.id}`, {
         method: "PATCH",
         body: payload,
       });
@@ -1202,32 +1472,82 @@ function AddPaymentModal({ open, bill, onClose, onSaved }) {
   );
 }
 
+function buildSupplierBillPaymentReference(bill, method = "BANK") {
+  const methodCode = String(method || "BANK")
+    .trim()
+    .toUpperCase();
+  const billNo = safe(bill?.billNo);
+  const purchaseOrderNo = safe(bill?.purchaseOrderNo);
+  const goodsReceiptNo = safe(bill?.goodsReceiptNo);
+  const billId = safeNumber(bill?.id);
+
+  const base =
+    billNo ||
+    purchaseOrderNo ||
+    goodsReceiptNo ||
+    `BILL-${String(billId || "").trim() || "NA"}`;
+
+  return `${methodCode}-PAY-${base}`;
+}
+
 function AddPaymentModalInner({ bill, onClose, onSaved }) {
+  const initialMethod = "BANK";
+  const initialAutoReference = buildSupplierBillPaymentReference(
+    bill,
+    initialMethod,
+  );
+
   const [form, setForm] = useState({
-    amount: String(bill.balance ?? ""),
-    method: "BANK",
-    reference: "",
+    amount: String(bill?.balance ?? ""),
+    method: initialMethod,
+    reference: initialAutoReference,
     note: "",
     paidAt: "",
   });
   const [errorText, setErrorText] = useState("");
 
+  function handleMethodChange(nextMethod) {
+    setForm((prev) => {
+      const previousAuto = buildSupplierBillPaymentReference(bill, prev.method);
+      const nextAuto = buildSupplierBillPaymentReference(bill, nextMethod);
+
+      const shouldReplaceReference =
+        !safe(prev.reference) || safe(prev.reference) === previousAuto;
+
+      return {
+        ...prev,
+        method: nextMethod,
+        reference: shouldReplaceReference ? nextAuto : prev.reference,
+      };
+    });
+  }
+
   async function handleSave() {
     setErrorText("");
 
     try {
+      const amount = Number(form.amount);
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        setErrorText("Please enter a valid payment amount.");
+        return;
+      }
+
       const payload = {
-        amount: Number(form.amount),
+        amount,
         method: form.method,
-        reference: form.reference || undefined,
-        note: form.note || undefined,
-        paidAt: form.paidAt || undefined,
+        reference: safe(form.reference) || undefined,
+        note: safe(form.note) || undefined,
+        paidAt: safe(form.paidAt) || undefined,
       };
 
-      const result = await apiFetch(`/supplier-bills/${bill.id}/payments`, {
-        method: "POST",
-        body: payload,
-      });
+      const result = await apiFetch(
+        `/owner/supplier-bills/${bill.id}/payments`,
+        {
+          method: "POST",
+          body: payload,
+        },
+      );
 
       onSaved?.(result);
     } catch (e) {
@@ -1244,6 +1564,7 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
       onClose={onClose}
     >
       <AlertBox message={errorText} />
+
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
@@ -1257,15 +1578,14 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
             }
           />
         </div>
+
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Payment method
           </label>
           <FormSelect
             value={form.method}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, method: e.target.value }))
-            }
+            onChange={(e) => handleMethodChange(e.target.value)}
           >
             <option value="BANK">Bank</option>
             <option value="CASH">Cash</option>
@@ -1274,6 +1594,7 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
             <option value="OTHER">Other</option>
           </FormSelect>
         </div>
+
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Reference
@@ -1283,20 +1604,28 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
             onChange={(e) =>
               setForm((prev) => ({ ...prev, reference: e.target.value }))
             }
+            placeholder={buildSupplierBillPaymentReference(bill, form.method)}
           />
+          <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+            Auto-filled from this bill and payment method. Replace it with the
+            real bank, MoMo, cash, or card reference if needed.
+          </p>
         </div>
+
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Paid at
           </label>
-          <FormInput
+          <input
             type="datetime-local"
             value={form.paidAt}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, paidAt: e.target.value }))
             }
+            className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
           />
         </div>
+
         <div className="md:col-span-2">
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Payment note
@@ -1308,6 +1637,7 @@ function AddPaymentModalInner({ bill, onClose, onSaved }) {
             }
             rows={4}
             className="w-full rounded-[18px] border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
+            placeholder="Payment note"
           />
         </div>
       </div>

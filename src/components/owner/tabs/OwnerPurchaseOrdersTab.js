@@ -266,7 +266,7 @@ function PurchaseOrderCard({ row, active, onSelect, locations = [] }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <div className="truncate text-sm font-black text-stone-950 dark:text-stone-50">
-              {safe(row?.poNo) || `PO #${safe(row?.id) || "-"}`}
+              {safe(row?.poNo) || "No order number"}
             </div>
             <Pill tone={statusTone(status)}>{status}</Pill>
             <Pill tone="neutral">{normalizeCurrency(row?.currency)}</Pill>
@@ -394,16 +394,12 @@ function makeEmptyLine() {
 function buildCreateDefaults(suppliers, locations) {
   const firstSupplier = Array.isArray(suppliers) ? suppliers[0] : null;
   const firstLocation = Array.isArray(locations) ? locations[0] : null;
-  const firstLocationCode = findLocationCode(
-    locations,
-    firstLocation?.id || "",
-  );
 
   return {
     supplierId: firstSupplier?.id ? String(firstSupplier.id) : "",
     locationId: firstLocation?.id ? String(firstLocation.id) : "",
-    poNo: makeAutoPoNo(firstLocationCode, 1),
-    reference: makeAutoReference(firstLocationCode, 1),
+    poNo: "",
+    reference: "",
     currency: normalizeCurrency(firstSupplier?.defaultCurrency || "RWF"),
     orderedAt: "",
     expectedAt: "",
@@ -411,7 +407,6 @@ function buildCreateDefaults(suppliers, locations) {
     items: [makeEmptyLine()],
   };
 }
-
 function buildEditDefaults(purchaseOrder, items) {
   return {
     supplierId: purchaseOrder?.supplierId
@@ -1013,12 +1008,98 @@ function buildAutoCode(
   return `${prefix}-${branchPart}-${datePart}-${seqPart}`;
 }
 
-function makeAutoPoNo(locationCode = "", sequence = 1) {
-  return buildAutoCode("PO", locationCode, sequence);
+function padSequence(value, size = 3) {
+  return String(Math.max(1, Number(value) || 1)).padStart(size, "0");
 }
 
-function makeAutoReference(locationCode = "", sequence = 1) {
-  return buildAutoCode("REF", locationCode, sequence);
+function formatCodeDate(value) {
+  const raw = String(value || "").trim();
+
+  if (raw) {
+    const direct = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (direct) {
+      return `${direct[1]}${direct[2]}${direct[3]}`;
+    }
+
+    const d = new Date(raw);
+    if (Number.isFinite(d.getTime())) {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      return `${y}${m}${day}`;
+    }
+  }
+
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(now.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${day}`;
+}
+
+function formatIsoDay(value) {
+  const raw = String(value || "").trim();
+
+  if (raw) {
+    const direct = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (direct) return `${direct[1]}-${direct[2]}-${direct[3]}`;
+
+    const d = new Date(raw);
+    if (Number.isFinite(d.getTime())) {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+  }
+
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(now.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function makeAutoPoNo(locationCode, sequence, codeDate) {
+  const branch = safe(locationCode || "BRANCH").toUpperCase();
+  return `PO-${branch}-${codeDate}-${padSequence(sequence, 3)}`;
+}
+
+function makeAutoReference(locationCode, sequence, codeDate) {
+  const branch = safe(locationCode || "BRANCH").toUpperCase();
+  return `REF-${branch}-${codeDate}-${padSequence(sequence, 3)}`;
+}
+
+async function buildNextAutoCodes({ locationId, locations, orderedAt = "" }) {
+  const branchCode = findLocationCode(locations, locationId) || "BRANCH";
+  const isoDay = formatIsoDay(orderedAt);
+  const codeDate = formatCodeDate(orderedAt);
+
+  const params = new URLSearchParams();
+  params.set("locationId", String(locationId));
+  params.set("from", isoDay);
+  params.set("to", isoDay);
+  params.set("limit", "200");
+
+  const result = await apiFetch(`/purchase-orders?${params.toString()}`, {
+    method: "GET",
+  });
+
+  const rows = normalizePurchaseOrdersResponse(result)
+    .map(normalizePurchaseOrder)
+    .filter(Boolean);
+
+  const sameDayRows = rows.filter((row) => {
+    if (String(row?.locationId || "") !== String(locationId)) return false;
+    return formatIsoDay(row?.orderedAt) === isoDay;
+  });
+
+  const nextSequence = sameDayRows.length + 1;
+
+  return {
+    poNo: makeAutoPoNo(branchCode, nextSequence, codeDate),
+    reference: makeAutoReference(branchCode, nextSequence, codeDate),
+  };
 }
 
 function extractAutoCodeSequence(
@@ -1037,45 +1118,6 @@ function extractAutoCodeSequence(
   const tail = raw.slice(expectedPrefix.length);
   const seq = Number(tail);
   return Number.isInteger(seq) && seq > 0 ? seq : 0;
-}
-
-async function buildNextAutoCodes({ locationId, locations = [] }) {
-  const code = findLocationCode(locations, locationId);
-  const suffix = locationId
-    ? `?locationId=${encodeURIComponent(locationId)}`
-    : "";
-
-  let rows = [];
-
-  try {
-    const result = await apiFetch(`/purchase-orders${suffix}`, {
-      method: "GET",
-    });
-
-    rows = normalizePurchaseOrdersResponse(result)
-      .map(normalizePurchaseOrder)
-      .filter(Boolean);
-  } catch {
-    rows = [];
-  }
-
-  const poMax = rows.reduce((maxValue, row) => {
-    return Math.max(maxValue, extractAutoCodeSequence(row?.poNo, "PO", code));
-  }, 0);
-
-  const refMax = rows.reduce((maxValue, row) => {
-    return Math.max(
-      maxValue,
-      extractAutoCodeSequence(row?.reference, "REF", code),
-    );
-  }, 0);
-
-  const nextSequence = Math.max(poMax, refMax, 0) + 1;
-
-  return {
-    poNo: makeAutoPoNo(code, nextSequence),
-    reference: makeAutoReference(code, nextSequence),
-  };
 }
 
 function findLocationCode(locations = [], locationId = "") {
@@ -1113,6 +1155,7 @@ function CreatePurchaseOrderModalInner({
     : normalizeCurrency(form.currency);
 
   const formItems = Array.isArray(form.items) ? form.items : [];
+
   const subtotal = formItems.reduce((sum, line) => {
     const qty = safeNumber(line?.qtyOrdered) || 0;
     const unitCost = safeNumber(line?.unitCost) || 0;
@@ -1141,35 +1184,80 @@ function CreatePurchaseOrderModalInner({
   }
 
   function handleLocationChange(nextLocationId) {
-    setForm((prev) => ({
-      ...prev,
-      locationId: nextLocationId,
-      poNo: "",
-      reference: "",
-    }));
+    setForm((prev) => {
+      if (String(prev.locationId || "") === String(nextLocationId || "")) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        locationId: nextLocationId,
+        poNo: "",
+        reference: "",
+      };
+    });
   }
 
   useEffect(() => {
     let alive = true;
 
+    const currentLocationId = String(form.locationId || "").trim();
+    const currentOrderedAt = String(form.orderedAt || "").trim();
+
     async function refreshAutoCodes() {
-      if (!form.locationId) return;
+      if (!currentLocationId) {
+        setForm((prev) => ({
+          ...prev,
+          poNo: "",
+          reference: "",
+        }));
+        return;
+      }
 
       setCodeLoading(true);
+      setErrorText("");
 
       try {
         const nextCodes = await buildNextAutoCodes({
-          locationId: form.locationId,
+          locationId: currentLocationId,
           locations,
+          orderedAt: currentOrderedAt,
         });
 
         if (!alive) return;
 
-        setForm((prev) => ({
-          ...prev,
-          poNo: nextCodes.poNo,
-          reference: nextCodes.reference,
-        }));
+        setForm((prev) => {
+          if (String(prev.locationId || "").trim() !== currentLocationId) {
+            return prev;
+          }
+
+          if (String(prev.orderedAt || "").trim() !== currentOrderedAt) {
+            return prev;
+          }
+
+          const nextPoNo = safe(nextCodes?.poNo);
+          const nextReference = safe(nextCodes?.reference);
+
+          if (
+            nextPoNo === safe(prev.poNo) &&
+            nextReference === safe(prev.reference)
+          ) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            poNo: nextPoNo,
+            reference: nextReference,
+          };
+        });
+      } catch (e) {
+        if (!alive) return;
+        setErrorText(
+          e?.data?.error ||
+            e?.message ||
+            "Failed to generate purchase order codes.",
+        );
       } finally {
         if (alive) setCodeLoading(false);
       }
@@ -1180,7 +1268,7 @@ function CreatePurchaseOrderModalInner({
     return () => {
       alive = false;
     };
-  }, [form.locationId, locations]);
+  }, [form.locationId, form.orderedAt, locations]);
 
   async function handleSave() {
     setErrorText("");
@@ -1207,6 +1295,13 @@ function CreatePurchaseOrderModalInner({
         return;
       }
 
+      if (codeLoading) {
+        setErrorText(
+          "Please wait a moment for the order number and reference to finish generating.",
+        );
+        return;
+      }
+
       if (!safe(form.poNo) || !safe(form.reference)) {
         setErrorText(
           "Please wait a moment for the order number and reference to finish generating.",
@@ -1214,24 +1309,42 @@ function CreatePurchaseOrderModalInner({
         return;
       }
 
+      const normalizedItems = formItems.map((line) => ({
+        ...(line.productId ? { productId: Number(line.productId) } : {}),
+        ...(safe(line.productName)
+          ? { productName: safe(line.productName) }
+          : {}),
+        qtyOrdered: Number(line.qtyOrdered),
+        unitCost: Number(line.unitCost),
+        ...(safe(line.note) ? { note: safe(line.note) } : {}),
+      }));
+
+      const invalidLine = normalizedItems.find(
+        (line) =>
+          !Number.isFinite(line.qtyOrdered) ||
+          line.qtyOrdered <= 0 ||
+          !Number.isFinite(line.unitCost) ||
+          line.unitCost < 0 ||
+          (!line.productId && !safe(line.productName)),
+      );
+
+      if (invalidLine) {
+        setErrorText(
+          "Please make sure every line has a product or item name, a valid quantity, and a valid unit cost.",
+        );
+        return;
+      }
+
       const payload = {
         supplierId: Number(form.supplierId),
         locationId: Number(form.locationId),
-        poNo: safe(form.poNo) || undefined,
-        reference: safe(form.reference) || undefined,
+        poNo: safe(form.poNo),
+        reference: safe(form.reference),
         currency: effectiveCurrency || undefined,
         orderedAt: form.orderedAt || undefined,
         expectedAt: form.expectedAt || undefined,
         notes: safe(form.notes) || undefined,
-        items: formItems.map((line) => ({
-          ...(line.productId ? { productId: Number(line.productId) } : {}),
-          ...(safe(line.productName)
-            ? { productName: safe(line.productName) }
-            : {}),
-          qtyOrdered: Number(line.qtyOrdered),
-          unitCost: Number(line.unitCost),
-          ...(safe(line.note) ? { note: safe(line.note) } : {}),
-        })),
+        items: normalizedItems,
       };
 
       const result = await apiFetch("/purchase-orders", {
@@ -1243,12 +1356,14 @@ function CreatePurchaseOrderModalInner({
     } catch (e) {
       const msg =
         e?.data?.error || e?.message || "Failed to create purchase order";
+
       if (String(msg).toLowerCase().includes("forbidden")) {
         setErrorText(
           "You do not have permission to create purchase orders with this account. The backend is blocking POST /purchase-orders.",
         );
         return;
       }
+
       setErrorText(msg);
     }
   }
@@ -1283,7 +1398,7 @@ function CreatePurchaseOrderModalInner({
                   }
                 >
                   <option value="">Choose supplier</option>
-                  {suppliers.map((row) => (
+                  {(Array.isArray(suppliers) ? suppliers : []).map((row) => (
                     <option key={row.id} value={row.id}>
                       {safe(row.name)}
                     </option>
@@ -1300,10 +1415,10 @@ function CreatePurchaseOrderModalInner({
                   onChange={(e) => handleLocationChange(e.target.value)}
                 >
                   <option value="">Choose branch</option>
-                  {locations.map((row) => (
+                  {(Array.isArray(locations) ? locations : []).map((row) => (
                     <option key={row.id} value={row.id}>
-                      {safe(row.name)}{" "}
-                      {safe(row.code) ? `(${safe(row.code)})` : ""}
+                      {safe(row.name)}
+                      {safe(row.code) ? ` (${safe(row.code)})` : ""}
                     </option>
                   ))}
                 </FormSelect>
@@ -1475,8 +1590,8 @@ function CreatePurchaseOrderModalInner({
                 After review, it can be approved before stock starts arriving.
               </p>
               <p>
-                The order number and reference are generated automatically in
-                daily order, so the next one becomes 0001, 0002, 0003 and so on.
+                The order number and reference are generated automatically from
+                the selected branch and order date.
               </p>
             </div>
 
@@ -2729,8 +2844,12 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
   }, [selectedPurchaseOrderId]);
 
   async function handleActionSaved(actionText, result) {
+    const savedPurchaseOrder = result?.purchaseOrder
+      ? normalizePurchaseOrder(result.purchaseOrder)
+      : null;
+
     const nextId =
-      result?.purchaseOrder?.id ??
+      savedPurchaseOrder?.id ??
       purchaseOrderDetail?.purchaseOrder?.id ??
       receivingPurchaseOrder?.id ??
       selectedPurchaseOrderId ??
@@ -2742,6 +2861,21 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
     setApprovingPurchaseOrder(null);
     setCancellingPurchaseOrder(null);
     setReceivingPurchaseOrder(null);
+
+    if (savedPurchaseOrder) {
+      setPurchaseOrders((prev) => {
+        const rows = Array.isArray(prev) ? prev : [];
+        const withoutCurrent = rows.filter(
+          (row) => String(row?.id) !== String(savedPurchaseOrder.id),
+        );
+        return [savedPurchaseOrder, ...withoutCurrent];
+      });
+
+      setPurchaseOrderDetail({
+        purchaseOrder: savedPurchaseOrder,
+        items: Array.isArray(result?.items) ? result.items : [],
+      });
+    }
 
     await loadList();
 
@@ -2921,7 +3055,7 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
                       <option value="">Select purchase order</option>
                       {purchaseOrders.map((row) => (
                         <option key={row.id} value={String(row.id)}>
-                          {`${safe(row.poNo) || `PO #${row.id}`} — ${safe(row.supplierName) || "-"}`}
+                          {`${safe(row.poNo) || "No order number"} — ${safe(row.supplierName) || "-"}`}
                         </option>
                       ))}
                     </FormSelect>
@@ -3123,8 +3257,7 @@ export default function OwnerPurchaseOrdersTab({ locations = [] }) {
                           {normalizeCurrency(detailPurchaseOrder?.currency)}
                         </Pill>
                         <Pill tone="info">
-                          {safe(detailPurchaseOrder?.poNo) ||
-                            `PO #${detailPurchaseOrder?.id}`}
+                          {safe(detailPurchaseOrder?.poNo) || "No order number"}
                         </Pill>
                       </div>
 
