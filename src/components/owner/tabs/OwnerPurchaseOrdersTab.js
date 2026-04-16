@@ -394,12 +394,16 @@ function makeEmptyLine() {
 function buildCreateDefaults(suppliers, locations) {
   const firstSupplier = Array.isArray(suppliers) ? suppliers[0] : null;
   const firstLocation = Array.isArray(locations) ? locations[0] : null;
+  const firstLocationCode = findLocationCode(
+    locations,
+    firstLocation?.id || "",
+  );
 
   return {
     supplierId: firstSupplier?.id ? String(firstSupplier.id) : "",
     locationId: firstLocation?.id ? String(firstLocation.id) : "",
-    poNo: "",
-    reference: "",
+    poNo: makeAutoPoNo(firstLocationCode),
+    reference: makeAutoReference(firstLocationCode),
     currency: normalizeCurrency(firstSupplier?.defaultCurrency || "RWF"),
     orderedAt: "",
     expectedAt: "",
@@ -864,6 +868,53 @@ function CreatePurchaseOrderModal({
   );
 }
 
+function pad2(v) {
+  return String(v).padStart(2, "0");
+}
+
+function makeAutoPoNo(locationCode = "") {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = pad2(now.getMonth() + 1);
+  const day = pad2(now.getDate());
+
+  const branchPart =
+    safe(locationCode || "MAIN")
+      .replace(/[^A-Za-z0-9]/g, "")
+      .toUpperCase()
+      .slice(0, 8) || "MAIN";
+
+  const randomPart = Math.floor(1000 + Math.random() * 9000);
+
+  return `PO-${branchPart}-${year}${month}${day}-${randomPart}`;
+}
+
+function makeAutoReference(locationCode = "") {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = pad2(now.getMonth() + 1);
+  const day = pad2(now.getDate());
+
+  const branchPart =
+    safe(locationCode || "MAIN")
+      .replace(/[^A-Za-z0-9]/g, "")
+      .toUpperCase()
+      .slice(0, 8) || "MAIN";
+
+  const randomPart = Math.floor(1000 + Math.random() * 9000);
+
+  return `REF-${branchPart}-${year}${month}${day}-${randomPart}`;
+}
+
+function findLocationCode(locations = [], locationId = "") {
+  const row =
+    (Array.isArray(locations) ? locations : []).find(
+      (item) => String(item?.id) === String(locationId),
+    ) || null;
+
+  return safe(row?.code) || safe(row?.name) || "MAIN";
+}
+
 function CreatePurchaseOrderModalInner({
   suppliers,
   locations,
@@ -916,10 +967,42 @@ function CreatePurchaseOrderModalInner({
     }));
   }
 
+  function handleLocationChange(nextLocationId) {
+    const nextLocationCode = findLocationCode(locations, nextLocationId);
+
+    setForm((prev) => ({
+      ...prev,
+      locationId: nextLocationId,
+      poNo: makeAutoPoNo(nextLocationCode),
+      reference: makeAutoReference(nextLocationCode),
+    }));
+  }
+
   async function handleSave() {
     setErrorText("");
 
     try {
+      if (
+        !Number.isFinite(Number(form.supplierId)) ||
+        Number(form.supplierId) <= 0
+      ) {
+        setErrorText("Please choose a supplier.");
+        return;
+      }
+
+      if (
+        !Number.isFinite(Number(form.locationId)) ||
+        Number(form.locationId) <= 0
+      ) {
+        setErrorText("Please choose the branch receiving this order.");
+        return;
+      }
+
+      if (!formItems.length) {
+        setErrorText("Please add at least one order line.");
+        return;
+      }
+
       const payload = {
         supplierId: Number(form.supplierId),
         locationId: Number(form.locationId),
@@ -947,9 +1030,15 @@ function CreatePurchaseOrderModalInner({
 
       onSaved?.(result);
     } catch (e) {
-      setErrorText(
-        e?.data?.error || e?.message || "Failed to create purchase order",
-      );
+      const msg =
+        e?.data?.error || e?.message || "Failed to create purchase order";
+      if (String(msg).toLowerCase().includes("forbidden")) {
+        setErrorText(
+          "You do not have permission to create purchase orders with this account. The backend is blocking POST /purchase-orders.",
+        );
+        return;
+      }
+      setErrorText(msg);
     }
   }
 
@@ -997,12 +1086,7 @@ function CreatePurchaseOrderModalInner({
                 </label>
                 <FormSelect
                   value={form.locationId}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      locationId: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => handleLocationChange(e.target.value)}
                 >
                   <option value="">Choose branch</option>
                   {locations.map((row) => (
@@ -1016,27 +1100,25 @@ function CreatePurchaseOrderModalInner({
 
               <div>
                 <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                  Purchase order number
+                  Purchase order number (automatic)
                 </label>
                 <FormInput
                   value={form.poNo}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, poNo: e.target.value }))
-                  }
-                  placeholder="Example: PO-2026-001"
+                  readOnly
+                  disabled
+                  placeholder="Auto-generated"
                 />
               </div>
 
               <div>
                 <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                  Reference
+                  Reference (automatic)
                 </label>
                 <FormInput
                   value={form.reference}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, reference: e.target.value }))
-                  }
-                  placeholder="Supplier quote, request number, or memo"
+                  readOnly
+                  disabled
+                  placeholder="Auto-generated"
                 />
               </div>
 
@@ -1182,8 +1264,8 @@ function CreatePurchaseOrderModalInner({
                 After review, it can be approved before stock starts arriving.
               </p>
               <p>
-                Use clear order numbers and references so non-technical staff
-                can understand them.
+                The order number and reference are generated automatically to
+                keep records consistent.
               </p>
             </div>
 
@@ -1405,14 +1487,13 @@ function EditPurchaseOrderModalInner({
 
               <div>
                 <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                  Reference
+                  Reference (automatic)
                 </label>
                 <FormInput
                   value={form.reference}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, reference: e.target.value }))
-                  }
-                  placeholder="Supplier quote, request number, or memo"
+                  readOnly
+                  disabled
+                  placeholder="Auto-generated"
                 />
               </div>
 
