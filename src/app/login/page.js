@@ -107,7 +107,7 @@ export default function LoginPage() {
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-500 dark:text-stone-400">
-                Business Control System
+                BCS
               </p>
               <p className="text-sm text-stone-600 dark:text-stone-300">
                 Owner access portal
