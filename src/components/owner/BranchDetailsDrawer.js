@@ -28,6 +28,10 @@ function branchStatusTone(status) {
   return "bg-stone-100 text-stone-700 dark:bg-stone-900 dark:text-stone-300";
 }
 
+function mainBadgeTone() {
+  return "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300";
+}
+
 function normalizeBankAccounts(value) {
   if (!Array.isArray(value)) return [];
 
@@ -93,12 +97,16 @@ export default function BranchDetailsDrawer({
   onOpenClose,
   onOpenReopen,
   onOpenArchive,
+  onSetMain,
 }) {
   const logoUrl = safe(location?.logoUrl)
     ? resolveAssetUrl(location.logoUrl)
     : "";
 
   const bankAccounts = normalizeBankAccounts(location?.bankAccounts);
+  const status = safe(location?.status).toUpperCase();
+  const isMain = location?.isMain === true || location?.is_main === true;
+  const canSetMain = status === "ACTIVE" && !isMain;
 
   return (
     <>
@@ -164,6 +172,16 @@ export default function BranchDetailsDrawer({
                   subtitle="This is the branch identity that should drive documents, branch switching, customer trust, and payment instructions."
                   right={
                     <div className="flex flex-wrap gap-2">
+                      {canSetMain ? (
+                        <button
+                          type="button"
+                          onClick={() => onSetMain?.(location)}
+                          className="rounded-xl border border-stone-900 bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-800 dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-200"
+                        >
+                          Set as main
+                        </button>
+                      ) : null}
+
                       <button
                         type="button"
                         onClick={() => onOpenEdit?.(location)}
@@ -172,7 +190,7 @@ export default function BranchDetailsDrawer({
                         Edit
                       </button>
 
-                      {safe(location?.status).toUpperCase() === "ACTIVE" ? (
+                      {status === "ACTIVE" ? (
                         <button
                           type="button"
                           onClick={() => onOpenClose?.(location)}
@@ -182,7 +200,7 @@ export default function BranchDetailsDrawer({
                         </button>
                       ) : null}
 
-                      {safe(location?.status).toUpperCase() === "CLOSED" ? (
+                      {status === "CLOSED" ? (
                         <button
                           type="button"
                           onClick={() => onOpenReopen?.(location)}
@@ -192,7 +210,7 @@ export default function BranchDetailsDrawer({
                         </button>
                       ) : null}
 
-                      {safe(location?.status).toUpperCase() !== "ARCHIVED" ? (
+                      {status !== "ARCHIVED" ? (
                         <button
                           type="button"
                           onClick={() => onOpenArchive?.(location)}
@@ -240,6 +258,14 @@ export default function BranchDetailsDrawer({
                               >
                                 {safe(location?.status) || "-"}
                               </span>
+
+                              {isMain ? (
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${mainBadgeTone()}`}
+                                >
+                                  Main branch
+                                </span>
+                              ) : null}
                             </div>
 
                             <p className="mt-2 text-sm text-stone-500 dark:text-stone-400">
@@ -327,6 +353,10 @@ export default function BranchDetailsDrawer({
                         </p>
 
                         <div className="mt-4">
+                          <DetailRow
+                            label="Main branch"
+                            value={isMain ? "Yes" : "No"}
+                          />
                           <DetailRow
                             label="Opened at"
                             value={safeDate(location?.openedAt)}

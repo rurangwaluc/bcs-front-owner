@@ -122,6 +122,16 @@ function buildBranchPayload(form) {
   };
 }
 
+function sortLocationsMainFirst(rows = []) {
+  return [...(Array.isArray(rows) ? rows : [])].sort((a, b) => {
+    const aMain = a?.isMain === true || a?.is_main === true ? 1 : 0;
+    const bMain = b?.isMain === true || b?.is_main === true ? 1 : 0;
+
+    if (aMain !== bMain) return bMain - aMain;
+    return safe(a?.name).localeCompare(safe(b?.name));
+  });
+}
+
 export default function DashboardPage() {
   const router = useRouter();
 
@@ -265,7 +275,7 @@ export default function DashboardPage() {
 
     if (locationsRes.status === "fulfilled") {
       const rows = Array.isArray(locationsRes.value?.locations)
-        ? locationsRes.value.locations
+        ? sortLocationsMainFirst(locationsRes.value.locations)
         : [];
       setLocations(rows);
       setSelectedLocationId((prev) =>
@@ -549,6 +559,26 @@ export default function DashboardPage() {
     }
   }
 
+  async function setMainBranch(location) {
+    if (!location?.id) return;
+
+    setErrorText("");
+    setSuccessText("");
+
+    try {
+      await apiFetch(`/owner/locations/${location.id}/set-main`, {
+        method: "POST",
+      });
+      await loadWorkspace();
+      setSelectedLocationId(location.id);
+      setSuccessText("Main branch updated successfully.");
+    } catch (error) {
+      setErrorText(
+        error?.data?.error || error?.message || "Failed to set main branch",
+      );
+    }
+  }
+
   async function archiveBranch() {
     if (!activeLocation?.id) return;
 
@@ -686,8 +716,8 @@ export default function DashboardPage() {
     setModalError("");
 
     try {
-      await apiFetch(`/users/${activeUser.id}`, {
-        method: "DELETE",
+      await apiFetch(`/users/${activeUser.id}/deactivate`, {
+        method: "POST",
       });
 
       closeAllUserModals();
@@ -715,11 +745,11 @@ export default function DashboardPage() {
     setCreateForm,
     editForm,
     setEditForm,
+    activeLocation,
     closeReason,
     setCloseReason,
     archiveReason,
     setArchiveReason,
-    activeLocation,
     createBranch,
     updateBranch,
     closeBranch,
@@ -732,6 +762,8 @@ export default function DashboardPage() {
     deactivateUserModalOpen,
     resetPasswordModalOpen,
     closeAllUserModals,
+    activeLocations,
+    activeUser,
     modalError,
     modalSubmitting,
     createUserForm,
@@ -740,8 +772,6 @@ export default function DashboardPage() {
     setEditUserForm,
     resetPasswordForm,
     setResetPasswordForm,
-    activeLocations,
-    activeUser,
     createUser,
     updateUser,
     deactivateUser,
@@ -759,65 +789,42 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
-      <div className="mx-auto max-w-[1800px] px-3 py-3 sm:px-4 sm:py-4">
-        {errorText ? (
-          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
-            {errorText}
-          </div>
-        ) : null}
-
-        {successText ? (
-          <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
-            {successText}
-          </div>
-        ) : null}
-
-        <OwnerWorkspace
-          me={me}
-          activeTab={activeTab}
-          onNavigate={handleTabChange}
-          onLogout={handleLogout}
-          onRefresh={handleRefresh}
-          summary={summary}
-          locations={locations}
-          users={users}
-          sales={sales}
-          audit={audit}
-          selectedLocationId={selectedLocationId}
-          setSelectedLocationId={setSelectedLocationId}
-          selectedUserId={selectedUserId}
-          setSelectedUserId={setSelectedUserId}
-          branchStatusFilter={branchStatusFilter}
-          setBranchStatusFilter={setBranchStatusFilter}
-          staffSearch={staffSearch}
-          setStaffSearch={setStaffSearch}
-          staffStatusFilter={staffStatusFilter}
-          setStaffStatusFilter={setStaffStatusFilter}
-          staffLocationFilter={staffLocationFilter}
-          setStaffLocationFilter={setStaffLocationFilter}
-          activeLocations={activeLocations}
-          openCreateBranchModal={openCreateBranchModal}
-          openEditBranchModal={openEditBranchModal}
-          openCloseBranchModal={openCloseBranchModal}
-          reopenBranch={reopenBranch}
-          openArchiveBranchModal={openArchiveBranchModal}
-          openCreateUserModal={openCreateUserModal}
-          openEditUserModal={openEditUserModal}
-          openDeactivateUserModal={openDeactivateUserModal}
-          onOpenResetPassword={openResetPasswordModal}
-          branchModalProps={branchModalProps}
-          staffModalProps={staffModalProps}
-        />
-      </div>
-
-      {loading ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center">
-          <div className="rounded-full border border-stone-200 bg-white/95 px-4 py-2 text-xs font-medium text-stone-600 shadow-sm backdrop-blur dark:border-stone-800 dark:bg-stone-900/95 dark:text-stone-300">
-            Refreshing workspace...
-          </div>
-        </div>
-      ) : null}
-    </div>
+    <OwnerWorkspace
+      me={me}
+      activeTab={activeTab}
+      onNavigate={handleTabChange}
+      onLogout={handleLogout}
+      onRefresh={handleRefresh}
+      summary={summary}
+      locations={locations}
+      users={users}
+      sales={sales}
+      audit={audit}
+      selectedLocationId={selectedLocationId}
+      setSelectedLocationId={setSelectedLocationId}
+      selectedUserId={selectedUserId}
+      setSelectedUserId={setSelectedUserId}
+      branchStatusFilter={branchStatusFilter}
+      setBranchStatusFilter={setBranchStatusFilter}
+      staffSearch={staffSearch}
+      setStaffSearch={setStaffSearch}
+      staffStatusFilter={staffStatusFilter}
+      setStaffStatusFilter={setStaffStatusFilter}
+      staffLocationFilter={staffLocationFilter}
+      setStaffLocationFilter={setStaffLocationFilter}
+      activeLocations={activeLocations}
+      openCreateBranchModal={openCreateBranchModal}
+      openEditBranchModal={openEditBranchModal}
+      openCloseBranchModal={openCloseBranchModal}
+      reopenBranch={reopenBranch}
+      openArchiveBranchModal={openArchiveBranchModal}
+      setMainBranch={setMainBranch}
+      openCreateUserModal={openCreateUserModal}
+      openEditUserModal={openEditUserModal}
+      openDeactivateUserModal={openDeactivateUserModal}
+      onOpenResetPassword={openResetPasswordModal}
+      branchModalProps={branchModalProps}
+      staffModalProps={staffModalProps}
+    />
   );
 }

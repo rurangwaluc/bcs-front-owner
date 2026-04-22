@@ -225,6 +225,7 @@ export default function OwnerWorkspace({
   openCloseBranchModal,
   reopenBranch,
   openArchiveBranchModal,
+  setMainBranch,
 
   openCreateUserModal,
   openEditUserModal,
@@ -420,6 +421,7 @@ export default function OwnerWorkspace({
             onOpenClose={openCloseBranchModal}
             onOpenReopen={reopenBranch}
             onOpenArchive={openArchiveBranchModal}
+            onSetMain={setMainBranch}
           />
         );
 

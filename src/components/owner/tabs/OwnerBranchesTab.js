@@ -31,6 +31,10 @@ function branchStatusTone(status) {
   return "bg-stone-100 text-stone-700 dark:bg-stone-900 dark:text-stone-300";
 }
 
+function mainBadgeTone() {
+  return "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300";
+}
+
 function normalizeBankAccounts(value) {
   if (!Array.isArray(value)) return [];
 
@@ -67,6 +71,7 @@ function normalizeLocation(row) {
     address: safe(row.address),
     logoUrl: safe(row.logoUrl ?? row.logo_url),
     status: safe(row.status).toUpperCase() || "ACTIVE",
+    isMain: row.isMain === true || row.is_main === true,
     bankAccounts: Array.isArray(row.bankAccounts)
       ? row.bankAccounts
       : Array.isArray(row.bank_accounts)
@@ -105,6 +110,7 @@ function BranchIdentityCard({
   onOpenClose,
   onOpenReopen,
   onOpenArchive,
+  onSetMain,
 }) {
   const logoUrl = safe(location?.logoUrl)
     ? resolveAssetUrl(location.logoUrl)
@@ -113,6 +119,8 @@ function BranchIdentityCard({
   const bankAccounts = normalizeBankAccounts(location?.bankAccounts);
   const firstBankAccount = bankAccounts[0] || "";
   const status = safe(location?.status).toUpperCase();
+  const isMain = location?.isMain === true;
+  const canSetMain = status === "ACTIVE" && !isMain;
 
   return (
     <div
@@ -156,6 +164,14 @@ function BranchIdentityCard({
               >
                 {status || "-"}
               </span>
+
+              {isMain ? (
+                <span
+                  className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold ${mainBadgeTone()}`}
+                >
+                  Main
+                </span>
+              ) : null}
             </div>
 
             <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
@@ -206,6 +222,16 @@ function BranchIdentityCard({
         </button>
 
         <div className="flex shrink-0 flex-wrap gap-2">
+          {canSetMain ? (
+            <button
+              type="button"
+              onClick={() => onSetMain?.(location)}
+              className="rounded-xl border border-stone-900 bg-stone-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-stone-800 dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-200"
+            >
+              Set as main
+            </button>
+          ) : null}
+
           <button
             type="button"
             onClick={() => onOpenEdit?.(location)}
@@ -298,6 +324,7 @@ export default function OwnerBranchesTab({
   onOpenClose,
   onOpenReopen,
   onOpenArchive,
+  onSetMain,
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerLocation, setDrawerLocation] = useState(null);
@@ -309,7 +336,15 @@ export default function OwnerBranchesTab({
 
   const normalizedLocations = useMemo(() => {
     const list = Array.isArray(locations) ? locations : [];
-    return list.map(normalizeLocation).filter(Boolean);
+    return list
+      .map(normalizeLocation)
+      .filter(Boolean)
+      .sort((a, b) => {
+        const aMain = a?.isMain ? 1 : 0;
+        const bMain = b?.isMain ? 1 : 0;
+        if (aMain !== bMain) return bMain - aMain;
+        return safe(a?.name).localeCompare(safe(b?.name));
+      });
   }, [locations]);
 
   const filteredLocations = useMemo(() => {
@@ -332,6 +367,7 @@ export default function OwnerBranchesTab({
       archived: normalizedLocations.filter(
         (x) => safe(x?.status).toUpperCase() === "ARCHIVED",
       ).length,
+      main: normalizedLocations.filter((x) => x?.isMain === true).length,
     };
   }, [normalizedLocations]);
 
@@ -361,11 +397,16 @@ export default function OwnerBranchesTab({
             </button>
           }
         >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <StatCard
               label="Total branches"
               value={totalCounts.total}
               sub="All branch records"
+            />
+            <StatCard
+              label="Main branch"
+              value={totalCounts.main}
+              sub="Default business branch"
             />
             <StatCard
               label="Active"
@@ -421,6 +462,7 @@ export default function OwnerBranchesTab({
                     onOpenClose={onOpenClose}
                     onOpenReopen={onOpenReopen}
                     onOpenArchive={onOpenArchive}
+                    onSetMain={onSetMain}
                   />
                 ))}
               </div>
@@ -437,6 +479,7 @@ export default function OwnerBranchesTab({
         onOpenClose={onOpenClose}
         onOpenReopen={onOpenReopen}
         onOpenArchive={onOpenArchive}
+        onSetMain={onSetMain}
       />
     </>
   );

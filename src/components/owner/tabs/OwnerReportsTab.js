@@ -22,151 +22,46 @@ function pct(v) {
   return `${safeNumber(v)}%`;
 }
 
-function toneForPaymentMethod(method) {
-  const value = safe(method).toUpperCase();
-
-  if (value === "CASH") {
-    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300";
-  }
-  if (value === "MOMO") {
-    return "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300";
-  }
-  if (value === "BANK") {
-    return "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300";
-  }
-  if (value === "CARD") {
-    return "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300";
-  }
-
-  return "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300";
+function toneForNumber(value, positiveGood = true) {
+  const n = safeNumber(value);
+  if (n === 0) return "default";
+  if (positiveGood) return n > 0 ? "success" : "danger";
+  return n > 0 ? "warn" : "success";
 }
 
-function toneForStatus(status) {
-  const value = safe(status).toUpperCase();
-
-  if (value === "COMPLETED" || value === "SETTLED") {
-    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300";
-  }
-  if (value === "APPROVED" || value === "FULFILLED") {
+function toneForAccountType(type) {
+  const value = safe(type).toUpperCase();
+  if (value === "ASSET") {
     return "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300";
   }
-  if (
-    value === "PENDING" ||
-    value === "AWAITING_PAYMENT_RECORD" ||
-    value === "DRAFT"
-  ) {
+  if (value === "LIABILITY") {
     return "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300";
   }
-  if (value === "REJECTED" || value === "CANCELLED") {
+  if (value === "REVENUE") {
+    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300";
+  }
+  if (value === "EXPENSE" || value === "CONTRA_REVENUE") {
     return "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300";
   }
 
   return "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300";
 }
 
-function BranchPerformanceRow({ row, active, onSelect }) {
+function WarningList({ warnings = [] }) {
+  const rows = Array.isArray(warnings) ? warnings.filter(Boolean) : [];
+  if (!rows.length) return null;
+
   return (
-    <button
-      type="button"
-      onClick={() => onSelect?.(row)}
-      className={
-        "hidden w-full grid-cols-[180px_120px_140px_140px_120px_120px_120px] items-center gap-3 border-b border-stone-200 px-4 py-3 text-left transition last:border-b-0 lg:grid " +
-        (active
-          ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-950"
-          : "bg-white hover:bg-stone-50 dark:bg-stone-900 dark:hover:bg-stone-800/70")
-      }
-    >
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold">
-          {safe(row?.locationName) || "-"}
-        </p>
-        <p
-          className={
-            "mt-1 truncate text-xs " +
-            (active
-              ? "text-stone-300 dark:text-stone-600"
-              : "text-stone-500 dark:text-stone-400")
-          }
+    <div className="space-y-3">
+      {rows.map((text, index) => (
+        <div
+          key={`${text}-${index}`}
+          className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"
         >
-          {safe(row?.locationCode) || "-"} · {safe(row?.locationStatus) || "-"}
-        </p>
-      </div>
-
-      <div className="text-sm font-semibold">{safeNumber(row?.salesCount)}</div>
-      <div className="text-sm font-semibold">{money(row?.salesTotal)}</div>
-      <div className="text-sm font-semibold">{money(row?.paymentsTotal)}</div>
-      <div className="text-sm font-semibold">{money(row?.creditsTotal)}</div>
-      <div className="text-sm font-semibold">{money(row?.netCash)}</div>
-      <div className="text-sm font-semibold">{pct(row?.paymentCoverage)}</div>
-    </button>
-  );
-}
-
-function BranchPerformanceMobileRow({ row, active, onSelect }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect?.(row)}
-      className={
-        "w-full rounded-2xl border p-4 text-left transition lg:hidden " +
-        (active
-          ? "border-stone-900 bg-stone-900 text-white dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950"
-          : "border-stone-200 bg-white hover:border-stone-300 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700")
-      }
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-bold">
-            {safe(row?.locationName) || "-"}
-          </p>
-          <p
-            className={
-              "mt-1 truncate text-xs " +
-              (active
-                ? "text-stone-300 dark:text-stone-600"
-                : "text-stone-500 dark:text-stone-400")
-            }
-          >
-            {safe(row?.locationCode) || "-"} ·{" "}
-            {safe(row?.locationStatus) || "-"}
-          </p>
+          {text}
         </div>
-
-        <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-700 dark:bg-stone-800 dark:text-stone-300">
-          {pct(row?.paymentCoverage)}
-        </span>
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Sales
-          </p>
-          <p className="mt-1 text-sm font-bold">{money(row?.salesTotal)}</p>
-        </div>
-
-        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Payments
-          </p>
-          <p className="mt-1 text-sm font-bold">{money(row?.paymentsTotal)}</p>
-        </div>
-
-        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Credits
-          </p>
-          <p className="mt-1 text-sm font-bold">{money(row?.creditsTotal)}</p>
-        </div>
-
-        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Net cash
-          </p>
-          <p className="mt-1 text-sm font-bold">{money(row?.netCash)}</p>
-        </div>
-      </div>
-    </button>
+      ))}
+    </div>
   );
 }
 
@@ -193,71 +88,215 @@ function SummaryBucketCard({ title, value, sub, tone = "default" }) {
   );
 }
 
-function BreakdownCard({ title, rows, kind }) {
+function CashFlowRow({ row, isOutflow = false }) {
   return (
-    <div className="rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-        {title}
-      </p>
+    <div className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-stone-950 dark:text-stone-50">
+          {safe(row?.label) || "-"}
+        </p>
+        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+          {safe(row?.key) || "-"}
+        </p>
+      </div>
 
-      {!Array.isArray(rows) || rows.length === 0 ? (
-        <div className="mt-4">
-          <EmptyState text="No data in the selected report range." />
-        </div>
-      ) : (
-        <div className="mt-4 space-y-3">
-          {rows.map((row, index) => {
-            const badgeClass =
-              kind === "method"
-                ? toneForPaymentMethod(row?.method)
-                : kind === "cash-method"
-                  ? toneForPaymentMethod(row?.method)
-                  : toneForStatus(row?.status);
-
-            const label =
-              kind === "method"
-                ? safe(row?.method) || "-"
-                : kind === "cash-method"
-                  ? `${safe(row?.method) || "-"} · ${safe(row?.direction) || "-"}`
-                  : safe(row?.status) || "-";
-
-            return (
-              <div
-                key={`${title}-${label}-${index}`}
-                className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <span
-                    className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${badgeClass}`}
-                  >
-                    {label}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center sm:gap-6">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                      Count
-                    </p>
-                    <p className="mt-1 text-sm font-bold text-stone-950 dark:text-stone-50">
-                      {safeNumber(row?.count)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                      Total
-                    </p>
-                    <p className="mt-1 text-sm font-bold text-stone-950 dark:text-stone-50">
-                      {money(row?.total)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div
+        className={
+          "text-lg font-bold " +
+          (isOutflow
+            ? "text-rose-700 dark:text-rose-300"
+            : "text-emerald-700 dark:text-emerald-300")
+        }
+      >
+        {money(row?.amount)}
+      </div>
     </div>
+  );
+}
+
+function TrialBalanceRow({ row }) {
+  return (
+    <div className="hidden grid-cols-[90px_1.5fr_120px_130px_130px] items-center gap-3 border-b border-stone-200 px-4 py-3 text-left transition last:border-b-0 lg:grid dark:border-stone-800">
+      <div className="text-sm font-semibold text-stone-700 dark:text-stone-300">
+        {safe(row?.code) || "-"}
+      </div>
+
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-stone-950 dark:text-stone-50">
+          {safe(row?.name) || "-"}
+        </p>
+      </div>
+
+      <div>
+        <span
+          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneForAccountType(row?.type)}`}
+        >
+          {safe(row?.type) || "-"}
+        </span>
+      </div>
+
+      <div className="text-sm font-semibold text-stone-950 dark:text-stone-50">
+        {money(row?.debit)}
+      </div>
+
+      <div className="text-sm font-semibold text-stone-950 dark:text-stone-50">
+        {money(row?.credit)}
+      </div>
+    </div>
+  );
+}
+
+function TrialBalanceMobileRow({ row }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900 lg:hidden">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-stone-950 dark:text-stone-50">
+            {safe(row?.name) || "-"}
+          </p>
+          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+            {safe(row?.code) || "-"}
+          </p>
+        </div>
+
+        <span
+          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneForAccountType(row?.type)}`}
+        >
+          {safe(row?.type) || "-"}
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Debit
+          </p>
+          <p className="mt-1 text-sm font-bold text-stone-950 dark:text-stone-50">
+            {money(row?.debit)}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Credit
+          </p>
+          <p className="mt-1 text-sm font-bold text-stone-950 dark:text-stone-50">
+            {money(row?.credit)}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfitTableRow({ row, active, onSelect }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect?.(row)}
+      className={
+        "hidden w-full grid-cols-[180px_130px_130px_130px_130px_130px_120px] items-center gap-3 border-b border-stone-200 px-4 py-3 text-left transition last:border-b-0 lg:grid " +
+        (active
+          ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-950"
+          : "bg-white hover:bg-stone-50 dark:bg-stone-900 dark:hover:bg-stone-800/70")
+      }
+    >
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold">
+          {safe(row?.locationName) || "-"}
+        </p>
+        <p
+          className={
+            "mt-1 truncate text-xs " +
+            (active
+              ? "text-stone-300 dark:text-stone-600"
+              : "text-stone-500 dark:text-stone-400")
+          }
+        >
+          {safe(row?.locationCode) || "-"}
+          {row?.isMain ? " · Main" : ""}
+        </p>
+      </div>
+
+      <div className="text-sm font-semibold">{money(row?.grossSales)}</div>
+      <div className="text-sm font-semibold">{money(row?.refunds)}</div>
+      <div className="text-sm font-semibold">{money(row?.netRevenue)}</div>
+      <div className="text-sm font-semibold">{money(row?.estimatedCogs)}</div>
+      <div className="text-sm font-semibold">{money(row?.grossProfit)}</div>
+      <div className="text-sm font-semibold">{pct(row?.grossMarginPct)}</div>
+    </button>
+  );
+}
+
+function ProfitTableMobileRow({ row, active, onSelect }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect?.(row)}
+      className={
+        "w-full rounded-2xl border p-4 text-left transition lg:hidden " +
+        (active
+          ? "border-stone-900 bg-stone-900 text-white dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950"
+          : "border-stone-200 bg-white hover:border-stone-300 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700")
+      }
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold">
+            {safe(row?.locationName) || "-"}
+          </p>
+          <p
+            className={
+              "mt-1 truncate text-xs " +
+              (active
+                ? "text-stone-300 dark:text-stone-600"
+                : "text-stone-500 dark:text-stone-400")
+            }
+          >
+            {safe(row?.locationCode) || "-"}
+            {row?.isMain ? " · Main" : ""}
+          </p>
+        </div>
+
+        <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-700 dark:bg-stone-800 dark:text-stone-300">
+          {pct(row?.grossMarginPct)}
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Net revenue
+          </p>
+          <p className="mt-1 text-sm font-bold">{money(row?.netRevenue)}</p>
+        </div>
+
+        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Gross profit
+          </p>
+          <p className="mt-1 text-sm font-bold">{money(row?.grossProfit)}</p>
+        </div>
+
+        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            OpEx
+          </p>
+          <p className="mt-1 text-sm font-bold">
+            {money(row?.operatingExpenses)}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Operating profit
+          </p>
+          <p className="mt-1 text-sm font-bold">
+            {money(row?.operatingProfit)}
+          </p>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -265,9 +304,10 @@ export default function OwnerReportsTab({ locations = [] }) {
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
 
-  const [overview, setOverview] = useState(null);
-  const [branchRows, setBranchRows] = useState([]);
-  const [financialSummary, setFinancialSummary] = useState(null);
+  const [cashFlow, setCashFlow] = useState(null);
+  const [trialBalance, setTrialBalance] = useState(null);
+  const [incomeStatement, setIncomeStatement] = useState(null);
+  const [profitTable, setProfitTable] = useState(null);
 
   const [selectedBranchId, setSelectedBranchId] = useState(null);
 
@@ -287,61 +327,84 @@ export default function OwnerReportsTab({ locations = [] }) {
     setLoading(true);
     setErrorText("");
 
-    const params = new URLSearchParams();
-    if (locationFilter) params.set("locationId", locationFilter);
-    if (dateFrom) params.set("dateFrom", dateFrom);
-    if (dateTo) params.set("dateTo", dateTo);
+    const rangeParams = new URLSearchParams();
+    if (locationFilter) rangeParams.set("locationId", locationFilter);
+    if (dateFrom) rangeParams.set("dateFrom", dateFrom);
+    if (dateTo) rangeParams.set("dateTo", dateTo);
 
-    const suffix = params.toString() ? `?${params.toString()}` : "";
+    const rangeSuffix = rangeParams.toString() ? `?${rangeParams.toString()}` : "";
 
-    const [overviewRes, branchesRes, summaryRes] = await Promise.allSettled([
-      apiFetch(`/owner/reports/overview${suffix}`, { method: "GET" }),
-      apiFetch(`/owner/reports/branch-performance${suffix}`, { method: "GET" }),
-      apiFetch(`/owner/reports/financial-summary${suffix}`, { method: "GET" }),
-    ]);
+    const trialParams = new URLSearchParams();
+    if (locationFilter) trialParams.set("locationId", locationFilter);
+    if (dateTo) trialParams.set("asOfDate", dateTo);
+
+    const trialSuffix = trialParams.toString() ? `?${trialParams.toString()}` : "";
+
+    const [cashFlowRes, trialRes, incomeRes, profitRes] =
+      await Promise.allSettled([
+        apiFetch(`/owner/reports/cash-flow${rangeSuffix}`, { method: "GET" }),
+        apiFetch(`/owner/reports/trial-balance${trialSuffix}`, {
+          method: "GET",
+        }),
+        apiFetch(`/owner/reports/income-statement${rangeSuffix}`, {
+          method: "GET",
+        }),
+        apiFetch(`/owner/reports/profit-table${rangeSuffix}`, { method: "GET" }),
+      ]);
 
     let firstError = "";
 
-    if (overviewRes.status === "fulfilled") {
-      setOverview(overviewRes.value?.overview || null);
+    if (cashFlowRes.status === "fulfilled") {
+      setCashFlow(cashFlowRes.value?.report || null);
     } else {
-      setOverview(null);
+      setCashFlow(null);
       firstError =
         firstError ||
-        overviewRes.reason?.data?.error ||
-        overviewRes.reason?.message ||
-        "Failed to load reports overview";
+        cashFlowRes.reason?.data?.error ||
+        cashFlowRes.reason?.message ||
+        "Failed to load cash flow";
     }
 
-    if (branchesRes.status === "fulfilled") {
-      const rows = Array.isArray(branchesRes.value?.branches)
-        ? branchesRes.value.branches
-        : [];
-      setBranchRows(rows);
+    if (trialRes.status === "fulfilled") {
+      setTrialBalance(trialRes.value?.report || null);
+    } else {
+      setTrialBalance(null);
+      firstError =
+        firstError ||
+        trialRes.reason?.data?.error ||
+        trialRes.reason?.message ||
+        "Failed to load trial balance";
+    }
+
+    if (incomeRes.status === "fulfilled") {
+      setIncomeStatement(incomeRes.value?.report || null);
+    } else {
+      setIncomeStatement(null);
+      firstError =
+        firstError ||
+        incomeRes.reason?.data?.error ||
+        incomeRes.reason?.message ||
+        "Failed to load income statement";
+    }
+
+    if (profitRes.status === "fulfilled") {
+      const report = profitRes.value?.report || null;
+      setProfitTable(report);
+
+      const rows = Array.isArray(report?.rows) ? report.rows : [];
       setSelectedBranchId((prev) =>
         prev && rows.some((x) => String(x.locationId) === String(prev))
           ? prev
           : (rows[0]?.locationId ?? null),
       );
     } else {
-      setBranchRows([]);
+      setProfitTable(null);
       setSelectedBranchId(null);
       firstError =
         firstError ||
-        branchesRes.reason?.data?.error ||
-        branchesRes.reason?.message ||
-        "Failed to load branch performance";
-    }
-
-    if (summaryRes.status === "fulfilled") {
-      setFinancialSummary(summaryRes.value?.summary || null);
-    } else {
-      setFinancialSummary(null);
-      firstError =
-        firstError ||
-        summaryRes.reason?.data?.error ||
-        summaryRes.reason?.message ||
-        "Failed to load financial summary";
+        profitRes.reason?.data?.error ||
+        profitRes.reason?.message ||
+        "Failed to load profit table";
     }
 
     setErrorText(firstError);
@@ -353,19 +416,67 @@ export default function OwnerReportsTab({ locations = [] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationFilter, dateFrom, dateTo]);
 
+  const profitRows = Array.isArray(profitTable?.rows) ? profitTable.rows : [];
+
   const selectedBranch =
     selectedBranchId == null
       ? null
-      : branchRows.find(
+      : profitRows.find(
           (row) => String(row.locationId) === String(selectedBranchId),
         ) || null;
+
+  const totalInflows = safeNumber(cashFlow?.totals?.totalInflows);
+  const totalOutflows = safeNumber(cashFlow?.totals?.totalOutflows);
+  const netCashFlow = safeNumber(cashFlow?.totals?.netCashFlow);
+
+  const totalDebits = safeNumber(trialBalance?.totals?.totalDebits);
+  const totalCredits = safeNumber(trialBalance?.totals?.totalCredits);
+  const trialDifference = safeNumber(trialBalance?.totals?.difference);
+
+  const grossSales = safeNumber(incomeStatement?.revenue?.grossSales);
+  const refunds = safeNumber(incomeStatement?.revenue?.refunds);
+  const netRevenue = safeNumber(incomeStatement?.revenue?.netRevenue);
+  const extraChargeRevenue = safeNumber(
+    incomeStatement?.revenue?.extraChargeRevenue,
+  );
+  const estimatedCogs = safeNumber(
+    incomeStatement?.costOfSales?.estimatedCogs,
+  );
+  const grossProfit = safeNumber(incomeStatement?.profitability?.grossProfit);
+  const grossMarginPct = safeNumber(
+    incomeStatement?.profitability?.grossMarginPct,
+  );
+  const operatingExpenses = safeNumber(
+    incomeStatement?.operatingExpenses?.total,
+  );
+  const operatingProfit = safeNumber(
+    incomeStatement?.bottomLine?.operatingProfit,
+  );
+  const operatingMarginPct = safeNumber(
+    incomeStatement?.bottomLine?.operatingMarginPct,
+  );
+
+  const metaWarnings = [
+    ...(Array.isArray(cashFlow?.meta?.warnings) ? cashFlow.meta.warnings : []),
+    ...(Array.isArray(trialBalance?.meta?.warnings)
+      ? trialBalance.meta.warnings
+      : []),
+    ...(Array.isArray(incomeStatement?.meta?.warnings)
+      ? incomeStatement.meta.warnings
+      : []),
+    ...(Array.isArray(profitTable?.meta?.warnings)
+      ? profitTable.meta.warnings
+      : []),
+  ].filter(Boolean);
+
+  const uniqueWarnings = Array.from(new Set(metaWarnings));
 
   return (
     <div className="space-y-6">
       <AlertBox message={errorText} />
 
       {loading ? (
-        <SectionCard title="Reports" subtitle="Loading owner-wide reports.">
+        <SectionCard title="Reports" subtitle="Loading accounting reports.">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
@@ -378,8 +489,8 @@ export default function OwnerReportsTab({ locations = [] }) {
       ) : (
         <>
           <SectionCard
-            title="Owner reports filters"
-            subtitle="Focus the report range before comparing branch performance."
+            title="Owner report filters"
+            subtitle="Set report range before reading business-wide financial signals."
           >
             <div className="grid gap-3 md:grid-cols-3">
               <FormSelect
@@ -409,72 +520,212 @@ export default function OwnerReportsTab({ locations = [] }) {
             </div>
           </SectionCard>
 
+          <WarningList warnings={uniqueWarnings} />
+
           <SectionCard
-            title="Business-wide overview"
-            subtitle="One owner view across sales, payments, credits, and refunds."
+            title="Cash flow"
+            subtitle="Owner view of cash entering and leaving the business."
           >
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <SummaryBucketCard
-                title="Branches"
-                value={safeNumber(overview?.branchesCount)}
-                sub="Branches in the active report scope"
-              />
-              <SummaryBucketCard
-                title="Sales"
-                value={money(overview?.salesTotal)}
-                sub={`${safeNumber(overview?.salesCount)} sales`}
-              />
-              <SummaryBucketCard
-                title="Payments"
-                value={money(overview?.paymentsTotal)}
-                sub={`${safeNumber(overview?.paymentsCount)} payment records`}
+                title="Total inflows"
+                value={money(totalInflows)}
+                sub="Cash received in selected range"
                 tone="success"
               />
               <SummaryBucketCard
-                title="Credits"
-                value={money(overview?.creditsTotal)}
-                sub={`${safeNumber(overview?.creditsCount)} credit records`}
+                title="Total outflows"
+                value={money(totalOutflows)}
+                sub="Cash paid out in selected range"
                 tone="warn"
+              />
+              <SummaryBucketCard
+                title="Net cash flow"
+                value={money(netCashFlow)}
+                sub="Inflows minus outflows"
+                tone={toneForNumber(netCashFlow)}
+              />
+            </div>
+
+            <div className="mt-6 grid gap-4 xl:grid-cols-2">
+              <div className="rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                  Inflows
+                </p>
+
+                {!Array.isArray(cashFlow?.inflows) || cashFlow.inflows.length === 0 ? (
+                  <div className="mt-4">
+                    <EmptyState text="No inflows in the selected range." />
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {cashFlow.inflows.map((row, index) => (
+                      <CashFlowRow key={`${row?.key}-${index}`} row={row} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                  Outflows
+                </p>
+
+                {!Array.isArray(cashFlow?.outflows) || cashFlow.outflows.length === 0 ? (
+                  <div className="mt-4">
+                    <EmptyState text="No outflows in the selected range." />
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {cashFlow.outflows.map((row, index) => (
+                      <CashFlowRow
+                        key={`${row?.key}-${index}`}
+                        row={row}
+                        isOutflow
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Income statement"
+            subtitle="Revenue, COGS, operating expenses, and operating profit."
+          >
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <SummaryBucketCard
+                title="Gross sales"
+                value={money(grossSales)}
+                sub="Completed and fulfilled sales"
               />
               <SummaryBucketCard
                 title="Refunds"
-                value={money(overview?.refundsTotal)}
-                sub={`${safeNumber(overview?.refundsCount)} refund records`}
+                value={money(refunds)}
+                sub="Contra revenue"
                 tone="danger"
               />
               <SummaryBucketCard
-                title="Outstanding credit"
-                value={money(overview?.outstandingCredit)}
-                sub="Credit exposure not covered by payments total"
+                title="Net revenue"
+                value={money(netRevenue)}
+                sub="Gross sales minus refunds"
+                tone="success"
+              />
+              <SummaryBucketCard
+                title="Extra charge revenue"
+                value={money(extraChargeRevenue)}
+                sub="Manual seller uplifts"
                 tone="warn"
+              />
+              <SummaryBucketCard
+                title="Estimated COGS"
+                value={money(estimatedCogs)}
+                sub="Current cost-price based estimate"
+                tone="warn"
+              />
+              <SummaryBucketCard
+                title="Gross profit"
+                value={money(grossProfit)}
+                sub={`Gross margin ${pct(grossMarginPct)}`}
+                tone={toneForNumber(grossProfit)}
+              />
+              <SummaryBucketCard
+                title="Operating expenses"
+                value={money(operatingExpenses)}
+                sub="Posted operating expenses"
+                tone="danger"
+              />
+              <SummaryBucketCard
+                title="Operating profit"
+                value={money(operatingProfit)}
+                sub={`Operating margin ${pct(operatingMarginPct)}`}
+                tone={toneForNumber(operatingProfit)}
               />
             </div>
           </SectionCard>
 
           <SectionCard
-            title="Branch performance"
-            subtitle="Compare operational strength branch by branch."
+            title="Trial balance"
+            subtitle="Snapshot of debit and credit balances as of the selected end date."
           >
-            <div className="overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-800">
-              <div className="hidden grid-cols-[180px_120px_140px_140px_120px_120px_120px] gap-3 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:bg-stone-950 dark:text-stone-400 lg:grid">
-                <div>Branch</div>
-                <div>Sales count</div>
-                <div>Sales total</div>
-                <div>Payments</div>
-                <div>Credits</div>
-                <div>Net cash</div>
-                <div>Coverage</div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <StatCard
+                label="Total debits"
+                value={money(totalDebits)}
+                valueClassName="text-[17px] leading-tight"
+                sub="Sum of debit balances"
+              />
+              <StatCard
+                label="Total credits"
+                value={money(totalCredits)}
+                valueClassName="text-[17px] leading-tight"
+                sub="Sum of credit balances"
+              />
+              <StatCard
+                label="Difference"
+                value={money(trialDifference)}
+                valueClassName="text-[17px] leading-tight"
+                sub={
+                  safeNumber(trialBalance?.totals?.isBalanced)
+                    ? "Balanced"
+                    : "Not balanced"
+                }
+              />
+            </div>
+
+            <div className="mt-6 overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-800">
+              <div className="hidden grid-cols-[90px_1.5fr_120px_130px_130px] gap-3 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:bg-stone-950 dark:text-stone-400 lg:grid">
+                <div>Code</div>
+                <div>Account</div>
+                <div>Type</div>
+                <div>Debit</div>
+                <div>Credit</div>
               </div>
 
-              {branchRows.length === 0 ? (
+              {!Array.isArray(trialBalance?.rows) || trialBalance.rows.length === 0 ? (
                 <div className="p-4">
-                  <EmptyState text="No branch performance data in the selected range." />
+                  <EmptyState text="No trial balance rows available." />
                 </div>
               ) : (
                 <div>
-                  {branchRows.map((row) => (
+                  {trialBalance.rows.map((row, index) => (
+                    <div key={`${row?.code}-${index}`}>
+                      <TrialBalanceRow row={row} />
+                      <div className="p-3 lg:hidden">
+                        <TrialBalanceMobileRow row={row} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Profit table by branch"
+            subtitle="Compare branch-level revenue, COGS, gross profit, and operating profit."
+          >
+            <div className="overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-800">
+              <div className="hidden grid-cols-[180px_130px_130px_130px_130px_130px_120px] gap-3 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:bg-stone-950 dark:text-stone-400 lg:grid">
+                <div>Branch</div>
+                <div>Gross sales</div>
+                <div>Refunds</div>
+                <div>Net revenue</div>
+                <div>Est. COGS</div>
+                <div>Gross profit</div>
+                <div>Margin</div>
+              </div>
+
+              {profitRows.length === 0 ? (
+                <div className="p-4">
+                  <EmptyState text="No branch profit rows in the selected range." />
+                </div>
+              ) : (
+                <div>
+                  {profitRows.map((row) => (
                     <div key={row.locationId}>
-                      <BranchPerformanceRow
+                      <ProfitTableRow
                         row={row}
                         active={
                           String(row.locationId) === String(selectedBranchId)
@@ -484,7 +735,7 @@ export default function OwnerReportsTab({ locations = [] }) {
                         }
                       />
                       <div className="p-3 lg:hidden">
-                        <BranchPerformanceMobileRow
+                        <ProfitTableMobileRow
                           row={row}
                           active={
                             String(row.locationId) === String(selectedBranchId)
@@ -503,8 +754,8 @@ export default function OwnerReportsTab({ locations = [] }) {
 
           {selectedBranch ? (
             <SectionCard
-              title="Selected branch report detail"
-              subtitle="Focused branch performance for owner review."
+              title="Selected branch profit detail"
+              subtitle="Focused financial detail for the selected branch."
             >
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard
@@ -515,89 +766,94 @@ export default function OwnerReportsTab({ locations = [] }) {
                 />
 
                 <StatCard
-                  label="Sales"
-                  value={money(selectedBranch.salesTotal)}
-                  sub={`${safeNumber(selectedBranch.salesCount)} sales`}
+                  label="Net revenue"
+                  value={money(selectedBranch.netRevenue)}
                   valueClassName="text-[17px] leading-tight"
+                  sub="After refunds"
                 />
 
                 <StatCard
-                  label="Payments"
-                  value={money(selectedBranch.paymentsTotal)}
-                  sub={`${safeNumber(selectedBranch.paymentsCount)} payment records`}
+                  label="Gross profit"
+                  value={money(selectedBranch.grossProfit)}
                   valueClassName="text-[17px] leading-tight"
+                  sub={`Margin ${pct(selectedBranch.grossMarginPct)}`}
                 />
 
                 <StatCard
-                  label="Credits"
-                  value={money(selectedBranch.creditsTotal)}
-                  sub={`${safeNumber(selectedBranch.creditsCount)} credit records`}
+                  label="Operating profit"
+                  value={money(selectedBranch.operatingProfit)}
                   valueClassName="text-[17px] leading-tight"
+                  sub={`Margin ${pct(selectedBranch.operatingMarginPct)}`}
+                />
+
+                <StatCard
+                  label="Gross sales"
+                  value={money(selectedBranch.grossSales)}
+                  valueClassName="text-[17px] leading-tight"
+                  sub="Before refunds"
                 />
 
                 <StatCard
                   label="Refunds"
-                  value={money(selectedBranch.refundsTotal)}
-                  sub={`${safeNumber(selectedBranch.refundsCount)} refund records`}
+                  value={money(selectedBranch.refunds)}
                   valueClassName="text-[17px] leading-tight"
+                  sub="Contra revenue"
                 />
 
                 <StatCard
-                  label="Cash in"
-                  value={money(selectedBranch.cashInTotal)}
-                  sub="Recorded cash inflow"
+                  label="Estimated COGS"
+                  value={money(selectedBranch.estimatedCogs)}
                   valueClassName="text-[17px] leading-tight"
+                  sub="Current cost-price estimate"
                 />
 
                 <StatCard
-                  label="Cash out"
-                  value={money(selectedBranch.cashOutTotal)}
-                  sub="Recorded cash outflow"
+                  label="Operating expenses"
+                  value={money(selectedBranch.operatingExpenses)}
                   valueClassName="text-[17px] leading-tight"
-                />
-
-                <StatCard
-                  label="Payment coverage"
-                  value={pct(selectedBranch.paymentCoverage)}
-                  sub="Payments total divided by sales total"
-                  valueClassName="text-[17px] leading-tight"
+                  sub="Posted expenses"
                 />
               </div>
             </SectionCard>
           ) : (
             <SectionCard
-              title="Selected branch report detail"
+              title="Selected branch profit detail"
               subtitle="This section appears after a branch is selected."
             >
-              <EmptyState text="Select a branch row above to inspect its report detail." />
+              <EmptyState text="Select a branch row above to inspect its financial detail." />
             </SectionCard>
           )}
 
-          <div className="grid gap-4 xl:grid-cols-2">
-            <BreakdownCard
-              title="Payments by method"
-              rows={financialSummary?.paymentsByMethod || []}
-              kind="method"
-            />
-
-            <BreakdownCard
-              title="Credits by status"
-              rows={financialSummary?.creditsByStatus || []}
-              kind="status"
-            />
-
-            <BreakdownCard
-              title="Sales by status"
-              rows={financialSummary?.salesByStatus || []}
-              kind="status"
-            />
-
-            <BreakdownCard
-              title="Cash by method and direction"
-              rows={financialSummary?.cashByMethod || []}
-              kind="cash-method"
-            />
-          </div>
+          <SectionCard
+            title="Profit table totals"
+            subtitle="Owner-wide totals across the visible branch rows."
+          >
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <SummaryBucketCard
+                title="Gross sales"
+                value={money(profitTable?.totals?.grossSales)}
+                sub="All visible branches"
+              />
+              <SummaryBucketCard
+                title="Net revenue"
+                value={money(profitTable?.totals?.netRevenue)}
+                sub="After refunds"
+                tone="success"
+              />
+              <SummaryBucketCard
+                title="Gross profit"
+                value={money(profitTable?.totals?.grossProfit)}
+                sub={`Gross margin ${pct(profitTable?.totals?.grossMarginPct)}`}
+                tone={toneForNumber(profitTable?.totals?.grossProfit)}
+              />
+              <SummaryBucketCard
+                title="Operating profit"
+                value={money(profitTable?.totals?.operatingProfit)}
+                sub={`Operating margin ${pct(profitTable?.totals?.operatingMarginPct)}`}
+                tone={toneForNumber(profitTable?.totals?.operatingProfit)}
+              />
+            </div>
+          </SectionCard>
         </>
       )}
     </div>
