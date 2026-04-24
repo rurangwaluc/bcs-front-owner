@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import AsyncButton from "../../AsyncButton";
+import OwnerBusinessLoansReceivedPanel from "./OwnerBusinessLoansReceivedPanel";
 import { apiFetch } from "../../../lib/api";
 
 const PAGE_SIZE = 20;
@@ -2553,6 +2554,8 @@ export default function OwnerPaymentsTab({ locations = [] }) {
           handleLoanActionSaved("Owner loan created", result)
         }
       />
+
+      <OwnerBusinessLoansReceivedPanel locations={locationOptions} />
 
       <RepayLoanModal
         open={!!repayingLoan}
