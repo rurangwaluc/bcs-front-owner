@@ -261,6 +261,13 @@ function getAvailableBalanceForBranchMethod(
   return Number(availabilityByBranchMethod?.[`${loc}__${m}`] ?? 0);
 }
 
+function getLocationNameById(locations, locationId) {
+  return (
+    locations.find((x) => String(x?.id) === String(locationId))?.name ||
+    `Branch #${locationId}`
+  );
+}
+
 function ModalShell({ title, subtitle, onClose, children }) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/50 p-4 backdrop-blur-[2px]">
@@ -439,6 +446,66 @@ function SearchableCustomerPicker({
   );
 }
 
+function StructuredFundsWarning({
+  availableBalance = 0,
+  requestedAmount = 0,
+  method = "OTHER",
+  currency = "RWF",
+  locationName = "",
+}) {
+  return (
+    <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-950/20">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-rose-700 dark:text-rose-300">
+            Lending blocked
+          </div>
+          <h4 className="mt-1 text-base font-black text-rose-900 dark:text-rose-100">
+            Not enough {methodLabel(method).toLowerCase()} balance
+          </h4>
+          <p className="mt-2 text-sm leading-6 text-rose-800 dark:text-rose-200">
+            This loan cannot be created because the selected branch and payment
+            method do not have enough money available right now.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-rose-300 bg-white/70 px-3 py-2 text-xs font-bold text-rose-800 dark:border-rose-800 dark:bg-stone-950/50 dark:text-rose-200">
+          {locationName || "Selected branch"}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-rose-200 bg-white px-4 py-3 dark:border-rose-900/40 dark:bg-stone-950/50">
+          <div className="text-[11px] font-black uppercase tracking-[0.12em] text-rose-600 dark:text-rose-300">
+            Requested
+          </div>
+          <div className="mt-1 text-sm font-black text-rose-900 dark:text-rose-100">
+            {money(requestedAmount, currency)}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 dark:border-emerald-900/40 dark:bg-stone-950/50">
+          <div className="text-[11px] font-black uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-300">
+            Available
+          </div>
+          <div className="mt-1 text-sm font-black text-emerald-700 dark:text-emerald-300">
+            {money(availableBalance, currency)}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 dark:border-stone-800 dark:bg-stone-950/50">
+          <div className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+            Short by
+          </div>
+          <div className="mt-1 text-sm font-black text-stone-950 dark:text-stone-50">
+            {money(Math.max(0, requestedAmount - availableBalance), currency)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CreateLoanModal({
   open,
   locations = [],
@@ -481,6 +548,7 @@ function CreateLoanModalInner({
   });
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [errorText, setErrorText] = useState("");
+  const [balanceErrorMeta, setBalanceErrorMeta] = useState(null);
 
   const availableBalance = useMemo(() => {
     return getAvailableBalanceForBranchMethod(
@@ -496,6 +564,8 @@ function CreateLoanModalInner({
     requestedAmount > 0 &&
     requestedAmount > availableBalance;
 
+  const liveBranchName = getLocationNameById(locations, form.locationId);
+
   function handleReceiverTypeChange(nextType) {
     setForm((prev) => ({
       ...prev,
@@ -506,6 +576,8 @@ function CreateLoanModalInner({
       receiverEmail: nextType === "CUSTOMER" ? "" : prev.receiverEmail,
     }));
     setSelectedCustomer(null);
+    setErrorText("");
+    setBalanceErrorMeta(null);
   }
 
   function handlePickCustomer(customer) {
@@ -518,14 +590,19 @@ function CreateLoanModalInner({
       receiverPhone: customer?.phone || "",
       receiverEmail: customer?.email || "",
     }));
+    setErrorText("");
+    setBalanceErrorMeta(null);
   }
 
   function updateField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    setErrorText("");
+    setBalanceErrorMeta(null);
   }
 
   async function handleSave() {
     setErrorText("");
+    setBalanceErrorMeta(null);
 
     const parsedLocationId = Number(form.locationId);
     const parsedCustomerId =
@@ -565,8 +642,16 @@ function CreateLoanModalInner({
     }
 
     if (parsedAmount > availableBalance) {
+      setBalanceErrorMeta({
+        availableBalance,
+        requestedAmount: parsedAmount,
+        locationId: parsedLocationId,
+        method: form.method,
+        currency: form.currency,
+      });
+
       setErrorText(
-        `Not enough ${methodLabel(form.method).toLowerCase()} balance in this branch. Available: ${money(availableBalance, form.currency)}.`,
+        `Not enough ${methodLabel(form.method).toLowerCase()} balance in this branch.`,
       );
       return;
     }
@@ -602,12 +687,40 @@ function CreateLoanModalInner({
 
       onSaved?.(result && typeof result === "object" ? result : {});
     } catch (e) {
+      const meta = e?.data?.meta;
+      const code = String(meta?.code || "")
+        .trim()
+        .toUpperCase();
+
+      if (
+        code === "INSUFFICIENT_BRANCH_METHOD_BALANCE" ||
+        meta?.availableBalance != null
+      ) {
+        setBalanceErrorMeta({
+          availableBalance: Number(meta?.availableBalance ?? 0),
+          requestedAmount: Number(meta?.requestedAmount ?? parsedAmount),
+          locationId: Number(meta?.locationId ?? parsedLocationId),
+          method: String(meta?.method || form.method || "OTHER").toUpperCase(),
+          currency: String(
+            meta?.currency || form.currency || "RWF",
+          ).toUpperCase(),
+        });
+
+        setErrorText(
+          e?.data?.error ||
+            "Not enough available balance for this branch and payment method.",
+        );
+        return;
+      }
+
       setErrorText(e?.data?.error || e?.message || "Failed to create loan.");
     }
   }
 
   function handleLocationChange(nextLocationId) {
     setSelectedCustomer(null);
+    setErrorText("");
+    setBalanceErrorMeta(null);
 
     setForm((prev) => ({
       ...prev,
@@ -623,6 +736,11 @@ function CreateLoanModalInner({
     }));
   }
 
+  const structuredMeta = balanceErrorMeta || null;
+  const structuredLocationName = structuredMeta?.locationId
+    ? getLocationNameById(locations, structuredMeta.locationId)
+    : liveBranchName;
+
   return (
     <ModalShell
       title="Record money given out"
@@ -631,14 +749,25 @@ function CreateLoanModalInner({
     >
       <AlertBox message={errorText} />
 
+      {structuredMeta ? (
+        <div className="mb-4">
+          <StructuredFundsWarning
+            availableBalance={structuredMeta.availableBalance}
+            requestedAmount={structuredMeta.requestedAmount}
+            method={structuredMeta.method}
+            currency={structuredMeta.currency}
+            locationName={structuredLocationName}
+          />
+        </div>
+      ) : null}
+
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
           <p className="text-[11px] font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
             Branch
           </p>
           <p className="mt-2 text-sm font-bold text-stone-950 dark:text-stone-50">
-            {locations.find((x) => String(x?.id) === String(form.locationId))
-              ?.name || "Choose branch"}
+            {liveBranchName || "Choose branch"}
           </p>
         </div>
 
@@ -1195,6 +1324,8 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
       totalPrincipalAmount: Number(loanSummary?.totalPrincipalAmount ?? 0),
       totalRepaidAmount: Number(loanSummary?.totalRepaidAmount ?? 0),
       totalRemainingAmount: Number(loanSummary?.outstandingAmount ?? 0),
+      overdueCount: Number(loanSummary?.overdueCount ?? 0),
+      overdueAmount: Number(loanSummary?.overdueAmount ?? 0),
     };
   }, [loanSummary]);
 
@@ -1519,6 +1650,25 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
               <option value="OTHER">Other</option>
             </FormSelect>
           </div>
+
+          {cards.overdueCount > 0 ? (
+            <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-700 dark:text-amber-300">
+                    Overdue exposure
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-amber-900 dark:text-amber-100">
+                    {safeNumber(cards.overdueCount)} overdue loan(s)
+                  </div>
+                </div>
+
+                <div className="text-sm font-black text-amber-900 dark:text-amber-100">
+                  {money(cards.overdueAmount)}
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {loading ? (
             <div className="grid gap-3">
