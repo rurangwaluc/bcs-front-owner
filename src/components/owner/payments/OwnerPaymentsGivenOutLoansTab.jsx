@@ -1026,6 +1026,7 @@ function RepayLoanModalInner({ loan, onClose, onSaved }) {
 
     try {
       const payload = {
+        locationId: loan?.locationId ? Number(loan.locationId) : undefined,
         amount: Number(form.amount),
         method: form.method,
         ...(form.reference ? { reference: form.reference } : {}),
@@ -1164,6 +1165,7 @@ function VoidLoanModalInner({ loan, onClose, onSaved }) {
       const result = await apiFetch(`/owner-loans/${loan.id}/void`, {
         method: "POST",
         body: {
+          locationId: loan?.locationId ? Number(loan.locationId) : undefined,
           reason: String(note || "").trim(),
         },
       });
