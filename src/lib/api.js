@@ -28,14 +28,9 @@ async function readBodySafe(res) {
 }
 
 function buildQuery(params = {}) {
-  const source =
-    params && typeof params === "object" && !Array.isArray(params)
-      ? params
-      : {};
-
   const qs = new URLSearchParams();
 
-  Object.entries(source).forEach(([key, value]) => {
+  Object.entries(params || {}).forEach(([key, value]) => {
     if (value === undefined || value === null || value === "") return;
     qs.set(key, String(value));
   });
@@ -47,36 +42,23 @@ function buildQuery(params = {}) {
 export async function apiFetch(path, opts = {}) {
   if (!BASE) {
     throw new Error(
-      "Missing NEXT_PUBLIC_API_BASE in .env.local (restart dev server after setting it).",
+      "Missing NEXT_PUBLIC_API_BASE in .env.local. Restart dev server after setting it.",
     );
   }
 
-  const safeOpts =
-    opts && typeof opts === "object" && !Array.isArray(opts) ? opts : {};
-
-  const url = `${BASE}${path}`;
   const hasBody =
-    Object.prototype.hasOwnProperty.call(safeOpts, "body") &&
-    safeOpts.body !== undefined &&
-    safeOpts.body !== null;
+    Object.prototype.hasOwnProperty.call(opts, "body") &&
+    opts.body !== undefined &&
+    opts.body !== null;
 
-  const safeHeaders =
-    safeOpts.headers &&
-    typeof safeOpts.headers === "object" &&
-    !Array.isArray(safeOpts.headers)
-      ? safeOpts.headers
-      : {};
-
-  const headers = {
-    ...safeHeaders,
-    ...(hasBody ? { "Content-Type": "application/json" } : {}),
-  };
-
-  const res = await fetch(url, {
-    method: safeOpts.method || "GET",
-    headers,
+  const res = await fetch(`${BASE}${path}`, {
+    method: opts.method || "GET",
+    headers: {
+      ...(opts.headers || {}),
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
+    },
     credentials: "include",
-    body: hasBody ? JSON.stringify(safeOpts.body) : undefined,
+    body: hasBody ? JSON.stringify(opts.body) : undefined,
   });
 
   const data = await readBodySafe(res);
@@ -85,7 +67,6 @@ export async function apiFetch(path, opts = {}) {
     const err = new Error(data?.error || `Request failed (${res.status})`);
     err.status = res.status;
     err.data = data;
-    err.url = url;
     throw err;
   }
 
@@ -95,7 +76,6 @@ export async function apiFetch(path, opts = {}) {
 /**
  * Expenses API
  */
-
 export function listExpenses(params = {}) {
   return apiFetch(`/cash/expenses${buildQuery(params)}`);
 }
@@ -111,6 +91,38 @@ export function voidExpense(expenseId, reason) {
   return apiFetch(`/cash/expenses/${expenseId}/void`, {
     method: "POST",
     body: { reason },
+  });
+}
+
+/**
+ * Owner given-out loans API
+ */
+export function listOwnerLoans(params = {}) {
+  return apiFetch(`/owner/payments/owner-loans${buildQuery(params)}`);
+}
+
+export function getOwnerLoansSummary(params = {}) {
+  return apiFetch(`/owner/payments/owner-loans/summary${buildQuery(params)}`);
+}
+
+export function createOwnerLoan(payload) {
+  return apiFetch("/owner/payments/owner-loans", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function repayOwnerLoan(loanId, payload) {
+  return apiFetch(`/owner/payments/owner-loans/${loanId}/repayments`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function voidOwnerLoan(loanId, payload) {
+  return apiFetch(`/owner/payments/owner-loans/${loanId}/void`, {
+    method: "POST",
+    body: payload,
   });
 }
 

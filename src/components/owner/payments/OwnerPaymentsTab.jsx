@@ -96,10 +96,9 @@ export default function OwnerPaymentsTab({ locations = [] }) {
               </h2>
 
               <p className="mt-3 max-w-3xl text-sm leading-6 text-stone-600 dark:text-stone-300">
-                Stop making the owner hunt through one long screen. This shell
-                separates the money system into clear work zones so you can move
-                faster: overview first, then movements, then loans given out,
-                then loans received.
+                Manage owner money from one controlled workspace. Each area has
+                a clear job: overview first, then movements, then loans given
+                out, then loans received.
               </p>
             </div>
 

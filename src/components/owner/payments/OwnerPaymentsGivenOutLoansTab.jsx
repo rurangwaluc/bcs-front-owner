@@ -432,7 +432,7 @@ function SearchableCustomerPicker({
                   <div className="text-sm font-semibold text-stone-950 dark:text-stone-50">
                     {customer.name || "Unnamed customer"}
                   </div>
-                  <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                  <div className="mt-1 break-words text-xs leading-5 text-stone-500 dark:text-stone-400">
                     {customer.phone || "No phone"}
                     {customer.email ? ` • ${customer.email}` : ""}
                   </div>
@@ -680,7 +680,7 @@ function CreateLoanModalInner({
         ...(form.dueDate ? { dueDate: form.dueDate } : {}),
       };
 
-      const result = await apiFetch("/owner-loans", {
+      const result = await apiFetch("/owner/payments/business-loans", {
         method: "POST",
         body: payload,
       });
@@ -1033,10 +1033,13 @@ function RepayLoanModalInner({ loan, onClose, onSaved }) {
         ...(form.note ? { note: form.note } : {}),
       };
 
-      const result = await apiFetch(`/owner-loans/${loan.id}/repayments`, {
-        method: "POST",
-        body: payload,
-      });
+      const result = await apiFetch(
+        `/owner/payments/business-loans/${loan.id}/repayments`,
+        {
+          method: "POST",
+          body: payload,
+        },
+      );
 
       onSaved?.(result);
     } catch (e) {
@@ -1162,13 +1165,16 @@ function VoidLoanModalInner({ loan, onClose, onSaved }) {
     }
 
     try {
-      const result = await apiFetch(`/owner-loans/${loan.id}/void`, {
-        method: "POST",
-        body: {
-          locationId: loan?.locationId ? Number(loan.locationId) : undefined,
-          reason: String(note || "").trim(),
+      const result = await apiFetch(
+        `/owner/payments/business-loans/${loan.id}/void`,
+        {
+          method: "POST",
+          body: {
+            locationId: loan?.locationId ? Number(loan.locationId) : undefined,
+            reason: String(note || "").trim(),
+          },
         },
-      });
+      );
 
       onSaved?.(result);
     } catch (e) {
@@ -1389,8 +1395,8 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
 
       const movementQuery = movementParams.toString();
 
-      const loanSummaryUrl = `/owner-loans/summary${loanQuery ? `?${loanQuery}` : ""}`;
-      const loansUrl = `/owner-loans${loanQuery ? `?${loanQuery}` : ""}`;
+      const loanSummaryUrl = `/owner/payments/business-loans/summary${loanQuery ? `?${loanQuery}` : ""}`;
+      const loansUrl = `/owner/payments/business-loans${loanQuery ? `?${loanQuery}` : ""}`;
       const breakdownUrl = `/owner/payments/breakdown${movementQuery ? `?${movementQuery}` : ""}`;
 
       const [loanSummaryRes, loansRes, breakdownRes] = await Promise.allSettled(
@@ -1680,7 +1686,7 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
           ) : filteredLoans.length === 0 ? (
             <EmptyState text="No owner loans found for the selected filters." />
           ) : (
-            <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+            <div className="grid gap-4 2xl:grid-cols-[1.05fr_0.95fr]">
               <div className="grid gap-3">
                 {filteredLoans.map((loan) => {
                   const isSelected =
@@ -1698,7 +1704,7 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
                           : "border-stone-200 bg-white hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-950 dark:hover:bg-stone-900",
                       )}
                     >
-                      <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             {chip(
@@ -1719,15 +1725,15 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
                             )}
                           </div>
 
-                          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2 2xl:grid-cols-4">
                             <div>
                               <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                                 Receiver
                               </p>
-                              <p className="mt-1 text-sm font-semibold text-stone-950 dark:text-stone-50">
+                              <p className="mt-1 break-words text-sm font-semibold leading-5 text-stone-950 dark:text-stone-50">
                                 {loanReceiverLabel(loan)}
                               </p>
-                              <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                              <p className="mt-1 break-words text-xs leading-5 text-stone-500 dark:text-stone-400">
                                 {loanReceiverSub(loan)}
                               </p>
                             </div>
@@ -1736,7 +1742,7 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
                               <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                                 Branch
                               </p>
-                              <p className="mt-1 text-sm font-semibold text-stone-950 dark:text-stone-50">
+                              <p className="mt-1 break-words text-sm font-semibold leading-5 text-stone-950 dark:text-stone-50">
                                 {displayBranch(loan)}
                               </p>
                             </div>
@@ -1745,7 +1751,7 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
                               <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                                 Principal
                               </p>
-                              <p className="mt-1 text-sm font-semibold text-rose-700 dark:text-rose-300">
+                              <p className="mt-1 break-words text-sm font-semibold leading-5 text-rose-700 dark:text-rose-300">
                                 {money(loan?.principalAmount, loan?.currency)}
                               </p>
                             </div>
@@ -1754,7 +1760,7 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
                               <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                                 Remaining
                               </p>
-                              <p className="mt-1 text-sm font-semibold text-amber-700 dark:text-amber-300">
+                              <p className="mt-1 break-words text-sm font-semibold leading-5 text-amber-700 dark:text-amber-300">
                                 {money(loan?.remainingAmount, loan?.currency)}
                               </p>
                             </div>
@@ -1766,7 +1772,7 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
                                 <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                                   Reference
                                 </p>
-                                <p className="mt-1 break-words text-sm text-stone-700 dark:text-stone-300">
+                                <p className="mt-1 break-words text-sm leading-5 text-stone-700 dark:text-stone-300">
                                   {safe(loan?.reference) || "No reference"}
                                 </p>
                               </div>
@@ -1775,7 +1781,7 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
                                 <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                                   Note
                                 </p>
-                                <p className="mt-1 break-words text-sm text-stone-700 dark:text-stone-300">
+                                <p className="mt-1 break-words text-sm leading-5 text-stone-700 dark:text-stone-300">
                                   {safe(loan?.note) || "No note"}
                                 </p>
                               </div>
@@ -1783,7 +1789,7 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
                           )}
                         </div>
 
-                        <div className="shrink-0 text-right">
+                        <div className="w-full shrink-0 rounded-2xl border border-stone-200 bg-stone-50 p-3 text-left dark:border-stone-800 dark:bg-stone-950 2xl:w-[150px] 2xl:text-right">
                           <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                             Repaid
                           </p>

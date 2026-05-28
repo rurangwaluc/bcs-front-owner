@@ -382,7 +382,7 @@ function SearchableCustomerPicker({
                   <div className="text-sm font-semibold text-stone-950 dark:text-stone-50">
                     {customer.name || "Unnamed customer"}
                   </div>
-                  <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                  <div className="mt-1 break-words text-xs leading-5 text-stone-500 dark:text-stone-400">
                     {customer.phone || "No phone"}
                     {customer.email ? ` • ${customer.email}` : ""}
                   </div>
@@ -694,7 +694,7 @@ function CreateBusinessLoanModalInner({ locations = [], onClose, onSaved }) {
             value={form.issueDate}
             onChange={(e) => updateField("issueDate", e.target.value)}
           />
-          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+          <p className="mt-1 break-words text-xs leading-5 text-stone-500 dark:text-stone-400">
             The real date the business received this money.
           </p>
         </div>
@@ -1144,7 +1144,7 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
         title="Liability snapshot"
         subtitle="Fast owner view of how much was received, how much was repaid, and how much still remains."
       >
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
           <StatCard
             label="Received loans"
             value={safeNumber(cards.loansCount)}
@@ -1172,7 +1172,7 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
         </div>
       </SectionCard>
 
-      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+      <div className="grid gap-5 2xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
           title="Received loan records"
           subtitle="Every row shows who gave the money, where it landed, how much remains, and the current status."
@@ -1203,7 +1203,7 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
                         : "border-stone-200 bg-white hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-950 dark:hover:bg-stone-900",
                     )}
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           {chip(
@@ -1224,15 +1224,15 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
                           )}
                         </div>
 
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 2xl:grid-cols-4">
                           <div>
                             <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                               Lender
                             </p>
-                            <p className="mt-1 text-sm font-semibold text-stone-950 dark:text-stone-50">
+                            <p className="mt-1 break-words text-sm font-semibold leading-5 text-stone-950 dark:text-stone-50">
                               {lenderLabel(loan)}
                             </p>
-                            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                            <p className="mt-1 break-words text-xs leading-5 text-stone-500 dark:text-stone-400">
                               {lenderSub(loan)}
                             </p>
                           </div>
@@ -1241,7 +1241,7 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
                             <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                               Branch
                             </p>
-                            <p className="mt-1 text-sm font-semibold text-stone-950 dark:text-stone-50">
+                            <p className="mt-1 break-words text-sm font-semibold leading-5 text-stone-950 dark:text-stone-50">
                               {displayBranch(loan)}
                             </p>
                           </div>
@@ -1250,7 +1250,7 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
                             <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                               Principal
                             </p>
-                            <p className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                            <p className="mt-1 break-words text-sm font-semibold leading-5 text-emerald-700 dark:text-emerald-300">
                               {money(loan?.principalAmount, loan?.currency)}
                             </p>
                           </div>
@@ -1259,7 +1259,7 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
                             <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                               Remaining
                             </p>
-                            <p className="mt-1 text-sm font-semibold text-rose-700 dark:text-rose-300">
+                            <p className="mt-1 break-words text-sm font-semibold leading-5 text-rose-700 dark:text-rose-300">
                               {money(loan?.remainingAmount, loan?.currency)}
                             </p>
                           </div>
@@ -1271,7 +1271,7 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
                               <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                                 Reference / proof
                               </p>
-                              <p className="mt-1 break-words text-sm text-stone-700 dark:text-stone-300">
+                              <p className="mt-1 break-words text-sm leading-5 text-stone-700 dark:text-stone-300">
                                 {safe(loan?.reference) || "No reference"}
                               </p>
                             </div>
@@ -1280,7 +1280,7 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
                               <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                                 Note
                               </p>
-                              <p className="mt-1 break-words text-sm text-stone-700 dark:text-stone-300">
+                              <p className="mt-1 break-words text-sm leading-5 text-stone-700 dark:text-stone-300">
                                 {safe(loan?.note) || "No note"}
                               </p>
                             </div>
@@ -1288,7 +1288,7 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
                         )}
                       </div>
 
-                      <div className="shrink-0 text-right">
+                      <div className="w-full shrink-0 rounded-2xl border border-stone-200 bg-stone-50 p-3 text-left dark:border-stone-800 dark:bg-stone-950 2xl:w-[150px] 2xl:text-right">
                         <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                           Repaid
                         </p>
