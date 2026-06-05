@@ -153,15 +153,39 @@ function sectionSubtitle(activeTab) {
 function NavButton({ item, active, onClick, collapsed = false }) {
   const Icon = item.icon;
 
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={() => onClick?.(item.key)}
+        title={item.label}
+        aria-label={item.label}
+        className={cx(
+          "group relative mx-auto flex h-11 w-11 items-center justify-center rounded-2xl transition-all duration-200",
+          active
+            ? "bg-white text-stone-950 shadow-[0_14px_30px_rgba(255,255,255,0.14)]"
+            : "text-stone-400 hover:bg-white/8 hover:text-stone-50",
+        )}
+      >
+        <Icon className="h-5 w-5" />
+
+        <span className="pointer-events-none absolute left-[calc(100%+12px)] top-1/2 z-50 hidden -translate-y-1/2 whitespace-nowrap rounded-xl border border-stone-800 bg-stone-950 px-3 py-2 text-xs font-bold text-stone-100 shadow-2xl group-hover:block">
+          {item.label}
+        </span>
+
+        {active ? (
+          <span className="absolute -left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-white" />
+        ) : null}
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
       onClick={() => onClick?.(item.key)}
-      title={collapsed ? item.label : undefined}
-      aria-label={item.label}
       className={cx(
-        "group relative flex w-full items-center rounded-2xl border text-left transition-all duration-200",
-        collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-4 py-3",
+        "group flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200",
         active
           ? "border-stone-900 bg-stone-900 text-white shadow-md dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950"
           : "border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200 dark:hover:border-stone-700 dark:hover:bg-stone-800",
@@ -178,30 +202,24 @@ function NavButton({ item, active, onClick, collapsed = false }) {
         <Icon className="h-5 w-5" />
       </span>
 
-      {!collapsed ? (
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold">
-            {item.label}
-          </span>
-
-          {item.description ? (
-            <span
-              className={cx(
-                "mt-0.5 block truncate text-xs",
-                active
-                  ? "text-stone-300 dark:text-stone-600"
-                  : "text-stone-500 dark:text-stone-400",
-              )}
-            >
-              {item.description}
-            </span>
-          ) : null}
-        </span>
-      ) : (
-        <span className="pointer-events-none absolute left-[calc(100%+10px)] top-1/2 z-50 hidden -translate-y-1/2 whitespace-nowrap rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-800 shadow-xl group-hover:block dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100">
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold">
           {item.label}
         </span>
-      )}
+
+        {item.description ? (
+          <span
+            className={cx(
+              "mt-0.5 block truncate text-xs",
+              active
+                ? "text-stone-300 dark:text-stone-600"
+                : "text-stone-500 dark:text-stone-400",
+            )}
+          >
+            {item.description}
+          </span>
+        ) : null}
+      </span>
     </button>
   );
 }
@@ -251,7 +269,7 @@ export default function OwnerWorkspace({
   branchModalProps = {},
   staffModalProps = {},
 }) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   const navGroups = useMemo(
     () => [
@@ -413,7 +431,7 @@ export default function OwnerWorkspace({
     allTabs.find((item) => item.key === activeTab) || allTabs[0];
 
   const workspaceGridClass = sidebarCollapsed
-    ? "xl:grid-cols-[92px_minmax(0,1fr)]"
+    ? "xl:grid-cols-[76px_minmax(0,1fr)]"
     : "xl:grid-cols-[320px_minmax(0,1fr)]";
 
   function renderActiveTab() {
@@ -528,14 +546,18 @@ export default function OwnerWorkspace({
           <div className="sticky top-4 h-[calc(100vh-48px)] overflow-visible">
             <div
               className={cx(
-                "flex h-full flex-col overflow-hidden rounded-[30px] border border-stone-200 bg-stone-50 p-3 shadow-sm transition-all duration-300 dark:border-stone-800 dark:bg-stone-950",
-                sidebarCollapsed ? "w-[92px]" : "w-[320px]",
+                "relative flex h-full flex-col border border-stone-900/80 bg-[#050505] shadow-[0_24px_80px_rgba(0,0,0,0.34)] transition-all duration-300 dark:border-stone-800",
+                sidebarCollapsed
+                  ? "w-[76px] rounded-[28px] px-2 py-3"
+                  : "w-[320px] rounded-[30px] bg-stone-50 p-3 dark:bg-stone-950",
               )}
             >
               <div
                 className={cx(
-                  "mb-3 flex items-center gap-3 rounded-[22px] border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900",
-                  sidebarCollapsed ? "justify-center" : "justify-between",
+                  "mb-3 flex items-center gap-3",
+                  sidebarCollapsed
+                    ? "justify-center"
+                    : "justify-between rounded-[22px] border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900",
                 )}
               >
                 {!sidebarCollapsed ? (
@@ -558,7 +580,12 @@ export default function OwnerWorkspace({
                   title={
                     sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
                   }
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 text-stone-700 transition hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200 dark:hover:bg-stone-800"
+                  className={cx(
+                    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition",
+                    sidebarCollapsed
+                      ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950"
+                      : "border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200 dark:hover:bg-stone-800",
+                  )}
                 >
                   {sidebarCollapsed ? (
                     <ChevronRight className="h-5 w-5" />
@@ -568,24 +595,37 @@ export default function OwnerWorkspace({
                 </button>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible pr-1">
+              <div
+                className={cx(
+                  "min-h-0 flex-1",
+                  sidebarCollapsed
+                    ? "overflow-visible"
+                    : "overflow-y-auto overflow-x-hidden pr-1",
+                )}
+              >
                 <div
-                  className={cx("space-y-4", sidebarCollapsed && "space-y-3")}
+                  className={cx(
+                    "space-y-4",
+                    sidebarCollapsed ? "pt-1" : "space-y-5",
+                  )}
                 >
-                  {navGroups.map((group) => (
+                  {navGroups.map((group, groupIndex) => (
                     <div
                       key={group.title}
                       className={cx(
-                        "rounded-[24px] border border-stone-200 bg-stone-100/70 transition dark:border-stone-800 dark:bg-stone-950",
-                        sidebarCollapsed ? "p-2" : "p-4",
+                        sidebarCollapsed
+                          ? "relative space-y-2 py-1"
+                          : "rounded-[24px] border border-stone-200 bg-stone-100/70 p-4 dark:border-stone-800 dark:bg-stone-950",
                       )}
                     >
-                      {!sidebarCollapsed ? (
+                      {sidebarCollapsed ? (
+                        groupIndex > 0 ? (
+                          <div className="mx-auto mb-2 h-px w-8 bg-white/10" />
+                        ) : null
+                      ) : (
                         <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
                           {group.title}
                         </p>
-                      ) : (
-                        <div className="mx-auto mb-2 h-px w-8 bg-stone-300 dark:bg-stone-700" />
                       )}
 
                       <div
