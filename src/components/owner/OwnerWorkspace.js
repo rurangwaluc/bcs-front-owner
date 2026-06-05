@@ -5,6 +5,8 @@ import {
   Bell,
   Building2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   CreditCard,
   FileClock,
@@ -20,6 +22,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import BranchModals from "./BranchModals";
 import OwnerAuditTab from "./tabs/OwnerAuditTab";
@@ -44,10 +47,13 @@ import OwnerSupplierProfilesTab from "./tabs/OwnerSupplierProfilesTab";
 import OwnerSuppliersTab from "./tabs/OwnerSuppliersTab";
 import StaffModals from "./StaffModals";
 import ThemeToggle from "../ThemeToggle";
-import { useMemo } from "react";
 
 function safe(v) {
   return String(v ?? "").trim();
+}
+
+function cx(...classes) {
+  return classes.filter(Boolean).join(" ");
 }
 
 function sectionTitle(activeTab) {
@@ -144,48 +150,58 @@ function sectionSubtitle(activeTab) {
   }
 }
 
-function NavButton({ item, active, onClick }) {
+function NavButton({ item, active, onClick, collapsed = false }) {
   const Icon = item.icon;
 
   return (
     <button
       type="button"
       onClick={() => onClick?.(item.key)}
-      className={
-        "group flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 " +
-        (active
+      title={collapsed ? item.label : undefined}
+      aria-label={item.label}
+      className={cx(
+        "group relative flex w-full items-center rounded-2xl border text-left transition-all duration-200",
+        collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-4 py-3",
+        active
           ? "border-stone-900 bg-stone-900 text-white shadow-md dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950"
-          : "border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200 dark:hover:border-stone-700 dark:hover:bg-stone-800")
-      }
+          : "border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200 dark:hover:border-stone-700 dark:hover:bg-stone-800",
+      )}
     >
       <span
-        className={
-          "inline-flex h-10 w-10 items-center justify-center rounded-xl border transition " +
-          (active
+        className={cx(
+          "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition",
+          active
             ? "border-white/10 bg-white/10 text-white dark:border-stone-900/10 dark:bg-stone-900/10 dark:text-stone-950"
-            : "border-stone-200 bg-stone-50 text-stone-600 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-300")
-        }
+            : "border-stone-200 bg-stone-50 text-stone-600 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-300",
+        )}
       >
         <Icon className="h-5 w-5" />
       </span>
 
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold">
+      {!collapsed ? (
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold">
+            {item.label}
+          </span>
+
+          {item.description ? (
+            <span
+              className={cx(
+                "mt-0.5 block truncate text-xs",
+                active
+                  ? "text-stone-300 dark:text-stone-600"
+                  : "text-stone-500 dark:text-stone-400",
+              )}
+            >
+              {item.description}
+            </span>
+          ) : null}
+        </span>
+      ) : (
+        <span className="pointer-events-none absolute left-[calc(100%+10px)] top-1/2 z-50 hidden -translate-y-1/2 whitespace-nowrap rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-800 shadow-xl group-hover:block dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100">
           {item.label}
         </span>
-        {item.description ? (
-          <span
-            className={
-              "mt-0.5 block truncate text-xs " +
-              (active
-                ? "text-stone-300 dark:text-stone-600"
-                : "text-stone-500 dark:text-stone-400")
-            }
-          >
-            {item.description}
-          </span>
-        ) : null}
-      </span>
+      )}
     </button>
   );
 }
@@ -235,6 +251,8 @@ export default function OwnerWorkspace({
   branchModalProps = {},
   staffModalProps = {},
 }) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   const navGroups = useMemo(
     () => [
       {
@@ -394,6 +412,10 @@ export default function OwnerWorkspace({
   const activeTabMeta =
     allTabs.find((item) => item.key === activeTab) || allTabs[0];
 
+  const workspaceGridClass = sidebarCollapsed
+    ? "xl:grid-cols-[92px_minmax(0,1fr)]"
+    : "xl:grid-cols-[320px_minmax(0,1fr)]";
+
   function renderActiveTab() {
     switch (activeTab) {
       case "overview":
@@ -496,32 +518,94 @@ export default function OwnerWorkspace({
 
   return (
     <>
-      <div className="grid gap-5 xl:h-[calc(100vh-32px)] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-6">
+      <div
+        className={cx(
+          "grid gap-5 transition-[grid-template-columns] duration-300 xl:h-[calc(100vh-32px)] xl:gap-6",
+          workspaceGridClass,
+        )}
+      >
         <aside className="hidden xl:block xl:min-h-0">
-          <div className="sticky top-4 h-[calc(100vh-48px)] overflow-hidden">
-            <div className="h-full overflow-y-auto pr-2">
-              <div className="space-y-5">
-                {navGroups.map((group) => (
-                  <div
-                    key={group.title}
-                    className="rounded-[28px] border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950"
-                  >
-                    <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                      {group.title}
+          <div className="sticky top-4 h-[calc(100vh-48px)] overflow-visible">
+            <div
+              className={cx(
+                "flex h-full flex-col overflow-hidden rounded-[30px] border border-stone-200 bg-stone-50 p-3 shadow-sm transition-all duration-300 dark:border-stone-800 dark:bg-stone-950",
+                sidebarCollapsed ? "w-[92px]" : "w-[320px]",
+              )}
+            >
+              <div
+                className={cx(
+                  "mb-3 flex items-center gap-3 rounded-[22px] border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900",
+                  sidebarCollapsed ? "justify-center" : "justify-between",
+                )}
+              >
+                {!sidebarCollapsed ? (
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-stone-950 dark:text-stone-50">
+                      Owner workspace
                     </p>
-
-                    <div className="mt-3 space-y-2">
-                      {group.items.map((item) => (
-                        <NavButton
-                          key={item.key}
-                          item={item}
-                          active={activeTab === item.key}
-                          onClick={onNavigate}
-                        />
-                      ))}
-                    </div>
+                    <p className="mt-0.5 truncate text-xs text-stone-500 dark:text-stone-400">
+                      Full business control
+                    </p>
                   </div>
-                ))}
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => setSidebarCollapsed((value) => !value)}
+                  aria-label={
+                    sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+                  }
+                  title={
+                    sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+                  }
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 text-stone-700 transition hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200 dark:hover:bg-stone-800"
+                >
+                  {sidebarCollapsed ? (
+                    <ChevronRight className="h-5 w-5" />
+                  ) : (
+                    <ChevronLeft className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible pr-1">
+                <div
+                  className={cx("space-y-4", sidebarCollapsed && "space-y-3")}
+                >
+                  {navGroups.map((group) => (
+                    <div
+                      key={group.title}
+                      className={cx(
+                        "rounded-[24px] border border-stone-200 bg-stone-100/70 transition dark:border-stone-800 dark:bg-stone-950",
+                        sidebarCollapsed ? "p-2" : "p-4",
+                      )}
+                    >
+                      {!sidebarCollapsed ? (
+                        <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                          {group.title}
+                        </p>
+                      ) : (
+                        <div className="mx-auto mb-2 h-px w-8 bg-stone-300 dark:bg-stone-700" />
+                      )}
+
+                      <div
+                        className={cx(
+                          sidebarCollapsed ? "space-y-2" : "mt-3 space-y-2",
+                        )}
+                      >
+                        {group.items.map((item) => (
+                          <NavButton
+                            key={item.key}
+                            item={item}
+                            active={activeTab === item.key}
+                            onClick={onNavigate}
+                            collapsed={sidebarCollapsed}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
