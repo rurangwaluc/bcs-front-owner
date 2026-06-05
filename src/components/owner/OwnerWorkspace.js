@@ -161,21 +161,17 @@ function NavButton({ item, active, onClick, collapsed = false }) {
         title={item.label}
         aria-label={item.label}
         className={cx(
-          "group relative mx-auto flex h-11 w-11 items-center justify-center rounded-2xl transition-all duration-200",
+          "relative mx-auto flex h-11 w-11 items-center justify-center rounded-2xl transition-all duration-200",
           active
-            ? "bg-white text-stone-950 shadow-[0_14px_30px_rgba(255,255,255,0.14)]"
-            : "text-stone-400 hover:bg-white/8 hover:text-stone-50",
+            ? "bg-stone-950 text-white shadow-[0_14px_30px_rgba(15,23,42,0.16)] dark:bg-white dark:text-stone-950 dark:shadow-[0_14px_30px_rgba(255,255,255,0.12)]"
+            : "text-stone-500 hover:bg-stone-100 hover:text-stone-950 dark:text-stone-400 dark:hover:bg-white/10 dark:hover:text-stone-50",
         )}
       >
-        <Icon className="h-5 w-5" />
-
-        <span className="pointer-events-none absolute left-[calc(100%+12px)] top-1/2 z-50 hidden -translate-y-1/2 whitespace-nowrap rounded-xl border border-stone-800 bg-stone-950 px-3 py-2 text-xs font-bold text-stone-100 shadow-2xl group-hover:block">
-          {item.label}
-        </span>
-
         {active ? (
-          <span className="absolute -left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-white" />
+          <span className="absolute -left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-stone-950 dark:bg-white" />
         ) : null}
+
+        <Icon className="h-5 w-5" />
       </button>
     );
   }
@@ -543,21 +539,21 @@ export default function OwnerWorkspace({
         )}
       >
         <aside className="hidden xl:block xl:min-h-0">
-          <div className="sticky top-4 h-[calc(100vh-48px)] overflow-visible">
+          <div className="sticky top-4 h-[calc(100vh-48px)] overflow-hidden">
             <div
               className={cx(
-                "relative flex h-full flex-col border border-stone-900/80 bg-[#050505] shadow-[0_24px_80px_rgba(0,0,0,0.34)] transition-all duration-300 dark:border-stone-800",
+                "flex h-full flex-col border shadow-sm transition-all duration-300",
                 sidebarCollapsed
-                  ? "w-[76px] rounded-[28px] px-2 py-3"
-                  : "w-[320px] rounded-[30px] bg-stone-50 p-3 dark:bg-stone-950",
+                  ? "w-[76px] rounded-[28px] border-stone-200 bg-white px-2 py-3 dark:border-stone-800 dark:bg-[#050505] dark:shadow-[0_24px_80px_rgba(0,0,0,0.34)]"
+                  : "w-[320px] rounded-[30px] border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950",
               )}
             >
               <div
                 className={cx(
-                  "mb-3 flex items-center gap-3",
+                  "shrink-0 flex items-center gap-3",
                   sidebarCollapsed
-                    ? "justify-center"
-                    : "justify-between rounded-[22px] border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900",
+                    ? "mb-3 justify-center"
+                    : "mb-3 justify-between rounded-[22px] border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900",
                 )}
               >
                 {!sidebarCollapsed ? (
@@ -583,7 +579,7 @@ export default function OwnerWorkspace({
                   className={cx(
                     "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition",
                     sidebarCollapsed
-                      ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950"
+                      ? "border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-950 hover:text-white dark:border-white/10 dark:bg-white/5 dark:text-stone-200 dark:hover:bg-white dark:hover:text-stone-950"
                       : "border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200 dark:hover:bg-stone-800",
                   )}
                 >
@@ -595,18 +591,17 @@ export default function OwnerWorkspace({
                 </button>
               </div>
 
-              <div
+              <nav
+                aria-label="Owner workspace navigation"
                 className={cx(
-                  "min-h-0 flex-1",
-                  sidebarCollapsed
-                    ? "overflow-visible"
-                    : "overflow-y-auto overflow-x-hidden pr-1",
+                  "min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain",
+                  "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+                  sidebarCollapsed ? "px-0 pb-3" : "pb-2 pr-1",
                 )}
               >
                 <div
                   className={cx(
-                    "space-y-4",
-                    sidebarCollapsed ? "pt-1" : "space-y-5",
+                    sidebarCollapsed ? "space-y-4 pt-1" : "space-y-5",
                   )}
                 >
                   {navGroups.map((group, groupIndex) => (
@@ -614,13 +609,13 @@ export default function OwnerWorkspace({
                       key={group.title}
                       className={cx(
                         sidebarCollapsed
-                          ? "relative space-y-2 py-1"
+                          ? "space-y-2 py-1"
                           : "rounded-[24px] border border-stone-200 bg-stone-100/70 p-4 dark:border-stone-800 dark:bg-stone-950",
                       )}
                     >
                       {sidebarCollapsed ? (
                         groupIndex > 0 ? (
-                          <div className="mx-auto mb-2 h-px w-8 bg-white/10" />
+                          <div className="mx-auto mb-2 h-px w-8 bg-stone-200 dark:bg-white/10" />
                         ) : null
                       ) : (
                         <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
@@ -646,7 +641,7 @@ export default function OwnerWorkspace({
                     </div>
                   ))}
                 </div>
-              </div>
+              </nav>
             </div>
           </div>
         </aside>
