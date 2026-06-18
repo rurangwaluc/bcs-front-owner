@@ -374,39 +374,44 @@ function ModalShell({ title, subtitle, onClose, children }) {
   );
 }
 
-function CreateNoteModal({ open, onClose, onSaved, entityType, entityId }) {
+function CreateNoteModal({ onClose, onSaved, entityType, entityId }) {
   const [form, setForm] = useState({
     entityType: entityType || "customer",
     entityId: entityId || "",
     message: "",
   });
+
   const [errorText, setErrorText] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-
-    setForm({
-      entityType: entityType || "customer",
-      entityId: entityId || "",
-      message: "",
-    });
-    setErrorText("");
-  }, [open, entityType, entityId]);
-
-  if (!open) return null;
 
   async function handleSave() {
     setErrorText("");
 
-    try {
-      const payload = {
-        entityType: String(form.entityType || "")
-          .trim()
-          .toLowerCase(),
-        entityId: Number(form.entityId),
-        message: String(form.message || "").trim(),
-      };
+    const payload = {
+      entityType: String(form.entityType || "")
+        .trim()
+        .toLowerCase(),
 
+      entityId: Number(form.entityId),
+
+      message: String(form.message || "").trim(),
+    };
+
+    if (!payload.entityType) {
+      setErrorText("Entity type is required.");
+      return;
+    }
+
+    if (!Number.isFinite(payload.entityId) || payload.entityId <= 0) {
+      setErrorText("Enter a valid entity ID.");
+      return;
+    }
+
+    if (!payload.message) {
+      setErrorText("Note message is required.");
+      return;
+    }
+
+    try {
       const result = await apiFetch("/notes", {
         method: "POST",
         body: payload,
@@ -431,10 +436,14 @@ function CreateNoteModal({ open, onClose, onSaved, entityType, entityId }) {
           <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
             Entity type
           </label>
+
           <FormSelect
             value={form.entityType}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, entityType: e.target.value }))
+              setForm((prev) => ({
+                ...prev,
+                entityType: e.target.value,
+              }))
             }
           >
             <option value="sale">Sale</option>
@@ -447,11 +456,15 @@ function CreateNoteModal({ open, onClose, onSaved, entityType, entityId }) {
           <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
             Entity ID
           </label>
+
           <FormInput
             type="number"
             value={form.entityId}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, entityId: e.target.value }))
+              setForm((prev) => ({
+                ...prev,
+                entityId: e.target.value,
+              }))
             }
             placeholder="Record ID"
           />
@@ -461,10 +474,14 @@ function CreateNoteModal({ open, onClose, onSaved, entityType, entityId }) {
           <label className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-300">
             Note
           </label>
+
           <textarea
             value={form.message}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, message: e.target.value }))
+              setForm((prev) => ({
+                ...prev,
+                message: e.target.value,
+              }))
             }
             rows={5}
             className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-100 dark:focus:border-stone-500"
@@ -492,7 +509,6 @@ function CreateNoteModal({ open, onClose, onSaved, entityType, entityId }) {
     </ModalShell>
   );
 }
-
 export default function OwnerNotesTab({ locations = [] }) {
   const [mode, setMode] = useState("notifications");
 
@@ -1058,13 +1074,15 @@ export default function OwnerNotesTab({ locations = [] }) {
         </>
       )}
 
-      <CreateNoteModal
-        open={creatingNote}
-        onClose={() => setCreatingNote(false)}
-        onSaved={handleNoteSaved}
-        entityType={noteEntityType}
-        entityId={noteEntityId}
-      />
+      {creatingNote ? (
+        <CreateNoteModal
+          key={`create-note-${noteEntityType}-${noteEntityId}`}
+          onClose={() => setCreatingNote(false)}
+          onSaved={handleNoteSaved}
+          entityType={noteEntityType}
+          entityId={noteEntityId}
+        />
+      ) : null}
     </div>
   );
 }

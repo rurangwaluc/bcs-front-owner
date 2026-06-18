@@ -20,6 +20,12 @@ function cx(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
+function nonNegativeNumber(value, fallback = 0) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, n);
+}
+
 function normalizeCurrency(v) {
   const s = String(v || "RWF")
     .trim()
@@ -28,7 +34,7 @@ function normalizeCurrency(v) {
 }
 
 function money(v, currency = "RWF") {
-  return `${normalizeCurrency(currency)} ${safeNumber(v).toLocaleString()}`;
+  return `${normalizeCurrency(currency)} ${nonNegativeNumber(v).toLocaleString()}`;
 }
 
 function methodLabel(value) {
@@ -138,16 +144,26 @@ function normalizeCustomer(row) {
 function normalizeLoan(row) {
   if (!row) return null;
 
-  const principalAmount = Number(
+  const principalAmount = nonNegativeNumber(
     row.principalAmount ?? row.principal_amount ?? row.amount ?? 0,
   );
-  const repaidAmount = Number(row.repaidAmount ?? row.repaid_amount ?? 0);
-  const remainingAmount =
+
+  const rawRepaidAmount = nonNegativeNumber(
+    row.repaidAmount ?? row.repaid_amount ?? 0,
+  );
+
+  const repaidAmount = Math.min(rawRepaidAmount, principalAmount);
+
+  const calculatedRemaining = Math.max(0, principalAmount - repaidAmount);
+
+  const rawRemainingAmount =
     row.remainingAmount != null
-      ? Number(row.remainingAmount)
+      ? nonNegativeNumber(row.remainingAmount)
       : row.balanceAmount != null
-        ? Number(row.balanceAmount)
-        : Math.max(0, principalAmount - repaidAmount);
+        ? nonNegativeNumber(row.balanceAmount)
+        : calculatedRemaining;
+
+  const remainingAmount = Math.min(rawRemainingAmount, principalAmount);
 
   return {
     id: row.id ?? null,
@@ -194,7 +210,9 @@ function normalizeLoan(row) {
     updatedAt: row.updatedAt ?? row.updated_at ?? null,
     createdByUserId: row.createdByUserId ?? row.created_by_user_id ?? null,
     createdByName: row.createdByName ?? row.created_by_name ?? "",
-    repaymentsCount: Number(row.repaymentsCount ?? row.repayments_count ?? 0),
+    repaymentsCount: nonNegativeNumber(
+      row.repaymentsCount ?? row.repayments_count ?? 0,
+    ),
   };
 }
 
@@ -258,7 +276,7 @@ function getAvailableBalanceForBranchMethod(
 
   if (!loc || !m) return 0;
 
-  return Number(availabilityByBranchMethod?.[`${loc}__${m}`] ?? 0);
+  return nonNegativeNumber(availabilityByBranchMethod?.[`${loc}__${m}`] ?? 0);
 }
 
 function getLocationNameById(locations, locationId) {
@@ -1014,20 +1032,56 @@ function RepayLoanModal({ open, loan, onClose, onSaved }) {
 
 function RepayLoanModalInner({ loan, onClose, onSaved }) {
   const [form, setForm] = useState(() => ({
-    amount: String(loan?.remainingAmount ?? ""),
+    amount: String(nonNegativeNumber(loan?.remainingAmount ?? 0)),
     method: "CASH",
     reference: "",
     note: "",
   }));
   const [errorText, setErrorText] = useState("");
 
+  const remainingAmount = nonNegativeNumber(loan?.remainingAmount ?? 0);
+  const requestedAmount = Number(form.amount);
+
+  const invalidAmount =
+    !Number.isFinite(requestedAmount) || requestedAmount <= 0;
+
+  const exceedsRemaining =
+    Number.isFinite(requestedAmount) &&
+    requestedAmount > 0 &&
+    requestedAmount > remainingAmount;
+
+  const repaymentBlocked =
+    invalidAmount || exceedsRemaining || remainingAmount <= 0;
+
   async function handleSave() {
     setErrorText("");
+
+    const amount = Number(form.amount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setErrorText("Enter a valid repayment amount greater than zero.");
+      return;
+    }
+
+    if (remainingAmount <= 0) {
+      setErrorText("This loan has no remaining balance to repay.");
+      return;
+    }
+
+    if (amount > remainingAmount) {
+      setErrorText(
+        `Repayment cannot exceed the remaining balance (${money(
+          remainingAmount,
+          loan?.currency,
+        )}).`,
+      );
+      return;
+    }
 
     try {
       const payload = {
         locationId: loan?.locationId ? Number(loan.locationId) : undefined,
-        amount: Number(form.amount),
+        amount,
         method: form.method,
         ...(form.reference ? { reference: form.reference } : {}),
         ...(form.note ? { note: form.note } : {}),
@@ -1044,7 +1098,9 @@ function RepayLoanModalInner({ loan, onClose, onSaved }) {
       onSaved?.(result);
     } catch (e) {
       setErrorText(
-        e?.data?.error || e?.message || "Failed to record repayment",
+        e?.data?.error ||
+          e?.message ||
+          "Failed to record repayment. Please confirm available business funds and try again.",
       );
     }
   }
@@ -1052,7 +1108,7 @@ function RepayLoanModalInner({ loan, onClose, onSaved }) {
   return (
     <ModalShell
       title={`Record repayment for loan #${loan.id}`}
-      subtitle={`Remaining balance: ${money(loan?.remainingAmount, loan?.currency)}`}
+      subtitle={`Remaining balance: ${money(remainingAmount, loan?.currency)}`}
       onClose={onClose}
     >
       <AlertBox message={errorText} />
@@ -1064,12 +1120,20 @@ function RepayLoanModalInner({ loan, onClose, onSaved }) {
           </label>
           <FormInput
             type="number"
+            min="1"
+            max={String(remainingAmount)}
             value={form.amount}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, amount: e.target.value }))
             }
             placeholder="0"
           />
+
+          {exceedsRemaining ? (
+            <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">
+              Repayment cannot be greater than the remaining balance.
+            </p>
+          ) : null}
         </div>
 
         <div>
@@ -1133,6 +1197,7 @@ function RepayLoanModalInner({ loan, onClose, onSaved }) {
           loadingText="Recording..."
           successText="Recorded"
           onClick={handleSave}
+          disabled={repaymentBlocked}
         />
       </div>
     </ModalShell>
@@ -1325,15 +1390,19 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
 
   const cards = useMemo(() => {
     return {
-      loansCount: Number(loanSummary?.loansCount ?? 0),
-      openLoansCount: Number(loanSummary?.openCount ?? 0),
-      partiallyRepaidCount: Number(loanSummary?.partialCount ?? 0),
-      repaidLoansCount: Number(loanSummary?.repaidCount ?? 0),
-      totalPrincipalAmount: Number(loanSummary?.totalPrincipalAmount ?? 0),
-      totalRepaidAmount: Number(loanSummary?.totalRepaidAmount ?? 0),
-      totalRemainingAmount: Number(loanSummary?.outstandingAmount ?? 0),
-      overdueCount: Number(loanSummary?.overdueCount ?? 0),
-      overdueAmount: Number(loanSummary?.overdueAmount ?? 0),
+      loansCount: nonNegativeNumber(loanSummary?.loansCount ?? 0),
+      openLoansCount: nonNegativeNumber(loanSummary?.openCount ?? 0),
+      partiallyRepaidCount: nonNegativeNumber(loanSummary?.partialCount ?? 0),
+      repaidLoansCount: nonNegativeNumber(loanSummary?.repaidCount ?? 0),
+      totalPrincipalAmount: nonNegativeNumber(
+        loanSummary?.totalPrincipalAmount ?? 0,
+      ),
+      totalRepaidAmount: nonNegativeNumber(loanSummary?.totalRepaidAmount ?? 0),
+      totalRemainingAmount: nonNegativeNumber(
+        loanSummary?.outstandingAmount ?? 0,
+      ),
+      overdueCount: nonNegativeNumber(loanSummary?.overdueCount ?? 0),
+      overdueAmount: nonNegativeNumber(loanSummary?.overdueAmount ?? 0),
     };
   }, [loanSummary]);
 
@@ -1351,7 +1420,7 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
       const m = String(row?.method || "OTHER")
         .trim()
         .toUpperCase();
-      const net = Number(row?.netAmount ?? 0);
+      const net = nonNegativeNumber(row?.netAmount ?? 0);
 
       if (!loc || !m) continue;
       map[`${loc}__${m}`] = Math.max(0, net);
@@ -1364,7 +1433,7 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
     return byLocationMethodRows
       .map((row) => ({
         ...row,
-        netAmount: Number(row?.netAmount ?? 0),
+        netAmount: nonNegativeNumber(row?.netAmount ?? 0),
       }))
       .filter((row) => row.netAmount > 0)
       .sort((a, b) => b.netAmount - a.netAmount)
@@ -1504,6 +1573,20 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
 
     return () => clearTimeout(timeout);
   }, [locationId, method, search]);
+
+  const selectedLoanStatus = String(selectedLoan?.status || "").toUpperCase();
+
+  const canRecordRepayment =
+    !!selectedLoan &&
+    selectedLoanStatus !== "REPAID" &&
+    selectedLoanStatus !== "VOID" &&
+    nonNegativeNumber(selectedLoan?.remainingAmount) > 0;
+
+  const canVoidSelectedLoan =
+    !!selectedLoan &&
+    selectedLoanStatus !== "VOID" &&
+    nonNegativeNumber(selectedLoan?.repaymentsCount) === 0 &&
+    nonNegativeNumber(selectedLoan?.repaidAmount) <= 0;
 
   return (
     <div className="space-y-5">
@@ -1820,10 +1903,7 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      {String(selectedLoan?.status || "").toUpperCase() !==
-                        "REPAID" &&
-                      String(selectedLoan?.status || "").toUpperCase() !==
-                        "VOID" ? (
+                      {canRecordRepayment ? (
                         <AsyncButton
                           idleText="Record repayment"
                           loadingText="Opening..."
@@ -1833,9 +1913,7 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
                         />
                       ) : null}
 
-                      {String(selectedLoan?.status || "").toUpperCase() !==
-                        "VOID" &&
-                      safeNumber(selectedLoan?.repaidAmount) <= 0 ? (
+                      {canVoidSelectedLoan ? (
                         <AsyncButton
                           idleText="Void loan"
                           loadingText="Opening..."
