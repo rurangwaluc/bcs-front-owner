@@ -530,7 +530,7 @@ function CreateBusinessLoanModalInner({ locations = [], onClose, onSaved }) {
         ...(form.dueDate ? { dueDate: form.dueDate } : {}),
       };
 
-      const result = await apiFetch("/owner/payments/business-loans", {
+      const result = await apiFetch("/owner/business-loans", {
         method: "POST",
         body: payload,
       });
@@ -781,7 +781,7 @@ function RepayBusinessLoanModalInner({ loan, onClose, onSaved }) {
       };
 
       const result = await apiFetch(
-        `/owner/payments/business-loans/${loan.id}/repayments`,
+        `/owner/business-loans/${loan.id}/repayments`,
         {
           method: "POST",
           body: payload,
@@ -995,10 +995,10 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
       const suffix = params.toString() ? `?${params.toString()}` : "";
 
       const [summaryRes, listRes] = await Promise.allSettled([
-        apiFetch(`/owner/payments/business-loans/summary${suffix}`, {
+        apiFetch(`/owner/business-loans/summary${suffix}`, {
           method: "GET",
         }),
-        apiFetch(`/owner/payments/business-loans${suffix}`, {
+        apiFetch(`/owner/business-loans${suffix}`, {
           method: "GET",
         }),
       ]);

@@ -698,7 +698,7 @@ function CreateLoanModalInner({
         ...(form.dueDate ? { dueDate: form.dueDate } : {}),
       };
 
-      const result = await apiFetch("/owner/payments/business-loans", {
+      const result = await apiFetch("/owner-loans", {
         method: "POST",
         body: payload,
       });
@@ -1087,13 +1087,10 @@ function RepayLoanModalInner({ loan, onClose, onSaved }) {
         ...(form.note ? { note: form.note } : {}),
       };
 
-      const result = await apiFetch(
-        `/owner/payments/business-loans/${loan.id}/repayments`,
-        {
-          method: "POST",
-          body: payload,
-        },
-      );
+      const result = await apiFetch(`/owner-loans/${loan.id}/repayments`, {
+        method: "POST",
+        body: payload,
+      });
 
       onSaved?.(result);
     } catch (e) {
@@ -1230,16 +1227,13 @@ function VoidLoanModalInner({ loan, onClose, onSaved }) {
     }
 
     try {
-      const result = await apiFetch(
-        `/owner/payments/business-loans/${loan.id}/void`,
-        {
-          method: "POST",
-          body: {
-            locationId: loan?.locationId ? Number(loan.locationId) : undefined,
-            reason: String(note || "").trim(),
-          },
+      const result = await apiFetch(`/owner-loans/${loan.id}/void`, {
+        method: "POST",
+        body: {
+          locationId: loan?.locationId ? Number(loan.locationId) : undefined,
+          reason: String(note || "").trim(),
         },
-      );
+      });
 
       onSaved?.(result);
     } catch (e) {
@@ -1464,8 +1458,8 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
 
       const movementQuery = movementParams.toString();
 
-      const loanSummaryUrl = `/owner/payments/business-loans/summary${loanQuery ? `?${loanQuery}` : ""}`;
-      const loansUrl = `/owner/payments/business-loans${loanQuery ? `?${loanQuery}` : ""}`;
+      const loanSummaryUrl = `/owner-loans/summary${loanQuery ? `?${loanQuery}` : ""}`;
+      const loansUrl = `/owner-loans${loanQuery ? `?${loanQuery}` : ""}`;
       const breakdownUrl = `/owner/payments/breakdown${movementQuery ? `?${movementQuery}` : ""}`;
 
       const [loanSummaryRes, loansRes, breakdownRes] = await Promise.allSettled(
