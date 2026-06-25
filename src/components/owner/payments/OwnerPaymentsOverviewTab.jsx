@@ -15,10 +15,6 @@ import { useEffect, useMemo, useState } from "react";
 import AsyncButton from "../../AsyncButton";
 import { apiFetch } from "../../../lib/api";
 
-function cx(...classes) {
-  return classes.filter(Boolean).join(" ");
-}
-
 function normalizeCurrency(v) {
   const s = String(v || "RWF")
     .trim()
@@ -120,6 +116,7 @@ export default function OwnerPaymentsOverviewTab({
 
   const cards = useMemo(() => {
     const totals = summary?.totals || {};
+
     return {
       totalMoneyIn: nonNegativeAmount(totals.totalMoneyIn ?? 0),
       totalMoneyOut: nonNegativeAmount(totals.totalMoneyOut ?? 0),
@@ -148,20 +145,20 @@ export default function OwnerPaymentsOverviewTab({
     let cardNet = 0;
 
     for (const row of byMethodRows) {
-      const amt = nonNegativeAmount(row?.netAmount ?? 0);
+      const amount = nonNegativeAmount(row?.netAmount ?? 0);
 
       switch (String(row?.method || "").toUpperCase()) {
         case "CASH":
-          cashNet += amt;
+          cashNet += amount;
           break;
         case "MOMO":
-          momoNet += amt;
+          momoNet += amount;
           break;
         case "BANK":
-          bankNet += amt;
+          bankNet += amount;
           break;
         case "CARD":
-          cardNet += amt;
+          cardNet += amount;
           break;
         default:
           break;
@@ -268,7 +265,7 @@ export default function OwnerPaymentsOverviewTab({
 
       <SectionCard
         title="Overview"
-        subtitle="Owner snapshot of money in, money out, Available  position, method strength, and branch strength."
+        subtitle="Owner snapshot of money received, money paid, available funds, method strength, and branch strength."
         right={
           <AsyncButton
             variant="secondary"
@@ -282,14 +279,14 @@ export default function OwnerPaymentsOverviewTab({
         <div className="grid gap-4">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <StatCard
-              label="Money in"
+              label="Money received"
               value={money(cards.totalMoneyIn)}
               sub={`${safeNumber(cards.moneyInCount)} record(s)`}
               valueClassName={`text-[17px] leading-tight ${totalInTone}`}
             />
 
             <StatCard
-              label="Money out"
+              label="Money paid"
               value={money(cards.totalMoneyOut)}
               sub={`${safeNumber(cards.moneyOutCount)} record(s)`}
               valueClassName={`text-[17px] leading-tight ${totalOutTone}`}
@@ -315,7 +312,7 @@ export default function OwnerPaymentsOverviewTab({
               <p className="text-[10px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                 Cash available
               </p>
-              <p className="mt-2 text-sm font-black text-stone-950 dark:text-stone-50 sm:text-lg">
+              <p className="mt-2 text-sm font-black text-emerald-700 dark:text-emerald-300 sm:text-lg">
                 {money(quickStats.cashNet)}
               </p>
             </div>
@@ -324,7 +321,7 @@ export default function OwnerPaymentsOverviewTab({
               <p className="text-[10px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                 Mobile money available
               </p>
-              <p className="mt-2 text-sm font-black text-stone-950 dark:text-stone-50 sm:text-lg">
+              <p className="mt-2 text-sm font-black text-emerald-700 dark:text-emerald-300 sm:text-lg">
                 {money(quickStats.momoNet)}
               </p>
             </div>
@@ -333,7 +330,7 @@ export default function OwnerPaymentsOverviewTab({
               <p className="text-[10px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                 Bank available
               </p>
-              <p className="mt-2 text-sm font-black text-stone-950 dark:text-stone-50 sm:text-lg">
+              <p className="mt-2 text-sm font-black text-emerald-700 dark:text-emerald-300 sm:text-lg">
                 {money(quickStats.bankNet)}
               </p>
             </div>
@@ -342,7 +339,7 @@ export default function OwnerPaymentsOverviewTab({
               <p className="text-[10px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                 Card available
               </p>
-              <p className="mt-2 text-sm font-black text-stone-950 dark:text-stone-50 sm:text-lg">
+              <p className="mt-2 text-sm font-black text-emerald-700 dark:text-emerald-300 sm:text-lg">
                 {money(quickStats.cardNet)}
               </p>
             </div>
@@ -412,8 +409,8 @@ export default function OwnerPaymentsOverviewTab({
         </SectionCard>
 
         <SectionCard
-          title="Quick owner actions"
-          subtitle="Move fast to the next money action without hunting through one long page."
+          title="Recommended actions"
+          subtitle="Fast owner actions based on the money areas used most often."
         >
           <div className="grid gap-3">
             <button
@@ -422,10 +419,10 @@ export default function OwnerPaymentsOverviewTab({
               className="rounded-[22px] border border-stone-200 bg-white px-4 py-4 text-left transition hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-900 dark:hover:bg-stone-800"
             >
               <div className="text-sm font-black text-stone-950 dark:text-stone-50">
-                Open movements
+                Review payment history
               </div>
               <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-                Inspect the full money-in and money-out history.
+                See every money movement and verify what changed.
               </div>
             </button>
 
@@ -434,9 +431,9 @@ export default function OwnerPaymentsOverviewTab({
               onClick={() => onOpenGivenOutLoansTab?.()}
               className="rounded-[22px] border border-stone-900 bg-stone-900 px-4 py-4 text-left text-white transition hover:bg-stone-800 dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-200"
             >
-              <div className="text-sm font-black">Go to given-out loans</div>
+              <div className="text-sm font-black">Manage given-out loans</div>
               <div className="mt-1 text-xs opacity-80">
-                Record and manage money the business gave to other people.
+                Give money only from payment methods that have available funds.
               </div>
             </button>
 
@@ -446,10 +443,11 @@ export default function OwnerPaymentsOverviewTab({
               className="rounded-[22px] border border-stone-200 bg-stone-50 px-4 py-4 text-left transition hover:bg-stone-100 dark:border-stone-800 dark:bg-stone-950 dark:hover:bg-stone-900"
             >
               <div className="text-sm font-black text-stone-950 dark:text-stone-50">
-                Go to received loans
+                Manage received loans
               </div>
               <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-                Manage money the business received and still needs to repay.
+                Track money the business received and what still needs
+                repayment.
               </div>
             </button>
           </div>
@@ -459,7 +457,7 @@ export default function OwnerPaymentsOverviewTab({
       <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
           title="Available by payment method"
-          subtitle="Each method shows money in, money out, and the final Available  result."
+          subtitle="Each payment method shows money received, money paid, and what is available now."
         >
           {loading ? (
             <div className="grid gap-3">
@@ -483,7 +481,7 @@ export default function OwnerPaymentsOverviewTab({
                     className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <MovementChip
                             text={methodName}
@@ -497,7 +495,7 @@ export default function OwnerPaymentsOverviewTab({
                         <div className="mt-3 grid gap-2 sm:grid-cols-3">
                           <div>
                             <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                              Money in
+                              Money received
                             </p>
                             <p className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
                               {money(moneyIn)}
@@ -506,7 +504,7 @@ export default function OwnerPaymentsOverviewTab({
 
                           <div>
                             <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                              Money out
+                              Money paid
                             </p>
                             <p className="mt-1 text-sm font-semibold text-rose-700 dark:text-rose-300">
                               {money(moneyOut)}
@@ -517,21 +515,8 @@ export default function OwnerPaymentsOverviewTab({
                             <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                               Available
                             </p>
-                            <p
-                              className={cx(
-                                "mt-1 text-sm font-semibold",
-                                <p className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                                  {money(available)}
-                                </p> ? (
-                                  "text-emerald-700 dark:text-emerald-300"
-                                ) : (
-                                  "text-rose-700 dark:text-rose-300"
-                                ),
-                              )}
-                            >
-                              <p className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                                {money(available)}
-                              </p>
+                            <p className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                              {money(available)}
                             </p>
                           </div>
                         </div>
@@ -546,7 +531,7 @@ export default function OwnerPaymentsOverviewTab({
 
         <SectionCard
           title="Available by branch and method"
-          subtitle="Shows where money is strongest or weakest across branches."
+          subtitle="Shows where available money is strongest across branches and payment methods."
         >
           {loading ? (
             <div className="grid gap-3">
@@ -590,21 +575,8 @@ export default function OwnerPaymentsOverviewTab({
                         <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
                           Available
                         </p>
-                        <p
-                          className={cx(
-                            "mt-1 text-base font-black",
-                            <p className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                              {money(available)}
-                            </p> ? (
-                              "text-emerald-700 dark:text-emerald-300"
-                            ) : (
-                              "text-rose-700 dark:text-rose-300"
-                            ),
-                          )}
-                        >
-                          <p className="mt-1 text-base font-black text-emerald-700 dark:text-emerald-300">
-                            {money(available)}
-                          </p>
+                        <p className="mt-1 text-base font-black text-emerald-700 dark:text-emerald-300">
+                          {money(available)}
                         </p>
                       </div>
                     </div>
