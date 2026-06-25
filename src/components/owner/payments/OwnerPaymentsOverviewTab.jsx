@@ -26,8 +26,14 @@ function normalizeCurrency(v) {
   return s || "RWF";
 }
 
+function nonNegativeAmount(value, fallback = 0) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, n);
+}
+
 function money(v, currency = "RWF") {
-  return `${normalizeCurrency(currency)} ${safeNumber(v).toLocaleString()}`;
+  return `${normalizeCurrency(currency)} ${nonNegativeAmount(v).toLocaleString()}`;
 }
 
 function normalizeSummaryResponse(result) {
@@ -115,13 +121,13 @@ export default function OwnerPaymentsOverviewTab({
   const cards = useMemo(() => {
     const totals = summary?.totals || {};
     return {
-      totalMoneyIn: Number(totals.totalMoneyIn ?? 0),
-      totalMoneyOut: Number(totals.totalMoneyOut ?? 0),
-      netAmount: Number(totals.netAmount ?? 0),
-      movementsCount: Number(totals.movementsCount ?? 0),
-      branchesCount: Number(totals.branchesCount ?? 0),
-      moneyInCount: Number(totals.moneyInCount ?? 0),
-      moneyOutCount: Number(totals.moneyOutCount ?? 0),
+      totalMoneyIn: nonNegativeAmount(totals.totalMoneyIn ?? 0),
+      totalMoneyOut: nonNegativeAmount(totals.totalMoneyOut ?? 0),
+      availableFunds: nonNegativeAmount(totals.netAmount ?? 0),
+      movementsCount: nonNegativeAmount(totals.movementsCount ?? 0),
+      branchesCount: nonNegativeAmount(totals.branchesCount ?? 0),
+      moneyInCount: nonNegativeAmount(totals.moneyInCount ?? 0),
+      moneyOutCount: nonNegativeAmount(totals.moneyOutCount ?? 0),
     };
   }, [summary]);
 
@@ -256,18 +262,13 @@ export default function OwnerPaymentsOverviewTab({
       ? "text-rose-700 dark:text-rose-300"
       : "text-stone-950 dark:text-stone-50";
 
-  const netTone =
-    cards.netAmount >= 0
-      ? "text-emerald-700 dark:text-emerald-300"
-      : "text-rose-700 dark:text-rose-300";
-
   return (
     <div className="space-y-5">
       {errorText ? <AlertBox tone="danger">{errorText}</AlertBox> : null}
 
       <SectionCard
         title="Overview"
-        subtitle="Owner snapshot of money in, money out, net position, method strength, and branch strength."
+        subtitle="Owner snapshot of money in, money out, Available  position, method strength, and branch strength."
         right={
           <AsyncButton
             variant="secondary"
@@ -295,10 +296,10 @@ export default function OwnerPaymentsOverviewTab({
             />
 
             <StatCard
-              label="Net"
-              value={money(cards.netAmount)}
-              sub="Money in minus money out"
-              valueClassName={`text-[17px] leading-tight ${netTone}`}
+              label="Available funds"
+              value={money(cards.availableFunds)}
+              sub="Available balance after money paid"
+              valueClassName="text-[17px] leading-tight text-emerald-700 dark:text-emerald-300"
             />
 
             <StatCard
@@ -312,7 +313,7 @@ export default function OwnerPaymentsOverviewTab({
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div className="rounded-2xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-800 dark:bg-stone-900">
               <p className="text-[10px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                Cash net
+                Cash available
               </p>
               <p className="mt-2 text-sm font-black text-stone-950 dark:text-stone-50 sm:text-lg">
                 {money(quickStats.cashNet)}
@@ -321,7 +322,7 @@ export default function OwnerPaymentsOverviewTab({
 
             <div className="rounded-2xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-800 dark:bg-stone-900">
               <p className="text-[10px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                Mobile money net
+                Mobile money available
               </p>
               <p className="mt-2 text-sm font-black text-stone-950 dark:text-stone-50 sm:text-lg">
                 {money(quickStats.momoNet)}
@@ -330,7 +331,7 @@ export default function OwnerPaymentsOverviewTab({
 
             <div className="rounded-2xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-800 dark:bg-stone-900">
               <p className="text-[10px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                Bank net
+                Bank available
               </p>
               <p className="mt-2 text-sm font-black text-stone-950 dark:text-stone-50 sm:text-lg">
                 {money(quickStats.bankNet)}
@@ -339,7 +340,7 @@ export default function OwnerPaymentsOverviewTab({
 
             <div className="rounded-2xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-800 dark:bg-stone-900">
               <p className="text-[10px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                Card net
+                Card available
               </p>
               <p className="mt-2 text-sm font-black text-stone-950 dark:text-stone-50 sm:text-lg">
                 {money(quickStats.cardNet)}
@@ -457,8 +458,8 @@ export default function OwnerPaymentsOverviewTab({
 
       <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
-          title="Net by payment method"
-          subtitle="Each method shows money in, money out, and the final net result."
+          title="Available by payment method"
+          subtitle="Each method shows money in, money out, and the final Available  result."
         >
           {loading ? (
             <div className="grid gap-3">
@@ -474,7 +475,7 @@ export default function OwnerPaymentsOverviewTab({
                 const methodName = methodLabel(row?.method);
                 const moneyIn = Number(row?.totalMoneyIn ?? 0);
                 const moneyOut = Number(row?.totalMoneyOut ?? 0);
-                const net = Number(row?.netAmount ?? 0);
+                const Available = Number(row?.netAmount ?? 0);
 
                 return (
                   <div
@@ -514,17 +515,17 @@ export default function OwnerPaymentsOverviewTab({
 
                           <div>
                             <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                              Net
+                              Available
                             </p>
                             <p
                               className={cx(
                                 "mt-1 text-sm font-semibold",
-                                net >= 0
+                                Available >= 0
                                   ? "text-emerald-700 dark:text-emerald-300"
                                   : "text-rose-700 dark:text-rose-300",
                               )}
                             >
-                              {money(net)}
+                              {money(Available)}
                             </p>
                           </div>
                         </div>
@@ -538,7 +539,7 @@ export default function OwnerPaymentsOverviewTab({
         </SectionCard>
 
         <SectionCard
-          title="Net by branch and method"
+          title="Available by branch and method"
           subtitle="Shows where money is strongest or weakest across branches."
         >
           {loading ? (
@@ -551,7 +552,7 @@ export default function OwnerPaymentsOverviewTab({
           ) : (
             <div className="grid gap-3">
               {byLocationMethodRows.slice(0, 10).map((row, idx) => {
-                const net = Number(row?.netAmount ?? 0);
+                const Available = Number(row?.netAmount ?? 0);
 
                 return (
                   <div
@@ -581,17 +582,17 @@ export default function OwnerPaymentsOverviewTab({
 
                       <div className="text-right">
                         <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                          Net
+                          Available
                         </p>
                         <p
                           className={cx(
                             "mt-1 text-base font-black",
-                            net >= 0
+                            Available >= 0
                               ? "text-emerald-700 dark:text-emerald-300"
                               : "text-rose-700 dark:text-rose-300",
                           )}
                         >
-                          {money(net)}
+                          {money(Available)}
                         </p>
                       </div>
                     </div>
