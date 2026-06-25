@@ -148,7 +148,7 @@ export default function OwnerPaymentsOverviewTab({
     let cardNet = 0;
 
     for (const row of byMethodRows) {
-      const amt = Number(row?.netAmount ?? 0);
+      const amt = nonNegativeAmount(row?.netAmount ?? 0);
 
       switch (String(row?.method || "").toUpperCase()) {
         case "CASH":
@@ -473,9 +473,9 @@ export default function OwnerPaymentsOverviewTab({
             <div className="grid gap-3">
               {byMethodRows.map((row, idx) => {
                 const methodName = methodLabel(row?.method);
-                const moneyIn = Number(row?.totalMoneyIn ?? 0);
-                const moneyOut = Number(row?.totalMoneyOut ?? 0);
-                const Available = Number(row?.netAmount ?? 0);
+                const moneyIn = nonNegativeAmount(row?.totalMoneyIn ?? 0);
+                const moneyOut = nonNegativeAmount(row?.totalMoneyOut ?? 0);
+                const available = nonNegativeAmount(row?.netAmount ?? 0);
 
                 return (
                   <div
@@ -520,12 +520,18 @@ export default function OwnerPaymentsOverviewTab({
                             <p
                               className={cx(
                                 "mt-1 text-sm font-semibold",
-                                Available >= 0
-                                  ? "text-emerald-700 dark:text-emerald-300"
-                                  : "text-rose-700 dark:text-rose-300",
+                                <p className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                                  {money(available)}
+                                </p> ? (
+                                  "text-emerald-700 dark:text-emerald-300"
+                                ) : (
+                                  "text-rose-700 dark:text-rose-300"
+                                ),
                               )}
                             >
-                              {money(Available)}
+                              <p className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                                {money(available)}
+                              </p>
                             </p>
                           </div>
                         </div>
@@ -552,7 +558,7 @@ export default function OwnerPaymentsOverviewTab({
           ) : (
             <div className="grid gap-3">
               {byLocationMethodRows.slice(0, 10).map((row, idx) => {
-                const Available = Number(row?.netAmount ?? 0);
+                const available = nonNegativeAmount(row?.netAmount ?? 0);
 
                 return (
                   <div
@@ -587,12 +593,18 @@ export default function OwnerPaymentsOverviewTab({
                         <p
                           className={cx(
                             "mt-1 text-base font-black",
-                            Available >= 0
-                              ? "text-emerald-700 dark:text-emerald-300"
-                              : "text-rose-700 dark:text-rose-300",
+                            <p className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                              {money(available)}
+                            </p> ? (
+                              "text-emerald-700 dark:text-emerald-300"
+                            ) : (
+                              "text-rose-700 dark:text-rose-300"
+                            ),
                           )}
                         >
-                          {money(Available)}
+                          <p className="mt-1 text-base font-black text-emerald-700 dark:text-emerald-300">
+                            {money(available)}
+                          </p>
                         </p>
                       </div>
                     </div>
