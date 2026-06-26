@@ -33,7 +33,203 @@ function normalizeCurrency(v) {
 }
 
 function money(v, currency = "RWF") {
-  return `${normalizeCurrency(currency)} ${safeNumber(v).toLocaleString()}`;
+  const amount = Math.max(0, safeNumber(v));
+  return `${normalizeCurrency(currency)} ${amount.toLocaleString()}`;
+}
+
+const PURCHASE_ORDER_CURRENCIES = ["RWF", "USD", "EUR"];
+
+function cleanPayloadText(value, max = 4000) {
+  const text = String(value ?? "").trim();
+  return text ? text.slice(0, max) : undefined;
+}
+
+function positiveIntegerValue(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+
+  const n = Number(text);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function nonNegativeIntegerValue(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return 0;
+
+  const n = Number(text);
+  return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+function validDateOrEmpty(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return true;
+
+  const d = new Date(text);
+  return Number.isFinite(d.getTime());
+}
+
+function isExpectedDateBeforeOrderedDate(orderedAt, expectedAt) {
+  const orderedText = String(orderedAt ?? "").trim();
+  const expectedText = String(expectedAt ?? "").trim();
+
+  if (!orderedText || !expectedText) return false;
+
+  const orderedDate = new Date(orderedText);
+  const expectedDate = new Date(expectedText);
+
+  if (
+    !Number.isFinite(orderedDate.getTime()) ||
+    !Number.isFinite(expectedDate.getTime())
+  ) {
+    return false;
+  }
+
+  return expectedDate.getTime() < orderedDate.getTime();
+}
+
+function buildPurchaseOrderItemsPayload(items) {
+  const rows = Array.isArray(items) ? items : [];
+
+  if (!rows.length) {
+    return {
+      error: "Please add at least one order line.",
+      items: [],
+    };
+  }
+
+  const payloadItems = [];
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const line = rows[index] || {};
+    const lineLabel = `Line ${index + 1}`;
+
+    const productIdText = String(line.productId ?? "").trim();
+    const productId = productIdText
+      ? positiveIntegerValue(productIdText)
+      : null;
+
+    if (productIdText && !productId) {
+      return {
+        error: `${lineLabel}: choose a valid product or clear the product field.`,
+        items: [],
+      };
+    }
+
+    const productName = cleanPayloadText(line.productName, 180);
+
+    if (!productId && !productName) {
+      return {
+        error: `${lineLabel}: choose a product or enter the item name shown on the order.`,
+        items: [],
+      };
+    }
+
+    const qtyOrdered = positiveIntegerValue(line.qtyOrdered);
+    if (!qtyOrdered) {
+      return {
+        error: `${lineLabel}: quantity must be a whole number greater than zero.`,
+        items: [],
+      };
+    }
+
+    const unitCost = nonNegativeIntegerValue(line.unitCost);
+    if (unitCost == null) {
+      return {
+        error: `${lineLabel}: price for one item must be a whole number and cannot be negative.`,
+        items: [],
+      };
+    }
+
+    payloadItems.push({
+      ...(productId ? { productId } : {}),
+      ...(productName ? { productName } : {}),
+      qtyOrdered,
+      unitCost,
+      ...(cleanPayloadText(line.note, 300)
+        ? { note: cleanPayloadText(line.note, 300) }
+        : {}),
+    });
+  }
+
+  return { error: "", items: payloadItems };
+}
+
+function buildGoodsReceiptItemsPayload(lines) {
+  const rows = Array.isArray(lines) ? lines : [];
+  const payloadItems = [];
+  const seen = new Set();
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const line = rows[index] || {};
+    const qtyText = String(line.qtyReceiveNow ?? "").trim();
+    const numericQty = Number(qtyText || 0);
+
+    if (!qtyText || numericQty <= 0) continue;
+
+    const lineLabel = `Receipt line ${index + 1}`;
+    const purchaseOrderItemId = positiveIntegerValue(line.purchaseOrderItemId);
+
+    if (!purchaseOrderItemId) {
+      return {
+        error: `${lineLabel}: this received item is not linked to a valid purchase order line.`,
+        items: [],
+      };
+    }
+
+    if (seen.has(purchaseOrderItemId)) {
+      return {
+        error: `${lineLabel}: the same purchase order line appears more than once.`,
+        items: [],
+      };
+    }
+    seen.add(purchaseOrderItemId);
+
+    const qtyReceived = positiveIntegerValue(qtyText);
+    if (!qtyReceived) {
+      return {
+        error: `${lineLabel}: quantity received must be a whole number greater than zero.`,
+        items: [],
+      };
+    }
+
+    const qtyRemaining = Math.max(0, safeNumber(line.qtyRemaining));
+    if (qtyReceived > qtyRemaining) {
+      return {
+        error: `${lineLabel}: you cannot receive more than the remaining quantity (${qtyRemaining}).`,
+        items: [],
+      };
+    }
+
+    payloadItems.push({
+      purchaseOrderItemId,
+      qtyReceived,
+      ...(cleanPayloadText(line.note, 300)
+        ? { note: cleanPayloadText(line.note, 300) }
+        : {}),
+    });
+  }
+
+  if (!payloadItems.length) {
+    return {
+      error: "Enter at least one quantity received before saving.",
+      items: [],
+    };
+  }
+
+  return { error: "", items: payloadItems };
+}
+
+function getFriendlyApiError(error, fallback) {
+  const issues = error?.data?.issues;
+
+  if (Array.isArray(issues) && issues.length) {
+    const first = issues[0];
+    const path = Array.isArray(first?.path) ? first.path.join(" > ") : "";
+    const message = first?.message || "Invalid purchase order details.";
+    return path ? `${path}: ${message}` : message;
+  }
+
+  return error?.data?.error || error?.message || fallback;
 }
 
 function escapeHtml(value) {
@@ -646,6 +842,8 @@ function PurchaseOrderLineEditor({
           <FormInput
             type="number"
             min="1"
+            step="1"
+            inputMode="numeric"
             value={line.qtyOrdered}
             onChange={(e) => onChange({ ...line, qtyOrdered: e.target.value })}
             placeholder="1"
@@ -659,6 +857,8 @@ function PurchaseOrderLineEditor({
           <FormInput
             type="number"
             min="0"
+            step="1"
+            inputMode="numeric"
             value={line.unitCost}
             onChange={(e) => onChange({ ...line, unitCost: e.target.value })}
             placeholder="0"
@@ -769,6 +969,8 @@ function ReceiveGoodsLineEditor({ line, currency, onChange }) {
             type="number"
             min="0"
             max={String(safeNumber(line?.qtyRemaining))}
+            step="1"
+            inputMode="numeric"
             value={line.qtyReceiveNow}
             onChange={(e) =>
               onChange({
@@ -1274,24 +1476,15 @@ function CreatePurchaseOrderModalInner({
     setErrorText("");
 
     try {
-      if (
-        !Number.isFinite(Number(form.supplierId)) ||
-        Number(form.supplierId) <= 0
-      ) {
+      const supplierId = positiveIntegerValue(form.supplierId);
+      if (!supplierId) {
         setErrorText("Please choose a supplier.");
         return;
       }
 
-      if (
-        !Number.isFinite(Number(form.locationId)) ||
-        Number(form.locationId) <= 0
-      ) {
+      const locationId = positiveIntegerValue(form.locationId);
+      if (!locationId) {
         setErrorText("Please choose the branch receiving this order.");
-        return;
-      }
-
-      if (!formItems.length) {
-        setErrorText("Please add at least one order line.");
         return;
       }
 
@@ -1302,49 +1495,59 @@ function CreatePurchaseOrderModalInner({
         return;
       }
 
-      if (!safe(form.poNo) || !safe(form.reference)) {
+      const poNo = cleanPayloadText(form.poNo, 120);
+      const reference = cleanPayloadText(form.reference, 120);
+
+      if (!poNo || !reference) {
         setErrorText(
           "Please wait a moment for the order number and reference to finish generating.",
         );
         return;
       }
 
-      const normalizedItems = formItems.map((line) => ({
-        ...(line.productId ? { productId: Number(line.productId) } : {}),
-        ...(safe(line.productName)
-          ? { productName: safe(line.productName) }
-          : {}),
-        qtyOrdered: Number(line.qtyOrdered),
-        unitCost: Number(line.unitCost),
-        ...(safe(line.note) ? { note: safe(line.note) } : {}),
-      }));
+      const currency = normalizeCurrency(effectiveCurrency);
+      if (!PURCHASE_ORDER_CURRENCIES.includes(currency)) {
+        setErrorText("Choose a valid currency for this purchase order.");
+        return;
+      }
 
-      const invalidLine = normalizedItems.find(
-        (line) =>
-          !Number.isFinite(line.qtyOrdered) ||
-          line.qtyOrdered <= 0 ||
-          !Number.isFinite(line.unitCost) ||
-          line.unitCost < 0 ||
-          (!line.productId && !safe(line.productName)),
-      );
+      if (!validDateOrEmpty(form.orderedAt)) {
+        setErrorText("Ordered date must be a valid date.");
+        return;
+      }
 
-      if (invalidLine) {
-        setErrorText(
-          "Please make sure every line has a product or item name, a valid quantity, and a valid unit cost.",
-        );
+      if (!validDateOrEmpty(form.expectedAt)) {
+        setErrorText("Expected date must be a valid date.");
+        return;
+      }
+
+      if (isExpectedDateBeforeOrderedDate(form.orderedAt, form.expectedAt)) {
+        setErrorText("Expected date cannot be earlier than ordered date.");
+        return;
+      }
+
+      const linesResult = buildPurchaseOrderItemsPayload(formItems);
+      if (linesResult.error) {
+        setErrorText(linesResult.error);
         return;
       }
 
       const payload = {
-        supplierId: Number(form.supplierId),
-        locationId: Number(form.locationId),
-        poNo: safe(form.poNo),
-        reference: safe(form.reference),
-        currency: effectiveCurrency || undefined,
-        orderedAt: form.orderedAt || undefined,
-        expectedAt: form.expectedAt || undefined,
-        notes: safe(form.notes) || undefined,
-        items: normalizedItems,
+        supplierId,
+        locationId,
+        poNo,
+        reference,
+        currency,
+        ...(cleanPayloadText(form.orderedAt, 80)
+          ? { orderedAt: cleanPayloadText(form.orderedAt, 80) }
+          : {}),
+        ...(cleanPayloadText(form.expectedAt, 80)
+          ? { expectedAt: cleanPayloadText(form.expectedAt, 80) }
+          : {}),
+        ...(cleanPayloadText(form.notes, 4000)
+          ? { notes: cleanPayloadText(form.notes, 4000) }
+          : {}),
+        items: linesResult.items,
       };
 
       const result = await apiFetch("/purchase-orders", {
@@ -1354,8 +1557,7 @@ function CreatePurchaseOrderModalInner({
 
       onSaved?.(result);
     } catch (e) {
-      const msg =
-        e?.data?.error || e?.message || "Failed to create purchase order";
+      const msg = getFriendlyApiError(e, "Failed to create purchase order");
 
       if (String(msg).toLowerCase().includes("forbidden")) {
         setErrorText(
@@ -1461,6 +1663,7 @@ function CreatePurchaseOrderModalInner({
                 >
                   <option value="RWF">RWF</option>
                   <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
                 </FormSelect>
               </div>
 
@@ -1707,41 +1910,77 @@ function EditPurchaseOrderModalInner({
     setErrorText("");
 
     try {
+      const purchaseOrderId = positiveIntegerValue(purchaseOrder?.id);
+      if (!purchaseOrderId) {
+        setErrorText("This purchase order is missing a valid ID.");
+        return;
+      }
+
+      const supplierId = positiveIntegerValue(form.supplierId);
+      if (!supplierId) {
+        setErrorText("Please choose a supplier.");
+        return;
+      }
+
+      const currency = normalizeCurrency(effectiveCurrency);
+      if (!PURCHASE_ORDER_CURRENCIES.includes(currency)) {
+        setErrorText("Choose a valid currency for this purchase order.");
+        return;
+      }
+
+      if (!validDateOrEmpty(form.orderedAt)) {
+        setErrorText("Ordered date must be a valid date.");
+        return;
+      }
+
+      if (!validDateOrEmpty(form.expectedAt)) {
+        setErrorText("Expected date must be a valid date.");
+        return;
+      }
+
+      if (isExpectedDateBeforeOrderedDate(form.orderedAt, form.expectedAt)) {
+        setErrorText("Expected date cannot be earlier than ordered date.");
+        return;
+      }
+
       const payload = {
-        supplierId: Number(form.supplierId),
-        poNo: safe(form.poNo) || undefined,
-        reference: safe(form.reference) || undefined,
-        currency: effectiveCurrency || undefined,
-        orderedAt: form.orderedAt || undefined,
-        expectedAt: form.expectedAt || undefined,
-        notes: safe(form.notes) || undefined,
-        ...(linesLocked
-          ? {}
-          : {
-              items: formItems.map((line) => ({
-                ...(line.productId
-                  ? { productId: Number(line.productId) }
-                  : {}),
-                ...(safe(line.productName)
-                  ? { productName: safe(line.productName) }
-                  : {}),
-                qtyOrdered: Number(line.qtyOrdered),
-                unitCost: Number(line.unitCost),
-                ...(safe(line.note) ? { note: safe(line.note) } : {}),
-              })),
-            }),
+        supplierId,
+        ...(cleanPayloadText(form.poNo, 120)
+          ? { poNo: cleanPayloadText(form.poNo, 120) }
+          : {}),
+        ...(cleanPayloadText(form.reference, 120)
+          ? { reference: cleanPayloadText(form.reference, 120) }
+          : {}),
+        currency,
+        ...(cleanPayloadText(form.orderedAt, 80)
+          ? { orderedAt: cleanPayloadText(form.orderedAt, 80) }
+          : {}),
+        ...(cleanPayloadText(form.expectedAt, 80)
+          ? { expectedAt: cleanPayloadText(form.expectedAt, 80) }
+          : {}),
+        ...(cleanPayloadText(form.notes, 4000)
+          ? { notes: cleanPayloadText(form.notes, 4000) }
+          : {}),
       };
 
-      const result = await apiFetch(`/purchase-orders/${purchaseOrder.id}`, {
+      if (!linesLocked) {
+        const linesResult = buildPurchaseOrderItemsPayload(formItems);
+        if (linesResult.error) {
+          setErrorText(linesResult.error);
+          return;
+        }
+
+        payload.items = linesResult.items;
+      }
+
+      const result = await apiFetch(`/purchase-orders/${purchaseOrderId}`, {
         method: "PATCH",
         body: payload,
       });
 
       onSaved?.(result);
     } catch (e) {
-      setErrorText(
-        e?.data?.error || e?.message || "Failed to update purchase order",
-      );
+      setErrorText(getFriendlyApiError(e, "Failed to update purchase order"));
     }
   }
 
@@ -1836,6 +2075,7 @@ function EditPurchaseOrderModalInner({
                 >
                   <option value="RWF">RWF</option>
                   <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
                 </FormSelect>
               </div>
 
@@ -2005,8 +2245,14 @@ function ApprovePurchaseOrderModal({ open, purchaseOrder, onClose, onSaved }) {
     setErrorText("");
 
     try {
+      const purchaseOrderId = positiveIntegerValue(purchaseOrder?.id);
+      if (!purchaseOrderId) {
+        setErrorText("This purchase order is missing a valid ID.");
+        return;
+      }
+
       const result = await apiFetch(
-        `/purchase-orders/${purchaseOrder.id}/approve`,
+        `/purchase-orders/${purchaseOrderId}/approve`,
         {
           method: "POST",
           body: {},
@@ -2015,9 +2261,7 @@ function ApprovePurchaseOrderModal({ open, purchaseOrder, onClose, onSaved }) {
 
       onSaved?.(result);
     } catch (e) {
-      setErrorText(
-        e?.data?.error || e?.message || "Failed to approve purchase order",
-      );
+      setErrorText(getFriendlyApiError(e, "Failed to approve purchase order"));
     }
   }
 
@@ -2071,21 +2315,27 @@ function CancelPurchaseOrderModal({ open, purchaseOrder, onClose, onSaved }) {
     setErrorText("");
 
     try {
+      const purchaseOrderId = positiveIntegerValue(purchaseOrder?.id);
+      if (!purchaseOrderId) {
+        setErrorText("This purchase order is missing a valid ID.");
+        return;
+      }
+
       const result = await apiFetch(
-        `/purchase-orders/${purchaseOrder.id}/cancel`,
+        `/purchase-orders/${purchaseOrderId}/cancel`,
         {
           method: "POST",
           body: {
-            reason: safe(reason) || undefined,
+            ...(cleanPayloadText(reason, 300)
+              ? { reason: cleanPayloadText(reason, 300) }
+              : {}),
           },
         },
       );
 
       onSaved?.(result);
     } catch (e) {
-      setErrorText(
-        e?.data?.error || e?.message || "Failed to cancel purchase order",
-      );
+      setErrorText(getFriendlyApiError(e, "Failed to cancel purchase order"));
     }
   }
 
@@ -2213,18 +2463,45 @@ function ReceiveGoodsModalInner({
     setErrorText("");
 
     try {
+      const locationId = positiveIntegerValue(form.locationId);
+      if (!locationId) {
+        setErrorText("This receipt is missing a valid branch.");
+        return;
+      }
+
+      const purchaseOrderId = positiveIntegerValue(form.purchaseOrderId);
+      if (!purchaseOrderId) {
+        setErrorText("This receipt is not linked to a valid purchase order.");
+        return;
+      }
+
+      if (!validDateOrEmpty(form.receivedAt)) {
+        setErrorText("Received date must be a valid date.");
+        return;
+      }
+
+      const linesResult = buildGoodsReceiptItemsPayload(receiveLines);
+      if (linesResult.error) {
+        setErrorText(linesResult.error);
+        return;
+      }
+
       const payload = {
-        locationId: Number(form.locationId),
-        purchaseOrderId: Number(form.purchaseOrderId),
-        receiptNo: safe(form.receiptNo) || undefined,
-        reference: safe(form.reference) || undefined,
-        note: safe(form.note) || undefined,
-        receivedAt: form.receivedAt || undefined,
-        items: activeLines.map((line) => ({
-          purchaseOrderItemId: Number(line.purchaseOrderItemId),
-          qtyReceived: Number(line.qtyReceiveNow),
-          ...(safe(line.note) ? { note: safe(line.note) } : {}),
-        })),
+        locationId,
+        purchaseOrderId,
+        ...(cleanPayloadText(form.receiptNo, 120)
+          ? { receiptNo: cleanPayloadText(form.receiptNo, 120) }
+          : {}),
+        ...(cleanPayloadText(form.reference, 120)
+          ? { reference: cleanPayloadText(form.reference, 120) }
+          : {}),
+        ...(cleanPayloadText(form.note, 4000)
+          ? { note: cleanPayloadText(form.note, 4000) }
+          : {}),
+        ...(cleanPayloadText(form.receivedAt, 80)
+          ? { receivedAt: cleanPayloadText(form.receivedAt, 80) }
+          : {}),
+        items: linesResult.items,
       };
 
       const result = await apiFetch("/goods-receipts", {
@@ -2234,7 +2511,7 @@ function ReceiveGoodsModalInner({
 
       onSaved?.(result);
     } catch (e) {
-      setErrorText(e?.data?.error || e?.message || "Failed to receive goods");
+      setErrorText(getFriendlyApiError(e, "Failed to receive goods"));
     }
   }
 
