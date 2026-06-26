@@ -8,7 +8,6 @@ import {
   SectionCard,
   StatCard,
   safe,
-  safeDate,
   safeNumber,
 } from "./../OwnerShared";
 import { useEffect, useMemo, useState } from "react";
@@ -29,8 +28,56 @@ function normalizeCurrency(v) {
   return s || "RWF";
 }
 
+function nonNegativeAmount(value, fallback = 0) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, n);
+}
+
 function money(v, currency = "RWF") {
-  return `${normalizeCurrency(currency)} ${safeNumber(v).toLocaleString()}`;
+  return `${normalizeCurrency(currency)} ${nonNegativeAmount(v).toLocaleString()}`;
+}
+
+function formatMovementDateTime(value) {
+  if (!value) return "No date recorded";
+
+  const d = new Date(value);
+  if (!Number.isFinite(d.getTime())) return "No date recorded";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+}
+
+function formatMovementDate(value) {
+  if (!value) return "No date";
+
+  const d = new Date(value);
+  if (!Number.isFinite(d.getTime())) return "No date";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(d);
+}
+
+function formatMovementTime(value) {
+  if (!value) return "No time";
+
+  const d = new Date(value);
+  if (!Number.isFinite(d.getTime())) return "No time";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
 }
 
 function normalizeListResponse(result) {
@@ -61,12 +108,18 @@ function normalizeMovement(row) {
     depositId: row.depositId ?? row.deposit_id ?? null,
     ownerLoanId: row.ownerLoanId ?? row.owner_loan_id ?? null,
     repaymentId: row.repaymentId ?? row.repayment_id ?? null,
+    businessLoanReceivedId:
+      row.businessLoanReceivedId ??
+      row.business_loan_received_id ??
+      row.businessLoanId ??
+      row.business_loan_id ??
+      null,
+    businessLoanRepaymentId:
+      row.businessLoanRepaymentId ?? row.business_loan_repayment_id ?? null,
 
     locationId: row.location?.id ?? row.locationId ?? row.location_id ?? null,
-
     locationName:
       row.location?.name ?? row.locationName ?? row.location_name ?? "",
-
     locationCode:
       row.location?.code ?? row.locationCode ?? row.location_code ?? "",
 
@@ -82,7 +135,7 @@ function normalizeMovement(row) {
     supplierName: row.supplierName ?? row.supplier_name ?? "",
     payeeName: row.payeeName ?? row.payee_name ?? "",
 
-    amount: Number(row.amount ?? 0),
+    amount: nonNegativeAmount(row.amount ?? 0),
     method: String(row.method || "OTHER").toUpperCase(),
     reference: row.reference ?? "",
     note: row.note ?? "",
@@ -125,6 +178,10 @@ function movementTypeLabel(value) {
   if (v === "DEPOSIT_OUT") return "Money sent out";
   if (v === "OWNER_LOAN_OUT") return "Money given out as loan";
   if (v === "OWNER_LOAN_REPAYMENT_IN") return "Loan repayment received";
+  if (v === "BUSINESS_LOAN_RECEIVED") return "Business loan received";
+  if (v === "BUSINESS_LOAN_REPAYMENT") return "Business loan repayment";
+  if (v === "OWNER_LOAN") return "Money given out as loan";
+  if (v === "BUSINESS_LOAN") return "Business loan received";
   return safe(value) || "Movement";
 }
 
@@ -133,7 +190,12 @@ function movementTone(value) {
     .trim()
     .toUpperCase();
 
-  if (v === "CUSTOMER_PAYMENT" || v === "OWNER_LOAN_REPAYMENT_IN") {
+  if (
+    v === "CUSTOMER_PAYMENT" ||
+    v === "OWNER_LOAN_REPAYMENT_IN" ||
+    v === "BUSINESS_LOAN_RECEIVED" ||
+    v === "BUSINESS_LOAN"
+  ) {
     return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300";
   }
 
@@ -141,7 +203,12 @@ function movementTone(value) {
     return "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300";
   }
 
-  if (v === "EXPENSE" || v === "OWNER_LOAN_OUT") {
+  if (
+    v === "EXPENSE" ||
+    v === "OWNER_LOAN_OUT" ||
+    v === "OWNER_LOAN" ||
+    v === "BUSINESS_LOAN_REPAYMENT"
+  ) {
     return "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300";
   }
 
@@ -232,11 +299,23 @@ function counterpartyLabel(row) {
 
   if (
     movementType === "OWNER_LOAN_OUT" ||
-    movementType === "OWNER_LOAN_REPAYMENT_IN"
+    movementType === "OWNER_LOAN_REPAYMENT_IN" ||
+    movementType === "OWNER_LOAN"
   ) {
     if (safe(row?.payeeName)) return safe(row.payeeName);
     if (safe(row?.customerName)) return safe(row.customerName);
     return "Loan receiver";
+  }
+
+  if (
+    movementType === "BUSINESS_LOAN_RECEIVED" ||
+    movementType === "BUSINESS_LOAN_REPAYMENT" ||
+    movementType === "BUSINESS_LOAN"
+  ) {
+    if (safe(row?.payeeName)) return safe(row.payeeName);
+    if (safe(row?.supplierName)) return safe(row.supplierName);
+    if (safe(row?.customerName)) return safe(row.customerName);
+    return "Loan lender";
   }
 
   return "-";
@@ -267,7 +346,10 @@ function movementEntityLabel(row) {
     return `Money-out #${safeNumber(row.depositId)}`;
   }
 
-  if (movementType === "OWNER_LOAN_OUT" && row?.ownerLoanId != null) {
+  if (
+    (movementType === "OWNER_LOAN_OUT" || movementType === "OWNER_LOAN") &&
+    row?.ownerLoanId != null
+  ) {
     return `Loan #${safeNumber(row.ownerLoanId)}`;
   }
 
@@ -277,6 +359,23 @@ function movementEntityLabel(row) {
     row?.repaymentId != null
   ) {
     return `Loan #${safeNumber(row.ownerLoanId)} repayment #${safeNumber(row.repaymentId)}`;
+  }
+
+  if (
+    (movementType === "BUSINESS_LOAN_RECEIVED" ||
+      movementType === "BUSINESS_LOAN") &&
+    row?.businessLoanReceivedId != null
+  ) {
+    return `Received loan #${safeNumber(row.businessLoanReceivedId)}`;
+  }
+
+  if (
+    movementType === "BUSINESS_LOAN_REPAYMENT" &&
+    row?.businessLoanReceivedId != null
+  ) {
+    return row?.businessLoanRepaymentId != null
+      ? `Received loan #${safeNumber(row.businessLoanReceivedId)} repayment #${safeNumber(row.businessLoanRepaymentId)}`
+      : `Received loan #${safeNumber(row.businessLoanReceivedId)}`;
   }
 
   return "-";
@@ -318,6 +417,9 @@ function DetailItem({ label, value, valueClassName = "" }) {
 function MovementDetailsDrawer({ open, movement, onClose }) {
   if (!open || !movement) return null;
 
+  const direction = String(movement?.direction || "").toUpperCase();
+  const isMoneyOut = direction === "OUT";
+
   return (
     <div className="fixed inset-0 z-[80]">
       <div
@@ -347,8 +449,8 @@ function MovementDetailsDrawer({ open, movement, onClose }) {
                 Movement #{safeNumber(movement?.id)}
               </h3>
               <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-                Focused owner view of what happened, who was involved, and which
-                record this movement belongs to.
+                Clear owner view of what happened, who recorded it, when it
+                happened, and which record it belongs to.
               </p>
             </div>
 
@@ -372,11 +474,11 @@ function MovementDetailsDrawer({ open, movement, onClose }) {
             />
             <StatCard
               label="Amount"
-              value={money(movement?.amount)}
+              value={`${isMoneyOut ? "-" : "+"}${money(movement?.amount)}`}
               sub={methodLabel(movement?.method)}
               valueClassName={cx(
                 "text-[17px] leading-tight",
-                String(movement?.direction || "").toUpperCase() === "OUT"
+                isMoneyOut
                   ? "text-rose-700 dark:text-rose-300"
                   : "text-emerald-700 dark:text-emerald-300",
               )}
@@ -388,9 +490,9 @@ function MovementDetailsDrawer({ open, movement, onClose }) {
               valueClassName="text-[17px] leading-tight"
             />
             <StatCard
-              label="Recorded by"
-              value={displayActor(movement)}
-              sub={safeDate(movement?.createdAt)}
+              label="Recorded"
+              value={formatMovementDate(movement?.createdAt)}
+              sub={formatMovementTime(movement?.createdAt)}
               valueClassName="text-[17px] leading-tight"
             />
           </div>
@@ -444,7 +546,7 @@ function MovementDetailsDrawer({ open, movement, onClose }) {
                 <DetailItem label="Branch" value={displayBranch(movement)} />
                 <DetailItem
                   label="Recorded at"
-                  value={safeDate(movement?.createdAt)}
+                  value={formatMovementDateTime(movement?.createdAt)}
                   valueClassName="text-amber-700 dark:text-amber-300"
                 />
 
@@ -490,14 +592,8 @@ function MovementDetailsDrawer({ open, movement, onClose }) {
                     }
                   />
                   <DetailItem
-                    label="Loan / repayment"
-                    value={
-                      movement?.ownerLoanId != null
-                        ? movement?.repaymentId != null
-                          ? `Loan #${safeNumber(movement.ownerLoanId)} • Repayment #${safeNumber(movement.repaymentId)}`
-                          : `Loan #${safeNumber(movement.ownerLoanId)}`
-                        : "-"
-                    }
+                    label="Loan record"
+                    value={movementEntityLabel(movement)}
                   />
                 </div>
               </div>
@@ -593,6 +689,8 @@ export default function OwnerPaymentsMovementsTab({ locations = [] }) {
         row?.depositId,
         row?.ownerLoanId,
         row?.repaymentId,
+        row?.businessLoanReceivedId,
+        row?.businessLoanRepaymentId,
       ]
         .map((x) => String(x ?? ""))
         .join(" ")
@@ -629,14 +727,15 @@ export default function OwnerPaymentsMovementsTab({ locations = [] }) {
 
   const cards = useMemo(() => {
     const totals = summary?.totals || {};
+
     return {
-      totalMoneyIn: Number(totals.totalMoneyIn ?? 0),
-      totalMoneyOut: Number(totals.totalMoneyOut ?? 0),
-      netAmount: Number(totals.netAmount ?? 0),
-      movementsCount: Number(totals.movementsCount ?? 0),
-      branchesCount: Number(totals.branchesCount ?? 0),
-      moneyInCount: Number(totals.moneyInCount ?? 0),
-      moneyOutCount: Number(totals.moneyOutCount ?? 0),
+      totalMoneyIn: nonNegativeAmount(totals.totalMoneyIn ?? 0),
+      totalMoneyOut: nonNegativeAmount(totals.totalMoneyOut ?? 0),
+      availableFunds: nonNegativeAmount(totals.netAmount ?? 0),
+      movementsCount: nonNegativeAmount(totals.movementsCount ?? 0),
+      branchesCount: nonNegativeAmount(totals.branchesCount ?? 0),
+      moneyInCount: nonNegativeAmount(totals.moneyInCount ?? 0),
+      moneyOutCount: nonNegativeAmount(totals.moneyOutCount ?? 0),
     };
   }, [summary]);
 
@@ -745,7 +844,7 @@ export default function OwnerPaymentsMovementsTab({ locations = [] }) {
 
       <SectionCard
         title="Money movements"
-        subtitle="Owner-grade history of every money-in and money-out action, with filters and a clean detail drawer."
+        subtitle="Owner-grade history of every money-in and money-out action, with date, time, branch, method, and a clear detail drawer."
         right={
           <AsyncButton
             variant="secondary"
@@ -773,15 +872,10 @@ export default function OwnerPaymentsMovementsTab({ locations = [] }) {
             />
 
             <StatCard
-              label="Net"
-              value={money(cards.netAmount)}
-              sub="Filtered result"
-              valueClassName={cx(
-                "text-[17px] leading-tight",
-                cards.netAmount >= 0
-                  ? "text-emerald-700 dark:text-emerald-300"
-                  : "text-rose-700 dark:text-rose-300",
-              )}
+              label="Available funds"
+              value={money(cards.availableFunds)}
+              sub="Filtered available balance"
+              valueClassName="text-[17px] leading-tight text-emerald-700 dark:text-emerald-300"
             />
 
             <StatCard
@@ -794,7 +888,7 @@ export default function OwnerPaymentsMovementsTab({ locations = [] }) {
 
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.7fr_0.7fr]">
             <FormInput
-              placeholder="Search by person, supplier, note, reference, sale, bill, expense, refund, or loan"
+              placeholder="Search person, supplier, note, reference, sale, bill, expense, refund, or loan"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -847,9 +941,15 @@ export default function OwnerPaymentsMovementsTab({ locations = [] }) {
               <option value="EXPENSE">Expense</option>
               <option value="REFUND">Refund</option>
               <option value="DEPOSIT_OUT">Money sent out</option>
-              <option value="OWNER_LOAN_OUT">Owner loan out</option>
+              <option value="OWNER_LOAN_OUT">Money given out as loan</option>
               <option value="OWNER_LOAN_REPAYMENT_IN">
-                Owner loan repayment
+                Loan repayment received
+              </option>
+              <option value="BUSINESS_LOAN_RECEIVED">
+                Business loan received
+              </option>
+              <option value="BUSINESS_LOAN_REPAYMENT">
+                Business loan repayment
               </option>
             </FormSelect>
 
@@ -888,7 +988,7 @@ export default function OwnerPaymentsMovementsTab({ locations = [] }) {
 
       <SectionCard
         title="Movement history"
-        subtitle="Select any row to open the detail drawer."
+        subtitle="Newest money activity first. Select any row to inspect the full trace."
       >
         <div className="grid gap-4">
           {loading ? (
@@ -906,6 +1006,9 @@ export default function OwnerPaymentsMovementsTab({ locations = [] }) {
                   const isSelected =
                     selectedMovement &&
                     String(selectedMovement.id) === String(row.id);
+
+                  const isMoneyOut =
+                    String(row?.direction || "").toUpperCase() === "OUT";
 
                   return (
                     <button
@@ -1004,20 +1107,19 @@ export default function OwnerPaymentsMovementsTab({ locations = [] }) {
                           <p
                             className={cx(
                               "mt-1 text-lg font-black",
-                              String(row?.direction || "").toUpperCase() ===
-                                "OUT"
+                              isMoneyOut
                                 ? "text-rose-700 dark:text-rose-300"
                                 : "text-emerald-700 dark:text-emerald-300",
                             )}
                           >
-                            {String(row?.direction || "").toUpperCase() ===
-                            "OUT"
-                              ? "-"
-                              : "+"}
+                            {isMoneyOut ? "-" : "+"}
                             {money(row?.amount)}
                           </p>
-                          <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
-                            {safeDate(row?.createdAt)}
+                          <p className="mt-2 text-xs font-semibold text-stone-700 dark:text-stone-200">
+                            {formatMovementDate(row?.createdAt)}
+                          </p>
+                          <p className="text-xs text-stone-500 dark:text-stone-400">
+                            {formatMovementTime(row?.createdAt)}
                           </p>
                           <p className="mt-3 text-xs font-semibold text-stone-500 dark:text-stone-400">
                             Tap to inspect

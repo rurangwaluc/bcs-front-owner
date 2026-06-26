@@ -286,6 +286,59 @@ function getLocationNameById(locations, locationId) {
   );
 }
 
+function normalizeLocationOption(row) {
+  if (!row) return null;
+
+  const id =
+    row.id ??
+    row.locationId ??
+    row.location_id ??
+    row.branchId ??
+    row.branch_id ??
+    "";
+  const idText = String(id || "").trim();
+  if (!idText) return null;
+
+  return {
+    id: idText,
+    name:
+      safe(row.name) ||
+      safe(row.locationName) ||
+      safe(row.location_name) ||
+      safe(row.branchName) ||
+      safe(row.branch_name) ||
+      `Branch #${idText}`,
+    code:
+      safe(row.code) ||
+      safe(row.locationCode) ||
+      safe(row.location_code) ||
+      safe(row.branchCode) ||
+      safe(row.branch_code) ||
+      "",
+    status: safe(row.status || row.locationStatus || row.location_status),
+  };
+}
+
+function locationOptionLabel(row) {
+  const name = safe(row?.name) || `Branch #${safe(row?.id) || "-"}`;
+  const code = safe(row?.code);
+  return code ? `${name} (${code})` : name;
+}
+
+function buildFallbackLocationOptions(rows) {
+  const map = new Map();
+
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const option = normalizeLocationOption(row);
+    if (!option) continue;
+    if (!map.has(option.id)) map.set(option.id, option);
+  }
+
+  return Array.from(map.values()).sort((a, b) =>
+    locationOptionLabel(a).localeCompare(locationOptionLabel(b)),
+  );
+}
+
 function ModalShell({ title, subtitle, onClose, children }) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/50 p-4 backdrop-blur-[2px]">
@@ -520,6 +573,114 @@ function StructuredFundsWarning({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function LoanMoneyEffectCard({
+  title,
+  actionText,
+  amount = 0,
+  method = "OTHER",
+  currency = "RWF",
+  branchName = "",
+  direction = "OUT",
+  availableBefore = null,
+  balanceAfter = null,
+}) {
+  const isIn = String(direction || "").toUpperCase() === "IN";
+  const amountValue = nonNegativeNumber(amount);
+  const beforeValue =
+    availableBefore == null ? null : nonNegativeNumber(availableBefore);
+  const afterValue =
+    balanceAfter == null
+      ? beforeValue == null
+        ? null
+        : isIn
+          ? beforeValue + amountValue
+          : Math.max(0, beforeValue - amountValue)
+      : nonNegativeNumber(balanceAfter);
+  const hasBeforeAfter = beforeValue != null && afterValue != null;
+  const toneClass = isIn
+    ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-100"
+    : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-100";
+  const badgeClass = isIn
+    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+    : "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300";
+
+  return (
+    <div className={cx("rounded-[24px] border p-4", toneClass)}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] opacity-75">
+            Money effect
+          </p>
+          <h4 className="mt-1 text-base font-black">{title}</h4>
+          <p className="mt-2 text-sm leading-6 opacity-90">{actionText}</p>
+        </div>
+        <span
+          className={cx(
+            "rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em]",
+            badgeClass,
+          )}
+        >
+          {isIn ? "Balance increases" : "Balance decreases"}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-stone-950/40">
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">
+            Amount
+          </p>
+          <p className="mt-1 text-sm font-black">
+            {money(amountValue, currency)}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-stone-950/40">
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">
+            Method affected
+          </p>
+          <p className="mt-1 text-sm font-black">{methodLabel(method)}</p>
+        </div>
+        <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-stone-950/40">
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">
+            Branch affected
+          </p>
+          <p className="mt-1 break-words text-sm font-black">
+            {branchName || "Selected branch"}
+          </p>
+        </div>
+      </div>
+
+      {hasBeforeAfter ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-stone-950/40">
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">
+              Available now
+            </p>
+            <p className="mt-1 text-sm font-black">
+              {money(beforeValue, currency)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-stone-950/40">
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">
+              This action
+            </p>
+            <p className="mt-1 text-sm font-black">
+              {isIn ? "+" : "-"} {money(amountValue, currency)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-stone-950/40">
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">
+              Balance after save
+            </p>
+            <p className="mt-1 text-sm font-black">
+              {money(afterValue, currency)}
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -767,6 +928,19 @@ function CreateLoanModalInner({
     >
       <AlertBox message={errorText} />
 
+      <div className="mb-4">
+        <LoanMoneyEffectCard
+          title="Business money will go out"
+          actionText="Saving this loan immediately reduces the selected branch and payment method balance."
+          amount={form.amount}
+          method={form.method}
+          currency={form.currency}
+          branchName={liveBranchName}
+          direction="OUT"
+          availableBefore={availableBalance}
+        />
+      </div>
+
       {structuredMeta ? (
         <div className="mb-4">
           <StructuredFundsWarning
@@ -911,6 +1085,8 @@ function CreateLoanModalInner({
           </label>
           <FormInput
             type="number"
+            min="1"
+            step="1"
             value={form.amount}
             onChange={(e) => updateField("amount", e.target.value)}
             placeholder="Enter amount"
@@ -1110,6 +1286,18 @@ function RepayLoanModalInner({ loan, onClose, onSaved }) {
     >
       <AlertBox message={errorText} />
 
+      <div className="mb-4">
+        <LoanMoneyEffectCard
+          title="Business money will come back in"
+          actionText="Recording this repayment immediately increases the selected payment method balance for this branch."
+          amount={form.amount}
+          method={form.method}
+          currency={loan?.currency}
+          branchName={displayBranch(loan)}
+          direction="IN"
+        />
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
@@ -1118,6 +1306,7 @@ function RepayLoanModalInner({ loan, onClose, onSaved }) {
           <FormInput
             type="number"
             min="1"
+            step="1"
             max={String(remainingAmount)}
             value={form.amount}
             onChange={(e) =>
@@ -1317,11 +1506,14 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
   const [repayingLoan, setRepayingLoan] = useState(null);
   const [voidingLoan, setVoidingLoan] = useState(null);
 
-  const locationOptions = useMemo(() => {
+  const officialLocationOptions = useMemo(() => {
     return Array.isArray(locations)
-      ? locations.filter(
-          (row) => String(row?.status || "").toUpperCase() !== "ARCHIVED",
-        )
+      ? locations
+          .map(normalizeLocationOption)
+          .filter(Boolean)
+          .filter(
+            (row) => String(row?.status || "").toUpperCase() !== "ARCHIVED",
+          )
       : [];
   }, [locations]);
 
@@ -1405,6 +1597,13 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
       ? breakdown.byLocationMethod
       : [];
   }, [breakdown]);
+
+  const locationOptions = useMemo(() => {
+    if (officialLocationOptions.length > 0) return officialLocationOptions;
+    return buildFallbackLocationOptions(
+      byLocationMethodRows.length ? byLocationMethodRows : normalizedLoans,
+    );
+  }, [officialLocationOptions, byLocationMethodRows, normalizedLoans]);
 
   const availabilityByBranchMethod = useMemo(() => {
     const map = {};
@@ -1949,6 +2148,18 @@ export default function OwnerPaymentsGivenOutLoansTab({ locations = [] }) {
                       )}
                       sub={`${safeNumber(selectedLoan?.repaymentsCount)} repayment(s)`}
                       valueClassName="text-[17px] leading-tight text-amber-700 dark:text-amber-300"
+                    />
+                  </div>
+
+                  <div className="mt-4">
+                    <LoanMoneyEffectCard
+                      title="Original loan reduced available funds"
+                      actionText="When this money was given out, the selected branch and payment method balance went down. Each repayment brings money back in."
+                      amount={selectedLoan?.principalAmount}
+                      method={selectedLoan?.method}
+                      currency={selectedLoan?.currency}
+                      branchName={displayBranch(selectedLoan)}
+                      direction="OUT"
                     />
                   </div>
 

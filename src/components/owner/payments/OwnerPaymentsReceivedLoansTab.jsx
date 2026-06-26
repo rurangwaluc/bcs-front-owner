@@ -27,8 +27,14 @@ function normalizeCurrency(v) {
   return s || "RWF";
 }
 
+function nonNegativeNumber(value, fallback = 0) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, n);
+}
+
 function money(v, currency = "RWF") {
-  return `${normalizeCurrency(currency)} ${safeNumber(v).toLocaleString()}`;
+  return `${normalizeCurrency(currency)} ${nonNegativeNumber(v).toLocaleString()}`;
 }
 
 function chip(text, className = "") {
@@ -111,6 +117,67 @@ function displayBranch(row) {
   }
 
   return "-";
+}
+
+function getLocationNameById(locations, locationId) {
+  return (
+    (Array.isArray(locations) ? locations : []).find(
+      (row) => String(row?.id) === String(locationId),
+    )?.name || (locationId ? `Branch #${locationId}` : "Selected branch")
+  );
+}
+
+function normalizeLocationOption(row) {
+  if (!row) return null;
+
+  const id =
+    row.id ??
+    row.locationId ??
+    row.location_id ??
+    row.branchId ??
+    row.branch_id ??
+    "";
+  const idText = String(id || "").trim();
+  if (!idText) return null;
+
+  return {
+    id: idText,
+    name:
+      safe(row.name) ||
+      safe(row.locationName) ||
+      safe(row.location_name) ||
+      safe(row.branchName) ||
+      safe(row.branch_name) ||
+      `Branch #${idText}`,
+    code:
+      safe(row.code) ||
+      safe(row.locationCode) ||
+      safe(row.location_code) ||
+      safe(row.branchCode) ||
+      safe(row.branch_code) ||
+      "",
+    status: safe(row.status || row.locationStatus || row.location_status),
+  };
+}
+
+function locationOptionLabel(row) {
+  const name = safe(row?.name) || `Branch #${safe(row?.id) || "-"}`;
+  const code = safe(row?.code);
+  return code ? `${name} (${code})` : name;
+}
+
+function buildFallbackLocationOptions(rows) {
+  const map = new Map();
+
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const option = normalizeLocationOption(row);
+    if (!option) continue;
+    if (!map.has(option.id)) map.set(option.id, option);
+  }
+
+  return Array.from(map.values()).sort((a, b) =>
+    locationOptionLabel(a).localeCompare(locationOptionLabel(b)),
+  );
 }
 
 function normalizeCustomersResponse(result) {
@@ -216,6 +283,114 @@ function lenderSub(loan) {
   if (safe(loan?.lenderPhone)) parts.push(safe(loan.lenderPhone));
   if (safe(loan?.lenderEmail)) parts.push(safe(loan.lenderEmail));
   return parts.filter(Boolean).join(" • ") || "-";
+}
+
+function LoanMoneyEffectCard({
+  title,
+  actionText,
+  amount = 0,
+  method = "OTHER",
+  currency = "RWF",
+  branchName = "",
+  direction = "IN",
+  availableBefore = null,
+  balanceAfter = null,
+}) {
+  const isIn = String(direction || "").toUpperCase() === "IN";
+  const amountValue = nonNegativeNumber(amount);
+  const beforeValue =
+    availableBefore == null ? null : nonNegativeNumber(availableBefore);
+  const afterValue =
+    balanceAfter == null
+      ? beforeValue == null
+        ? null
+        : isIn
+          ? beforeValue + amountValue
+          : Math.max(0, beforeValue - amountValue)
+      : nonNegativeNumber(balanceAfter);
+  const hasBeforeAfter = beforeValue != null && afterValue != null;
+  const toneClass = isIn
+    ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-100"
+    : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-100";
+  const badgeClass = isIn
+    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+    : "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300";
+
+  return (
+    <div className={cx("rounded-[24px] border p-4", toneClass)}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] opacity-75">
+            Money effect
+          </p>
+          <h4 className="mt-1 text-base font-black">{title}</h4>
+          <p className="mt-2 text-sm leading-6 opacity-90">{actionText}</p>
+        </div>
+        <span
+          className={cx(
+            "rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em]",
+            badgeClass,
+          )}
+        >
+          {isIn ? "Balance increases" : "Balance decreases"}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-stone-950/40">
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">
+            Amount
+          </p>
+          <p className="mt-1 text-sm font-black">
+            {money(amountValue, currency)}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-stone-950/40">
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">
+            Method affected
+          </p>
+          <p className="mt-1 text-sm font-black">{methodLabel(method)}</p>
+        </div>
+        <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-stone-950/40">
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">
+            Branch affected
+          </p>
+          <p className="mt-1 break-words text-sm font-black">
+            {branchName || "Selected branch"}
+          </p>
+        </div>
+      </div>
+
+      {hasBeforeAfter ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-stone-950/40">
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">
+              Available now
+            </p>
+            <p className="mt-1 text-sm font-black">
+              {money(beforeValue, currency)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-stone-950/40">
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">
+              This action
+            </p>
+            <p className="mt-1 text-sm font-black">
+              {isIn ? "+" : "-"} {money(amountValue, currency)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-stone-950/40">
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">
+              Balance after save
+            </p>
+            <p className="mt-1 text-sm font-black">
+              {money(afterValue, currency)}
+            </p>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function ModalShell({ title, subtitle, onClose, children }) {
@@ -568,6 +743,18 @@ function CreateBusinessLoanModalInner({ locations = [], onClose, onSaved }) {
     >
       <AlertBox message={errorText} />
 
+      <div className="mb-4">
+        <LoanMoneyEffectCard
+          title="Business money will come in"
+          actionText="Saving this received loan immediately increases the selected branch and payment method balance."
+          amount={form.amount}
+          method={form.method}
+          currency={form.currency}
+          branchName={getLocationNameById(locations, form.locationId)}
+          direction="IN"
+        />
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
@@ -650,6 +837,8 @@ function CreateBusinessLoanModalInner({ locations = [], onClose, onSaved }) {
           </label>
           <FormInput
             type="number"
+            min="1"
+            step="1"
             value={form.amount}
             onChange={(e) => updateField("amount", e.target.value)}
             placeholder="Enter amount"
@@ -770,12 +959,45 @@ function RepayBusinessLoanModalInner({ loan, onClose, onSaved }) {
   }));
   const [errorText, setErrorText] = useState("");
 
+  const remainingAmount = nonNegativeNumber(loan?.remainingAmount ?? 0);
+  const requestedAmount = Number(form.amount);
+  const invalidAmount =
+    !Number.isFinite(requestedAmount) || requestedAmount <= 0;
+  const exceedsRemaining =
+    Number.isFinite(requestedAmount) &&
+    requestedAmount > 0 &&
+    requestedAmount > remainingAmount;
+  const repaymentBlocked =
+    invalidAmount || exceedsRemaining || remainingAmount <= 0;
+
   async function handleSave() {
     setErrorText("");
 
+    const amount = Number(form.amount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setErrorText("Enter a valid repayment amount greater than zero.");
+      return;
+    }
+
+    if (remainingAmount <= 0) {
+      setErrorText("This received loan has no remaining balance to repay.");
+      return;
+    }
+
+    if (amount > remainingAmount) {
+      setErrorText(
+        `Repayment cannot exceed the remaining balance (${money(
+          remainingAmount,
+          loan?.currency,
+        )}).`,
+      );
+      return;
+    }
+
     try {
       const payload = {
-        amount: Number(form.amount),
+        amount,
         method: form.method,
         ...(form.note ? { note: form.note } : {}),
       };
@@ -791,7 +1013,9 @@ function RepayBusinessLoanModalInner({ loan, onClose, onSaved }) {
       onSaved?.(result);
     } catch (e) {
       setErrorText(
-        e?.data?.error || e?.message || "Failed to record repayment",
+        e?.data?.error ||
+          e?.message ||
+          "Failed to record repayment. Confirm this payment method has enough available money and try again.",
       );
     }
   }
@@ -799,10 +1023,22 @@ function RepayBusinessLoanModalInner({ loan, onClose, onSaved }) {
   return (
     <ModalShell
       title={`Repay received loan #${loan.id}`}
-      subtitle={`Remaining balance: ${money(loan?.remainingAmount, loan?.currency)}`}
+      subtitle={`Remaining balance: ${money(remainingAmount, loan?.currency)}`}
       onClose={onClose}
     >
       <AlertBox message={errorText} />
+
+      <div className="mb-4">
+        <LoanMoneyEffectCard
+          title="Business money will go out"
+          actionText="Recording this repayment immediately decreases the selected payment method balance for this branch."
+          amount={form.amount}
+          method={form.method}
+          currency={loan?.currency}
+          branchName={displayBranch(loan)}
+          direction="OUT"
+        />
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
@@ -811,12 +1047,19 @@ function RepayBusinessLoanModalInner({ loan, onClose, onSaved }) {
           </label>
           <FormInput
             type="number"
+            min="1"
+            step="1"
             value={form.amount}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, amount: e.target.value }))
             }
             placeholder="0"
           />
+          {exceedsRemaining ? (
+            <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">
+              Repayment cannot be greater than the remaining balance.
+            </p>
+          ) : null}
         </div>
 
         <div>
@@ -901,11 +1144,14 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
   const [creatingLoan, setCreatingLoan] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState(null);
 
-  const locationOptions = useMemo(() => {
+  const officialLocationOptions = useMemo(() => {
     return Array.isArray(locations)
-      ? locations.filter(
-          (row) => String(row?.status || "").toUpperCase() !== "ARCHIVED",
-        )
+      ? locations
+          .map(normalizeLocationOption)
+          .filter(Boolean)
+          .filter(
+            (row) => String(row?.status || "").toUpperCase() !== "ARCHIVED",
+          )
       : [];
   }, [locations]);
 
@@ -914,6 +1160,11 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
       .map(normalizeBusinessLoan)
       .filter(Boolean);
   }, [loans]);
+
+  const locationOptions = useMemo(() => {
+    if (officialLocationOptions.length > 0) return officialLocationOptions;
+    return buildFallbackLocationOptions(normalizedLoans);
+  }, [officialLocationOptions, normalizedLoans]);
 
   const filteredLoans = useMemo(() => {
     const q = String(search || "")
@@ -962,19 +1213,19 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
 
   const cards = useMemo(() => {
     return {
-      loansCount: Number(summary?.loansCount ?? 0),
-      openLoansCount: Number(summary?.openCount ?? 0),
-      partiallyRepaidCount: Number(
+      loansCount: nonNegativeNumber(summary?.loansCount ?? 0),
+      openLoansCount: nonNegativeNumber(summary?.openCount ?? 0),
+      partiallyRepaidCount: nonNegativeNumber(
         summary?.partiallyRepaidCount ?? summary?.partialCount ?? 0,
       ),
-      repaidLoansCount: Number(summary?.repaidCount ?? 0),
-      totalPrincipalAmount: Number(
+      repaidLoansCount: nonNegativeNumber(summary?.repaidCount ?? 0),
+      totalPrincipalAmount: nonNegativeNumber(
         summary?.principalTotal ?? summary?.totalPrincipalAmount ?? 0,
       ),
-      totalRepaidAmount: Number(
+      totalRepaidAmount: nonNegativeNumber(
         summary?.repaidTotal ?? summary?.totalRepaidAmount ?? 0,
       ),
-      totalRemainingAmount: Number(
+      totalRemainingAmount: nonNegativeNumber(
         summary?.remainingTotal ?? summary?.outstandingAmount ?? 0,
       ),
     };
@@ -1360,6 +1611,18 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
               />
             </div>
 
+            <div className="mt-4">
+              <LoanMoneyEffectCard
+                title="Original loan increased available funds"
+                actionText="When this loan was received, the selected branch and payment method balance went up. Repayments send money back out."
+                amount={selectedLoan?.principalAmount}
+                method={selectedLoan?.method}
+                currency={selectedLoan?.currency}
+                branchName={displayBranch(selectedLoan)}
+                direction="IN"
+              />
+            </div>
+
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
                 <p className="text-xs uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
@@ -1413,7 +1676,7 @@ export default function OwnerPaymentsReceivedLoansTab({ locations = [] }) {
 
       <CreateBusinessLoanModal
         open={creatingLoan}
-        locations={locations}
+        locations={locationOptions}
         onClose={() => setCreatingLoan(false)}
         onSaved={(result) =>
           handleSaved("Business loan received saved.", result)
