@@ -664,6 +664,9 @@ function CreateBillModalInner({
   const [form, setForm] = useState(() => billCreateDefaults(suppliers));
   const [errorText, setErrorText] = useState("");
   const [billNoLoading, setBillNoLoading] = useState(false);
+  const [billNoHint, setBillNoHint] = useState(
+    "The backend will create the final bill number when you save.",
+  );
 
   const selectedSupplier = useMemo(
     () =>
@@ -732,6 +735,10 @@ function CreateBillModalInner({
       : normalizeCurrency(form.currency);
 
   function handleSupplierChange(nextSupplierId) {
+    setErrorText("");
+    setBillNoHint(
+      "The backend will create the final bill number when you save.",
+    );
     setForm((prev) => ({
       ...prev,
       supplierId: nextSupplierId,
@@ -743,6 +750,10 @@ function CreateBillModalInner({
   }
 
   function handleLocationChange(nextLocationId) {
+    setErrorText("");
+    setBillNoHint(
+      "The backend will create the final bill number when you save.",
+    );
     setForm((prev) => ({
       ...prev,
       locationId: nextLocationId,
@@ -798,6 +809,9 @@ function CreateBillModalInner({
       if (!currentLocationId) return;
 
       setBillNoLoading(true);
+      setBillNoHint(
+        "Preparing a preview bill number. You can still save while this prepares.",
+      );
 
       try {
         const nextBillNo = await buildNextSupplierBillNo({
@@ -818,12 +832,14 @@ function CreateBillModalInner({
             billNo: safe(nextBillNo),
           };
         });
+
+        setBillNoHint(
+          "Preview ready. The backend will still confirm the final bill number on save.",
+        );
       } catch (e) {
         if (!alive) return;
-        setErrorText(
-          e?.data?.error ||
-            e?.message ||
-            "Failed to generate supplier bill number.",
+        setBillNoHint(
+          "Could not preview the bill number. You can still save; the backend will create it.",
         );
       } finally {
         if (alive) setBillNoLoading(false);
@@ -865,13 +881,6 @@ function CreateBillModalInner({
         return;
       }
 
-      if (billNoLoading || !safe(form.billNo)) {
-        setErrorText(
-          "Please wait a moment for the bill number to finish generating.",
-        );
-        return;
-      }
-
       const payload = {
         supplierId: Number(form.supplierId),
         locationId: Number(form.locationId),
@@ -881,7 +890,7 @@ function CreateBillModalInner({
         ...(form.goodsReceiptId
           ? { goodsReceiptId: Number(form.goodsReceiptId) }
           : {}),
-        billNo: safe(form.billNo),
+        ...(safe(form.billNo) ? { billNo: safe(form.billNo) } : {}),
         currency: effectiveCurrency || undefined,
         totalAmount: Number(form.totalAmount),
         issuedDate: form.issuedDate || undefined,
@@ -996,8 +1005,15 @@ function CreateBillModalInner({
             value={form.billNo}
             readOnly
             disabled
-            placeholder={billNoLoading ? "Generating..." : "Auto-generated"}
+            placeholder={
+              billNoLoading
+                ? "Preparing preview..."
+                : "Will be created when you save"
+            }
           />
+          <p className="mt-2 text-xs leading-5 text-stone-500 dark:text-stone-400">
+            {billNoHint}
+          </p>
         </div>
 
         <div>
@@ -1059,13 +1075,17 @@ function CreateBillModalInner({
           <FormInput
             type="date"
             value={form.issuedDate}
-            onChange={(e) =>
+            onChange={(e) => {
+              setErrorText("");
+              setBillNoHint(
+                "The backend will create the final bill number when you save.",
+              );
               setForm((prev) => ({
                 ...prev,
                 issuedDate: e.target.value,
                 billNo: "",
-              }))
-            }
+              }));
+            }}
           />
         </div>
 
@@ -1108,7 +1128,7 @@ function CreateBillModalInner({
         </button>
         <AsyncButton
           idleText="Create supplier bill"
-          loadingText={billNoLoading ? "Preparing..." : "Creating..."}
+          loadingText="Creating..."
           successText="Created"
           onClick={handleSave}
         />
