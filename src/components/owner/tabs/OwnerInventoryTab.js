@@ -32,6 +32,11 @@ function money(v) {
   return safeNumber(v).toLocaleString();
 }
 
+function qtyValue(v) {
+  const n = Number(v || 0);
+  return Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 3 }) : "0";
+}
+
 function qtyTone(qty) {
   const n = safeNumber(qty);
   if (n <= 0) {
@@ -356,7 +361,7 @@ function InventoryCard({ row, active, onSelect }) {
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricTile
           label="Qty on hand"
-          value={safeNumber(row?.qtyOnHand)}
+          value={qtyValue(row?.qtyOnHand)}
           sub="Current branch stock"
         />
         <MetricTile
@@ -416,7 +421,7 @@ function BranchBreakdownCard({ branch }) {
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <InfoTile
           label="Qty on hand"
-          value={String(safeNumber(branch?.qtyOnHand))}
+          value={qtyValue(branch?.qtyOnHand)}
         />
         <InfoTile
           label="Selling price"
@@ -467,7 +472,7 @@ function BranchValueRow({ row }) {
         />
         <MetricTile
           label="Qty on hand"
-          value={safeNumber(row?.totalQtyOnHand)}
+          value={qtyValue(row?.totalQtyOnHand)}
           sub="Branch stock"
         />
         <MetricTile
@@ -738,7 +743,7 @@ export default function OwnerInventoryTab({ locations = [] }) {
               />
               <StatCard
                 label="Qty on hand"
-                value={safeNumber(summaryTotals.totalQtyOnHand)}
+                value={qtyValue(summaryTotals.totalQtyOnHand)}
                 sub="Total stock across visible branches"
                 valueClassName="text-[20px] font-bold"
               />
@@ -984,7 +989,7 @@ export default function OwnerInventoryTab({ locations = [] }) {
                       />
                       <InfoTile
                         label="Qty on hand"
-                        value={String(safeNumber(selectedRow.qtyOnHand))}
+                        value={qtyValue(selectedRow.qtyOnHand)}
                       />
                       <InfoTile
                         label="Unit"
