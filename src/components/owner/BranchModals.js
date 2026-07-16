@@ -11,6 +11,13 @@ import {
 import { resolveAssetUrl, uploadFiles } from "../../lib/apiUpload";
 import { useMemo, useRef, useState } from "react";
 
+function normalizeWebsiteForSave(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return "";
+  if (/^www[.]/i.test(cleaned)) return "https://" + cleaned;
+  return cleaned;
+}
+
 function normalizeBankAccountsForInput(value) {
   if (Array.isArray(value)) {
     return value
