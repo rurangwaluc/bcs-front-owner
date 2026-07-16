@@ -80,6 +80,13 @@ function normalizeBranchForm(location = {}) {
   };
 }
 
+function normalizeWebsiteForSave(value) {
+  const cleaned = safe(value);
+  if (!cleaned) return undefined;
+  if (/^www[.]/i.test(cleaned)) return "https://" + cleaned;
+  return cleaned;
+}
+
 function cleanBankAccounts(value) {
   if (!Array.isArray(value)) return [];
 
@@ -113,7 +120,7 @@ function buildBranchPayload(form) {
     code: safe(form?.code).toUpperCase(),
     phone: safe(form?.phone) || undefined,
     email: safe(form?.email) || undefined,
-    website: safe(form?.website) || undefined,
+    website: normalizeWebsiteForSave(form?.website),
     address: safe(form?.address) || undefined,
     tin: safe(form?.tin) || undefined,
     momoCode: safe(form?.momoCode) || undefined,
