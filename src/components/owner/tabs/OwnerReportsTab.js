@@ -476,6 +476,35 @@ export default function OwnerReportsTab({ locations = [] }) {
 
   const uniqueWarnings = Array.from(new Set(metaWarnings));
 
+  function fmtLocalDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function setQuickRange(period) {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (period === "week") {
+      const day = start.getDay() || 7;
+      start.setDate(start.getDate() - day + 1);
+    }
+
+    if (period === "month") start.setDate(1);
+    if (period === "year") start.setMonth(0, 1);
+
+    setDateFrom(fmtLocalDate(start));
+    setDateTo(fmtLocalDate(end));
+  }
+
+  function clearDateRange() {
+    setDateFrom("");
+    setDateTo("");
+  }
+
   return (
     <div className="space-y-6">
       <AlertBox message={errorText} />
@@ -494,9 +523,17 @@ export default function OwnerReportsTab({ locations = [] }) {
       ) : (
         <>
           <SectionCard
-            title="Owner report filters"
-            subtitle="Set report range before reading business-wide financial signals."
+            title="Choose report period"
+            subtitle="Pick the branch and period before reading profit or loss."
           >
+            <div className="mb-4 flex flex-wrap gap-2">
+              <button type="button" onClick={() => setQuickRange("today")} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200">Today</button>
+              <button type="button" onClick={() => setQuickRange("week")} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200">This week</button>
+              <button type="button" onClick={() => setQuickRange("month")} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200">This month</button>
+              <button type="button" onClick={() => setQuickRange("year")} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200">This year</button>
+              <button type="button" onClick={clearDateRange} className="rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-sm font-semibold text-stone-600 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-300">All time</button>
+            </div>
+
             <div className="grid gap-3 md:grid-cols-3">
               <FormSelect
                 value={locationFilter}
@@ -525,7 +562,14 @@ export default function OwnerReportsTab({ locations = [] }) {
             </div>
           </SectionCard>
 
-          <WarningList warnings={uniqueWarnings} />
+          {uniqueWarnings.length > 0 ? (
+            <details className="rounded-[24px] border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
+              <summary className="cursor-pointer font-bold">Report notes</summary>
+              <div className="mt-3">
+                <WarningList warnings={uniqueWarnings} />
+              </div>
+            </details>
+          ) : null}
 
           <SectionCard
             title="Cash flow"
