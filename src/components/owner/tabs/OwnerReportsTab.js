@@ -451,6 +451,11 @@ export default function OwnerReportsTab({ locations = [] }) {
   const operatingExpenses = safeNumber(
     incomeStatement?.operatingExpenses?.total,
   );
+  const expenseBreakdown = Array.isArray(
+    incomeStatement?.operatingExpenses?.breakdown,
+  )
+    ? incomeStatement.operatingExpenses.breakdown
+    : [];
   const operatingProfit = safeNumber(
     incomeStatement?.bottomLine?.operatingProfit,
   );
@@ -634,7 +639,39 @@ export default function OwnerReportsTab({ locations = [] }) {
                 tone={toneForNumber(operatingProfit)}
               />
             </div>
-          </SectionCard>
+
+
+            {expenseBreakdown.length > 0 ? (
+              <div className='mt-5 rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900'>
+                <p className='text-sm font-black text-stone-950 dark:text-stone-50'>
+                  Why this result?
+                </p>
+                <p className='mt-1 text-sm text-stone-500 dark:text-stone-400'>
+                  Biggest shop expenses in this period.
+                </p>
+
+                <div className='mt-4 space-y-3'>
+                  {expenseBreakdown.map((row) => (
+                    <div
+                      key={row?.category || 'expense'}
+                      className='flex items-center justify-between gap-4 rounded-2xl bg-stone-50 p-4 dark:bg-stone-950'
+                    >
+                      <div className='min-w-0'>
+                        <p className='truncate text-sm font-bold text-stone-950 dark:text-stone-50'>
+                          {safe(row?.category).replaceAll('_', ' ')}
+                        </p>
+                        <p className='mt-1 text-xs text-stone-500 dark:text-stone-400'>
+                          {safeNumber(row?.count)} expense records
+                        </p>
+                      </div>
+                      <p className='shrink-0 text-sm font-black text-rose-500'>
+                        {money(row?.total)} RWF
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}          </SectionCard>
 
           <SectionCard
             title="Profit & Loss by branch"
