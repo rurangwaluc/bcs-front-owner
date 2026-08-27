@@ -221,7 +221,7 @@ function ProfitTableRow({ row, active, onSelect }) {
       <div className="text-sm font-semibold">{money(row?.grossSales)}</div>
       <div className="text-sm font-semibold">{money(row?.refunds)}</div>
       <div className="text-sm font-semibold">{money(row?.netRevenue)}</div>
-      <div className="text-sm font-semibold">{money(row?.estimatedCogs)}</div>
+      <div className="text-sm font-semibold">{money(row?.costOfProductsSold ?? row?.estimatedCogs)}</div>
       <div className="text-sm font-semibold">{money(row?.grossProfit)}</div>
       <div className="text-sm font-semibold">{pct(row?.grossMarginPct)}</div>
     </button>
@@ -266,21 +266,21 @@ function ProfitTableMobileRow({ row, active, onSelect }) {
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
           <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Net revenue
+            Sales after refunds
           </p>
           <p className="mt-1 text-sm font-bold">{money(row?.netRevenue)}</p>
         </div>
 
         <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
           <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Gross profit
+            Money left before expenses
           </p>
           <p className="mt-1 text-sm font-bold">{money(row?.grossProfit)}</p>
         </div>
 
         <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
           <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            OpEx
+            Shop expenses
           </p>
           <p className="mt-1 text-sm font-bold">
             {money(row?.operatingExpenses)}
@@ -289,7 +289,7 @@ function ProfitTableMobileRow({ row, active, onSelect }) {
 
         <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
           <p className="text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-            Operating profit
+            Final profit/loss
           </p>
           <p className="mt-1 text-sm font-bold">
             {money(row?.operatingProfit)}
@@ -439,8 +439,9 @@ export default function OwnerReportsTab({ locations = [] }) {
   const extraChargeRevenue = safeNumber(
     incomeStatement?.revenue?.extraChargeRevenue,
   );
-  const estimatedCogs = safeNumber(
-    incomeStatement?.costOfSales?.estimatedCogs,
+  const costOfProductsSold = safeNumber(
+    incomeStatement?.costOfSales?.costOfProductsSold ??
+      incomeStatement?.costOfSales?.estimatedCogs,
   );
   const grossProfit = safeNumber(incomeStatement?.profitability?.grossProfit);
   const grossMarginPct = safeNumber(
@@ -591,14 +592,14 @@ export default function OwnerReportsTab({ locations = [] }) {
           </SectionCard>
 
           <SectionCard
-            title="Income statement"
-            subtitle="Revenue, COGS, operating expenses, and operating profit."
+            title="Profit & Loss"
+            subtitle="Clear answer showing whether the shop made profit or loss."
           >
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <SummaryBucketCard
-                title="Gross sales"
+                title="You sold products worth"
                 value={money(grossSales)}
-                sub="Completed and fulfilled sales"
+                sub="Products sold in this period"
               />
               <SummaryBucketCard
                 title="Refunds"
@@ -607,9 +608,9 @@ export default function OwnerReportsTab({ locations = [] }) {
                 tone="danger"
               />
               <SummaryBucketCard
-                title="Net revenue"
+                title="Sales after refunds"
                 value={money(netRevenue)}
-                sub="Gross sales minus refunds"
+                sub="Sales money after returned items"
                 tone="success"
               />
               <SummaryBucketCard
@@ -619,27 +620,27 @@ export default function OwnerReportsTab({ locations = [] }) {
                 tone="warn"
               />
               <SummaryBucketCard
-                title="Estimated COGS"
-                value={money(estimatedCogs)}
-                sub="Current cost-price based estimate"
+                title="Those products cost the shop"
+                value={money(costOfProductsSold)}
+                sub="Saved product cost at sale time"
                 tone="warn"
               />
               <SummaryBucketCard
-                title="Gross profit"
+                title="Money left before expenses"
                 value={money(grossProfit)}
-                sub={`Gross margin ${pct(grossMarginPct)}`}
+                sub={`Before shop expenses / margin ${pct(grossMarginPct)}`}
                 tone={toneForNumber(grossProfit)}
               />
               <SummaryBucketCard
-                title="Operating expenses"
+                title="Shop expenses"
                 value={money(operatingExpenses)}
-                sub="Posted operating expenses"
+                sub="Money spent to run the shop"
                 tone="danger"
               />
               <SummaryBucketCard
-                title="Operating profit"
+                title="Final profit/loss"
                 value={money(operatingProfit)}
-                sub={`Operating margin ${pct(operatingMarginPct)}`}
+                sub={`Final result / margin ${pct(operatingMarginPct)}`}
                 tone={toneForNumber(operatingProfit)}
               />
             </div>
@@ -703,17 +704,17 @@ export default function OwnerReportsTab({ locations = [] }) {
           </SectionCard>
 
           <SectionCard
-            title="Profit table by branch"
-            subtitle="Compare branch-level revenue, COGS, gross profit, and operating profit."
+            title="Profit & Loss by branch"
+            subtitle="See which branch made profit or loss in the selected period."
           >
             <div className="overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-800">
               <div className="hidden grid-cols-[180px_130px_130px_130px_130px_130px_120px] gap-3 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:bg-stone-950 dark:text-stone-400 lg:grid">
                 <div>Branch</div>
-                <div>Gross sales</div>
+                <div>Sold worth</div>
                 <div>Refunds</div>
-                <div>Net revenue</div>
-                <div>Est. COGS</div>
-                <div>Gross profit</div>
+                <div>After refunds</div>
+                <div>Product cost</div>
+                <div>Before expenses</div>
                 <div>Margin</div>
               </div>
 
@@ -754,8 +755,8 @@ export default function OwnerReportsTab({ locations = [] }) {
 
           {selectedBranch ? (
             <SectionCard
-              title="Selected branch profit detail"
-              subtitle="Focused financial detail for the selected branch."
+              title="Selected branch result"
+              subtitle="Simple profit or loss detail for the selected branch."
             >
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard
@@ -766,28 +767,28 @@ export default function OwnerReportsTab({ locations = [] }) {
                 />
 
                 <StatCard
-                  label="Net revenue"
+                  label="Sales after refunds"
                   value={money(selectedBranch.netRevenue)}
                   valueClassName="text-[17px] leading-tight"
                   sub="After refunds"
                 />
 
                 <StatCard
-                  label="Gross profit"
+                  label="Money left before expenses"
                   value={money(selectedBranch.grossProfit)}
                   valueClassName="text-[17px] leading-tight"
                   sub={`Margin ${pct(selectedBranch.grossMarginPct)}`}
                 />
 
                 <StatCard
-                  label="Operating profit"
+                  label="Final profit/loss"
                   value={money(selectedBranch.operatingProfit)}
                   valueClassName="text-[17px] leading-tight"
                   sub={`Margin ${pct(selectedBranch.operatingMarginPct)}`}
                 />
 
                 <StatCard
-                  label="Gross sales"
+                  label="Sold products worth"
                   value={money(selectedBranch.grossSales)}
                   valueClassName="text-[17px] leading-tight"
                   sub="Before refunds"
@@ -801,14 +802,14 @@ export default function OwnerReportsTab({ locations = [] }) {
                 />
 
                 <StatCard
-                  label="Estimated COGS"
-                  value={money(selectedBranch.estimatedCogs)}
+                  label="Product cost"
+                  value={money(selectedBranch.costOfProductsSold ?? selectedBranch.estimatedCogs)}
                   valueClassName="text-[17px] leading-tight"
-                  sub="Current cost-price estimate"
+                  sub="Saved product cost at sale time"
                 />
 
                 <StatCard
-                  label="Operating expenses"
+                  label="Shop expenses"
                   value={money(selectedBranch.operatingExpenses)}
                   valueClassName="text-[17px] leading-tight"
                   sub="Posted expenses"
@@ -817,7 +818,7 @@ export default function OwnerReportsTab({ locations = [] }) {
             </SectionCard>
           ) : (
             <SectionCard
-              title="Selected branch profit detail"
+              title="Selected branch result"
               subtitle="This section appears after a branch is selected."
             >
               <EmptyState text="Select a branch row above to inspect its financial detail." />
@@ -825,31 +826,31 @@ export default function OwnerReportsTab({ locations = [] }) {
           )}
 
           <SectionCard
-            title="Profit table totals"
-            subtitle="Owner-wide totals across the visible branch rows."
+            title="Total result"
+            subtitle="Total profit or loss across the visible branches."
           >
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <SummaryBucketCard
-                title="Gross sales"
+                title="You sold products worth"
                 value={money(profitTable?.totals?.grossSales)}
                 sub="All visible branches"
               />
               <SummaryBucketCard
-                title="Net revenue"
+                title="Sales after refunds"
                 value={money(profitTable?.totals?.netRevenue)}
                 sub="After refunds"
                 tone="success"
               />
               <SummaryBucketCard
-                title="Gross profit"
+                title="Money left before expenses"
                 value={money(profitTable?.totals?.grossProfit)}
-                sub={`Gross margin ${pct(profitTable?.totals?.grossMarginPct)}`}
+                sub={`Before shop expenses / margin ${pct(profitTable?.totals?.grossMarginPct)}`}
                 tone={toneForNumber(profitTable?.totals?.grossProfit)}
               />
               <SummaryBucketCard
-                title="Operating profit"
+                title="Final profit/loss"
                 value={money(profitTable?.totals?.operatingProfit)}
-                sub={`Operating margin ${pct(profitTable?.totals?.operatingMarginPct)}`}
+                sub={`Final result / margin ${pct(profitTable?.totals?.operatingMarginPct)}`}
                 tone={toneForNumber(profitTable?.totals?.operatingProfit)}
               />
             </div>
