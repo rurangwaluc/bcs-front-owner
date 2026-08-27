@@ -18,6 +18,10 @@ function money(v) {
   return safeNumber(v).toLocaleString();
 }
 
+function moneyAbs(v) {
+  return Math.abs(safeNumber(v)).toLocaleString();
+}
+
 function pct(v) {
   return `${safeNumber(v)}%`;
 }
@@ -595,6 +599,28 @@ export default function OwnerReportsTab({ locations = [] }) {
             title="Profit & Loss"
             subtitle="Clear answer showing whether the shop made profit or loss."
           >
+            <div
+              className={
+                "mb-5 rounded-[28px] border p-6 " +
+                (operatingProfit >= 0
+                  ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/20"
+                  : "border-rose-200 bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/20")
+              }
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                Final result
+              </p>
+              <p className="mt-3 text-3xl font-black tracking-tight text-stone-950 dark:text-stone-50">
+                {operatingProfit >= 0 ? "You made profit" : "You made a loss"}
+              </p>
+              <p className="mt-2 text-4xl font-black tracking-tight text-stone-950 dark:text-stone-50">
+                {moneyAbs(operatingProfit)} RWF
+              </p>
+              <p className="mt-3 max-w-2xl text-sm text-stone-600 dark:text-stone-300">
+                This is what remains after products sold, product cost, refunds, and shop expenses in the selected period.
+              </p>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <SummaryBucketCard
                 title="You sold products worth"
