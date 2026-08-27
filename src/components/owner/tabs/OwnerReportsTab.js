@@ -463,6 +463,37 @@ export default function OwnerReportsTab({ locations = [] }) {
     incomeStatement?.bottomLine?.operatingMarginPct,
   );
 
+  const biggestExpense = expenseBreakdown[0] || null;
+  const resultIsProfit = operatingProfit >= 0;
+  const ownerMainReason = resultIsProfit
+    ? "The shop kept money after product cost and shop expenses."
+    : grossProfit > 0 && operatingExpenses > grossProfit
+      ? "Shop expenses were higher than the money left after product cost."
+      : grossProfit < 0
+        ? "Products cost the shop more than the sales money after refunds."
+        : "The selected period ended with more cost than money left.";
+  const ownerWhatHappened = [
+    `You sold products worth ${money(grossSales)} RWF.`,
+    `Those products cost the shop ${money(costOfProductsSold)} RWF.`,
+    `Money left before expenses was ${money(grossProfit)} RWF.`,
+    `Shop expenses were ${money(operatingExpenses)} RWF.`,
+    `Final result was ${resultIsProfit ? "profit" : "loss"} of ${moneyAbs(operatingProfit)} RWF.`,
+  ];
+  const ownerAttention = [
+    !resultIsProfit && grossProfit > 0 && operatingExpenses > grossProfit
+      ? "The shop sold with profit, but expenses were too high."
+      : null,
+    biggestExpense
+      ? `${safe(biggestExpense.category).replaceAll("_", " ")} is the biggest expense group: ${money(biggestExpense.total)} RWF.`
+      : null,
+    biggestExpense && safeNumber(biggestExpense.total) > grossProfit
+      ? "Review this expense group because it is bigger than the money left before expenses."
+      : null,
+    expenseBreakdown.some((row) => safe(row?.category).toUpperCase().includes("OTHER"))
+      ? "Check OTHER expenses; some stock purchases may have been recorded as shop expenses."
+      : null,
+  ].filter(Boolean);
+
   const metaWarnings = [
     ...(Array.isArray(cashFlow?.meta?.warnings) ? cashFlow.meta.warnings : []),
     ...(Array.isArray(trialBalance?.meta?.warnings)
@@ -561,6 +592,73 @@ export default function OwnerReportsTab({ locations = [] }) {
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
               />
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Owner answer"
+            subtitle="The business result explained in plain language."
+          >
+            <div
+              className={
+                "rounded-[28px] border p-6 " +
+                (resultIsProfit
+                  ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/20"
+                  : "border-rose-200 bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/20")
+              }
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                Owner answer
+              </p>
+              <p className="mt-3 text-3xl font-black tracking-tight text-stone-950 dark:text-stone-50">
+                {resultIsProfit ? "The shop made profit" : "The shop made a loss"}
+              </p>
+              <p className="mt-2 text-4xl font-black tracking-tight text-stone-950 dark:text-stone-50">
+                {moneyAbs(operatingProfit)} RWF
+              </p>
+              <p className="mt-4 max-w-3xl text-sm font-semibold text-stone-700 dark:text-stone-200">
+                Main reason: {ownerMainReason}
+              </p>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  What happened
+                </p>
+                <div className="mt-4 space-y-3">
+                  {ownerWhatHappened.map((text) => (
+                    <div
+                      key={text}
+                      className="rounded-2xl bg-stone-50 p-4 text-sm font-semibold text-stone-700 dark:bg-stone-950 dark:text-stone-200"
+                    >
+                      {text}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Needs attention now
+                </p>
+                <div className="mt-4 space-y-3">
+                  {ownerAttention.length > 0 ? (
+                    ownerAttention.map((text) => (
+                      <div
+                        key={text}
+                        className="rounded-2xl bg-stone-50 p-4 text-sm font-semibold text-stone-700 dark:bg-stone-950 dark:text-stone-200"
+                      >
+                        {text}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl bg-stone-50 p-4 text-sm font-semibold text-stone-700 dark:bg-stone-950 dark:text-stone-200">
+                      No urgent issue found in this period.
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </SectionCard>
 
