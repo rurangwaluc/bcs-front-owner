@@ -456,6 +456,9 @@ export default function OwnerReportsTab({ locations = [] }) {
   )
     ? incomeStatement.operatingExpenses.breakdown
     : [];
+  const expenseRecords = Array.isArray(incomeStatement?.operatingExpenses?.records)
+    ? incomeStatement.operatingExpenses.records
+    : [];
   const operatingProfit = safeNumber(
     incomeStatement?.bottomLine?.operatingProfit,
   );
@@ -787,6 +790,40 @@ export default function OwnerReportsTab({ locations = [] }) {
                     </div>
                   ))}
                 </div>
+
+                {expenseRecords.length > 0 ? (
+                  <div className='mt-5 rounded-[20px] border border-stone-200 p-4 dark:border-stone-800'>
+                    <p className='text-sm font-black text-stone-950 dark:text-stone-50'>
+                      Biggest expense records
+                    </p>
+                    <p className='mt-1 text-sm text-stone-500 dark:text-stone-400'>
+                      These are the exact records driving the expense number.
+                    </p>
+
+                    <div className='mt-4 space-y-3'>
+                      {expenseRecords.map((row) => (
+                        <div
+                          key={row?.id || `${row?.category}-${row?.amount}`}
+                          className='rounded-2xl bg-stone-50 p-4 dark:bg-stone-950'
+                        >
+                          <div className='flex items-start justify-between gap-4'>
+                            <div className='min-w-0'>
+                              <p className='text-sm font-bold text-stone-950 dark:text-stone-50'>
+                                {expenseCategoryLabel(row?.category)}
+                              </p>
+                              <p className='mt-1 text-xs text-stone-500 dark:text-stone-400'>
+                                {safe(row?.note) || 'No note recorded'}
+                              </p>
+                            </div>
+                            <p className='shrink-0 text-sm font-black text-rose-500'>
+                              {money(row?.amount)} RWF
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}          </SectionCard>
 
