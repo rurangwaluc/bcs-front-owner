@@ -99,9 +99,6 @@ function CashFlowRow({ row, isOutflow = false }) {
         <p className="text-sm font-semibold text-stone-950 dark:text-stone-50">
           {safe(row?.label) || "-"}
         </p>
-        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-          {safe(row?.key) || "-"}
-        </p>
       </div>
 
       <div
@@ -563,74 +560,6 @@ export default function OwnerReportsTab({ locations = [] }) {
           </SectionCard>
 
           <SectionCard
-            title="Money movement"
-            subtitle="Money that came in and went out during the selected period."
-          >
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <SummaryBucketCard
-                title="Money came in"
-                value={money(totalInflows)}
-                sub="Cash received in selected range"
-                tone="success"
-              />
-              <SummaryBucketCard
-                title="Money went out"
-                value={money(totalOutflows)}
-                sub="Cash paid out in selected range"
-                tone="warn"
-              />
-              <SummaryBucketCard
-                title="Money left"
-                value={money(netCashFlow)}
-                sub="Money came in minus money went out"
-                tone={toneForNumber(netCashFlow)}
-              />
-            </div>
-
-            <div className="mt-6 grid gap-4 xl:grid-cols-2">
-              <div className="rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                  Inflows
-                </p>
-
-                {!Array.isArray(cashFlow?.inflows) || cashFlow.inflows.length === 0 ? (
-                  <div className="mt-4">
-                    <EmptyState text="No inflows in the selected range." />
-                  </div>
-                ) : (
-                  <div className="mt-4 space-y-3">
-                    {cashFlow.inflows.map((row, index) => (
-                      <CashFlowRow key={`${row?.key}-${index}`} row={row} />
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                  Outflows
-                </p>
-
-                {!Array.isArray(cashFlow?.outflows) || cashFlow.outflows.length === 0 ? (
-                  <div className="mt-4">
-                    <EmptyState text="No outflows in the selected range." />
-                  </div>
-                ) : (
-                  <div className="mt-4 space-y-3">
-                    {cashFlow.outflows.map((row, index) => (
-                      <CashFlowRow
-                        key={`${row?.key}-${index}`}
-                        row={row}
-                        isOutflow
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard
             title="Profit & Loss"
             subtitle="Clear answer showing whether the shop made profit or loss."
           >
@@ -708,63 +637,6 @@ export default function OwnerReportsTab({ locations = [] }) {
           </SectionCard>
 
           <SectionCard
-            title="Trial balance"
-            subtitle="Snapshot of debit and credit balances as of the selected end date."
-          >
-            <div className="grid gap-4 sm:grid-cols-3">
-              <StatCard
-                label="Total debits"
-                value={money(totalDebits)}
-                valueClassName="text-[17px] leading-tight"
-                sub="Sum of debit balances"
-              />
-              <StatCard
-                label="Total credits"
-                value={money(totalCredits)}
-                valueClassName="text-[17px] leading-tight"
-                sub="Sum of credit balances"
-              />
-              <StatCard
-                label="Difference"
-                value={money(trialDifference)}
-                valueClassName="text-[17px] leading-tight"
-                sub={
-                  safeNumber(trialBalance?.totals?.isBalanced)
-                    ? "Balanced"
-                    : "Not balanced"
-                }
-              />
-            </div>
-
-            <div className="mt-6 overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-800">
-              <div className="hidden grid-cols-[90px_1.5fr_120px_130px_130px] gap-3 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:bg-stone-950 dark:text-stone-400 lg:grid">
-                <div>Code</div>
-                <div>Account</div>
-                <div>Type</div>
-                <div>Debit</div>
-                <div>Credit</div>
-              </div>
-
-              {!Array.isArray(trialBalance?.rows) || trialBalance.rows.length === 0 ? (
-                <div className="p-4">
-                  <EmptyState text="No trial balance rows available." />
-                </div>
-              ) : (
-                <div>
-                  {trialBalance.rows.map((row, index) => (
-                    <div key={`${row?.code}-${index}`}>
-                      <TrialBalanceRow row={row} />
-                      <div className="p-3 lg:hidden">
-                        <TrialBalanceMobileRow row={row} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </SectionCard>
-
-          <SectionCard
             title="Profit & Loss by branch"
             subtitle="See which branch made profit or loss in the selected period."
           >
@@ -776,7 +648,7 @@ export default function OwnerReportsTab({ locations = [] }) {
                 <div>After refunds</div>
                 <div>Product cost</div>
                 <div>Before expenses</div>
-                <div>Margin</div>
+                <div>Percentage</div>
               </div>
 
               {profitRows.length === 0 ? (
@@ -873,7 +745,7 @@ export default function OwnerReportsTab({ locations = [] }) {
                   label="Shop expenses"
                   value={money(selectedBranch.operatingExpenses)}
                   valueClassName="text-[17px] leading-tight"
-                  sub="Posted expenses"
+                  sub="Shop expenses recorded"
                 />
               </div>
             </SectionCard>
@@ -916,6 +788,138 @@ export default function OwnerReportsTab({ locations = [] }) {
               />
             </div>
           </SectionCard>
+          <SectionCard
+            title="Money movement"
+            subtitle="Money that came in and went out during the selected period."
+          >
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <SummaryBucketCard
+                title="Money came in"
+                value={money(totalInflows)}
+                sub="Cash received in selected range"
+                tone="success"
+              />
+              <SummaryBucketCard
+                title="Money went out"
+                value={money(totalOutflows)}
+                sub="Cash paid out in selected range"
+                tone="warn"
+              />
+              <SummaryBucketCard
+                title="Money left"
+                value={money(netCashFlow)}
+                sub="Money came in minus money went out"
+                tone={toneForNumber(netCashFlow)}
+              />
+            </div>
+
+            <div className="mt-6 grid gap-4 xl:grid-cols-2">
+              <div className="rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                  Money came in
+                </p>
+
+                {!Array.isArray(cashFlow?.inflows) || cashFlow.inflows.length === 0 ? (
+                  <div className="mt-4">
+                    <EmptyState text="No inflows in the selected range." />
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {cashFlow.inflows.map((row, index) => (
+                      <CashFlowRow key={`${row?.key}-${index}`} row={row} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                  Money went out
+                </p>
+
+                {!Array.isArray(cashFlow?.outflows) || cashFlow.outflows.length === 0 ? (
+                  <div className="mt-4">
+                    <EmptyState text="No outflows in the selected range." />
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {cashFlow.outflows.map((row, index) => (
+                      <CashFlowRow
+                        key={`${row?.key}-${index}`}
+                        row={row}
+                        isOutflow
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </SectionCard>
+
+          <details className="rounded-[24px] border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+            <summary className="cursor-pointer text-sm font-bold text-stone-950 dark:text-stone-50">Advanced reports</summary>
+            <div className="mt-4">
+          <SectionCard
+            title="Trial balance"
+            subtitle="Snapshot of debit and credit balances as of the selected end date."
+          >
+            <div className="grid gap-4 sm:grid-cols-3">
+              <StatCard
+                label="Total debits"
+                value={money(totalDebits)}
+                valueClassName="text-[17px] leading-tight"
+                sub="Sum of debit balances"
+              />
+              <StatCard
+                label="Total credits"
+                value={money(totalCredits)}
+                valueClassName="text-[17px] leading-tight"
+                sub="Sum of credit balances"
+              />
+              <StatCard
+                label="Difference"
+                value={money(trialDifference)}
+                valueClassName="text-[17px] leading-tight"
+                sub={
+                  safeNumber(trialBalance?.totals?.isBalanced)
+                    ? "Balanced"
+                    : "Not balanced"
+                }
+              />
+            </div>
+
+            <div className="mt-6 overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-800">
+              <div className="hidden grid-cols-[90px_1.5fr_120px_130px_130px] gap-3 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:bg-stone-950 dark:text-stone-400 lg:grid">
+                <div>Code</div>
+                <div>Account</div>
+                <div>Type</div>
+                <div>Debit</div>
+                <div>Credit</div>
+              </div>
+
+              {!Array.isArray(trialBalance?.rows) || trialBalance.rows.length === 0 ? (
+                <div className="p-4">
+                  <EmptyState text="No trial balance rows available." />
+                </div>
+              ) : (
+                <div>
+                  {trialBalance.rows.map((row, index) => (
+                    <div key={`${row?.code}-${index}`}>
+                      <TrialBalanceRow row={row} />
+                      <div className="p-3 lg:hidden">
+                        <TrialBalanceMobileRow row={row} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </SectionCard>
+
+
+            </div>
+          </details>
+
         </>
       )}
     </div>
