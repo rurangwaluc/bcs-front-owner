@@ -542,28 +542,33 @@ export default function OwnerReportsTab({ locations = [] }) {
   const uniqueWarnings = Array.from(new Set(metaWarnings));
 
 
-  function renderProductItem(row, note) {
+  function renderProductItem(row, note, mode = "profit") {
+    const isMissingCost = mode === "missingCost";
+    const mainText = isMissingCost
+      ? "Add buying price"
+      : `${money(row?.moneyLeft)} RWF left`;
+    const subText = isMissingCost
+      ? `Sold worth: ${money(row?.soldWorth)} RWF`
+      : `Sold: ${safeNumber(row?.qtySold)} ${safe(row?.unit)}${note ? ` / ${note}` : ""}`;
+
     return (
       <div
         key={row?.productId || `${row?.productName}-${row?.soldWorth}`}
         className="rounded-2xl bg-stone-50 p-4 dark:bg-stone-950"
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-stone-950 dark:text-stone-50">
-              {safe(row?.productName) || "Unknown product"}
-            </p>
-            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-              Sold worth: {money(row?.soldWorth)} RWF / Money left: {money(row?.moneyLeft)} RWF
-            </p>
-            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-              Sold: {safeNumber(row?.qtySold)} {safe(row?.unit)}{ note ? ` / ${note}` : ""}
-            </p>
-          </div>
-          <p className="shrink-0 text-sm font-black text-emerald-500">
-            {money(row?.moneyLeft)} RWF
-          </p>
-        </div>
+        <p className="truncate text-sm font-black text-stone-950 dark:text-stone-50">
+          {safe(row?.productName) || "Unknown product"}
+        </p>
+        <p
+          className={`mt-2 text-sm font-black ${
+            isMissingCost ? "text-amber-500" : "text-emerald-500"
+          }`}
+        >
+          {mainText}
+        </p>
+        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+          {subText}
+        </p>
       </div>
     );
   }
@@ -767,7 +772,7 @@ export default function OwnerReportsTab({ locations = [] }) {
                   Check buying price so profit reports stay correct.
                 </p>
                 <div className="mt-4 space-y-3">
-                  {missingCostProducts.length > 0 ? missingCostProducts.slice(0, 3).map((row) => renderProductItem(row, "Cost price missing")) : (
+                  {missingCostProducts.length > 0 ? missingCostProducts.slice(0, 3).map((row) => renderProductItem(row, "", "missingCost")) : (
                     <div className="rounded-2xl bg-stone-50 p-4 text-sm font-semibold text-stone-700 dark:bg-stone-950 dark:text-stone-200">
                       No missing cost price found.
                     </div>
