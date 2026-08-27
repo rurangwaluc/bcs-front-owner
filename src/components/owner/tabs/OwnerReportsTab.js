@@ -465,6 +465,16 @@ export default function OwnerReportsTab({ locations = [] }) {
   const operatingMarginPct = safeNumber(
     incomeStatement?.bottomLine?.operatingMarginPct,
   );
+  const productWatch = incomeStatement?.productWatch || {};
+  const bestMoneyMakers = Array.isArray(productWatch.bestMoneyMakers)
+    ? productWatch.bestMoneyMakers
+    : [];
+  const weakProfitProducts = Array.isArray(productWatch.weakProfitProducts)
+    ? productWatch.weakProfitProducts
+    : [];
+  const missingCostProducts = Array.isArray(productWatch.missingCostProducts)
+    ? productWatch.missingCostProducts
+    : [];
 
 
   function expenseCategoryLabel(value) {
@@ -530,6 +540,33 @@ export default function OwnerReportsTab({ locations = [] }) {
   ].filter(Boolean);
 
   const uniqueWarnings = Array.from(new Set(metaWarnings));
+
+
+  function renderProductItem(row, note) {
+    return (
+      <div
+        key={row?.productId || `${row?.productName}-${row?.soldWorth}`}
+        className="rounded-2xl bg-stone-50 p-4 dark:bg-stone-950"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-stone-950 dark:text-stone-50">
+              {safe(row?.productName) || "Unknown product"}
+            </p>
+            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+              Sold worth: {money(row?.soldWorth)} RWF / Money left: {money(row?.moneyLeft)} RWF
+            </p>
+            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+              Sold: {safeNumber(row?.qtySold)} {safe(row?.unit)}{ note ? ` / ${note}` : ""}
+            </p>
+          </div>
+          <p className="shrink-0 text-sm font-black text-emerald-500">
+            {money(row?.moneyLeft)} RWF
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   function fmtLocalDate(d) {
     const y = d.getFullYear();
@@ -677,6 +714,62 @@ export default function OwnerReportsTab({ locations = [] }) {
                   ) : (
                     <div className="rounded-2xl bg-stone-50 p-4 text-sm font-semibold text-stone-700 dark:bg-stone-950 dark:text-stone-200">
                       No urgent issue found in this period.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+
+
+          <SectionCard
+            title="Products to watch"
+            subtitle="Simple product insights without complicating the owner's life."
+          >
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Best money makers
+                </p>
+                <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                  Products that left the most money.
+                </p>
+                <div className="mt-4 space-y-3">
+                  {bestMoneyMakers.length > 0 ? bestMoneyMakers.slice(0, 3).map((row) => renderProductItem(row)) : (
+                    <div className="rounded-2xl bg-stone-50 p-4 text-sm font-semibold text-stone-700 dark:bg-stone-950 dark:text-stone-200">
+                      No product profit data yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Selling but weak profit
+                </p>
+                <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                  Products selling but leaving little money.
+                </p>
+                <div className="mt-4 space-y-3">
+                  {weakProfitProducts.length > 0 ? weakProfitProducts.slice(0, 3).map((row) => renderProductItem(row, `${safeNumber(row?.moneyLeftPct)}% left`)) : (
+                    <div className="rounded-2xl bg-stone-50 p-4 text-sm font-semibold text-stone-700 dark:bg-stone-950 dark:text-stone-200">
+                      No weak profit products found.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+                <p className="text-sm font-black text-stone-950 dark:text-stone-50">
+                  Missing cost price
+                </p>
+                <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                  Check buying price so profit reports stay correct.
+                </p>
+                <div className="mt-4 space-y-3">
+                  {missingCostProducts.length > 0 ? missingCostProducts.slice(0, 3).map((row) => renderProductItem(row, "Cost price missing")) : (
+                    <div className="rounded-2xl bg-stone-50 p-4 text-sm font-semibold text-stone-700 dark:bg-stone-950 dark:text-stone-200">
+                      No missing cost price found.
                     </div>
                   )}
                 </div>
