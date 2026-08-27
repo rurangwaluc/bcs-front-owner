@@ -562,36 +562,27 @@ export default function OwnerReportsTab({ locations = [] }) {
             </div>
           </SectionCard>
 
-          {uniqueWarnings.length > 0 ? (
-            <details className="rounded-[24px] border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
-              <summary className="cursor-pointer font-bold">Report notes</summary>
-              <div className="mt-3">
-                <WarningList warnings={uniqueWarnings} />
-              </div>
-            </details>
-          ) : null}
-
           <SectionCard
-            title="Cash flow"
-            subtitle="Owner view of cash entering and leaving the business."
+            title="Money movement"
+            subtitle="Money that came in and went out during the selected period."
           >
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <SummaryBucketCard
-                title="Total inflows"
+                title="Money came in"
                 value={money(totalInflows)}
                 sub="Cash received in selected range"
                 tone="success"
               />
               <SummaryBucketCard
-                title="Total outflows"
+                title="Money went out"
                 value={money(totalOutflows)}
                 sub="Cash paid out in selected range"
                 tone="warn"
               />
               <SummaryBucketCard
-                title="Net cash flow"
+                title="Money left"
                 value={money(netCashFlow)}
-                sub="Inflows minus outflows"
+                sub="Money came in minus money went out"
                 tone={toneForNumber(netCashFlow)}
               />
             </div>
@@ -674,7 +665,7 @@ export default function OwnerReportsTab({ locations = [] }) {
               <SummaryBucketCard
                 title="Refunds"
                 value={money(refunds)}
-                sub="Contra revenue"
+                sub="Returned products"
                 tone="danger"
               />
               <SummaryBucketCard
@@ -684,21 +675,21 @@ export default function OwnerReportsTab({ locations = [] }) {
                 tone="success"
               />
               <SummaryBucketCard
-                title="Extra charge revenue"
+                title="Extra money added"
                 value={money(extraChargeRevenue)}
-                sub="Manual seller uplifts"
+                sub="Extra money added on sales"
                 tone="warn"
               />
               <SummaryBucketCard
                 title="Those products cost the shop"
                 value={money(costOfProductsSold)}
-                sub="Saved product cost at sale time"
+                sub="Buying cost of those products"
                 tone="warn"
               />
               <SummaryBucketCard
                 title="Money left before expenses"
                 value={money(grossProfit)}
-                sub={`Before shop expenses / margin ${pct(grossMarginPct)}`}
+                sub={`Before shop expenses / percentage left ${pct(grossMarginPct)}`}
                 tone={toneForNumber(grossProfit)}
               />
               <SummaryBucketCard
@@ -710,7 +701,7 @@ export default function OwnerReportsTab({ locations = [] }) {
               <SummaryBucketCard
                 title="Final profit/loss"
                 value={money(operatingProfit)}
-                sub={`Final result / margin ${pct(operatingMarginPct)}`}
+                sub={`Final result / percentage ${pct(operatingMarginPct)}`}
                 tone={toneForNumber(operatingProfit)}
               />
             </div>
@@ -847,14 +838,14 @@ export default function OwnerReportsTab({ locations = [] }) {
                   label="Money left before expenses"
                   value={money(selectedBranch.grossProfit)}
                   valueClassName="text-[17px] leading-tight"
-                  sub={`Margin ${pct(selectedBranch.grossMarginPct)}`}
+                  sub={`Percentage left ${pct(selectedBranch.grossMarginPct)}`}
                 />
 
                 <StatCard
                   label="Final profit/loss"
                   value={money(selectedBranch.operatingProfit)}
                   valueClassName="text-[17px] leading-tight"
-                  sub={`Margin ${pct(selectedBranch.operatingMarginPct)}`}
+                  sub={`Final percentage ${pct(selectedBranch.operatingMarginPct)}`}
                 />
 
                 <StatCard
@@ -868,14 +859,14 @@ export default function OwnerReportsTab({ locations = [] }) {
                   label="Refunds"
                   value={money(selectedBranch.refunds)}
                   valueClassName="text-[17px] leading-tight"
-                  sub="Contra revenue"
+                  sub="Returned products"
                 />
 
                 <StatCard
                   label="Product cost"
                   value={money(selectedBranch.costOfProductsSold ?? selectedBranch.estimatedCogs)}
                   valueClassName="text-[17px] leading-tight"
-                  sub="Saved product cost at sale time"
+                  sub="Buying cost of those products"
                 />
 
                 <StatCard
@@ -914,13 +905,13 @@ export default function OwnerReportsTab({ locations = [] }) {
               <SummaryBucketCard
                 title="Money left before expenses"
                 value={money(profitTable?.totals?.grossProfit)}
-                sub={`Before shop expenses / margin ${pct(profitTable?.totals?.grossMarginPct)}`}
+                sub={`Before shop expenses / percentage left ${pct(profitTable?.totals?.grossMarginPct)}`}
                 tone={toneForNumber(profitTable?.totals?.grossProfit)}
               />
               <SummaryBucketCard
                 title="Final profit/loss"
                 value={money(profitTable?.totals?.operatingProfit)}
-                sub={`Final result / margin ${pct(profitTable?.totals?.operatingMarginPct)}`}
+                sub={`Final result / percentage ${pct(profitTable?.totals?.operatingMarginPct)}`}
                 tone={toneForNumber(profitTable?.totals?.operatingProfit)}
               />
             </div>
