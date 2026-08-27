@@ -463,6 +463,25 @@ export default function OwnerReportsTab({ locations = [] }) {
     incomeStatement?.bottomLine?.operatingMarginPct,
   );
 
+
+  function expenseCategoryLabel(value) {
+    const key = safe(value).toUpperCase();
+    if (key === "OTHER_OPERATING") return "Other shop expenses";
+    if (key === "TAX_ADMIN_FEES") return "Tax and admin fees";
+    if (key === "GENERAL") return "General shop expenses";
+    if (key === "RENT") return "Rent";
+    if (key === "SALARIES") return "Salaries";
+    if (key === "UTILITIES") return "Utilities";
+    if (key === "REPAIRS") return "Repairs";
+    return safe(value)
+      .replaceAll("_", " ")
+      .toLowerCase()
+      .split(" ")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+
   const biggestExpense = expenseBreakdown[0] || null;
   const resultIsProfit = operatingProfit >= 0;
   const ownerMainReason = resultIsProfit
@@ -484,13 +503,13 @@ export default function OwnerReportsTab({ locations = [] }) {
       ? "The shop sold with profit, but expenses were too high."
       : null,
     biggestExpense
-      ? `${safe(biggestExpense.category).replaceAll("_", " ")} is the biggest expense group: ${money(biggestExpense.total)} RWF.`
+      ? `${expenseCategoryLabel(biggestExpense.category)} is the biggest expense group: ${money(biggestExpense.total)} RWF.`
       : null,
     biggestExpense && safeNumber(biggestExpense.total) > grossProfit
       ? "Review this expense group because it is bigger than the money left before expenses."
       : null,
     expenseBreakdown.some((row) => safe(row?.category).toUpperCase().includes("OTHER"))
-      ? "Check OTHER expenses; some stock purchases may have been recorded as shop expenses."
+      ? "Check Other shop expenses; some stock purchases may have been recorded as shop expenses."
       : null,
   ].filter(Boolean);
 
@@ -756,7 +775,7 @@ export default function OwnerReportsTab({ locations = [] }) {
                     >
                       <div className='min-w-0'>
                         <p className='truncate text-sm font-bold text-stone-950 dark:text-stone-50'>
-                          {safe(row?.category).replaceAll('_', ' ')}
+                          {expenseCategoryLabel(row?.category)}
                         </p>
                         <p className='mt-1 text-xs text-stone-500 dark:text-stone-400'>
                           {safeNumber(row?.count)} expense records
