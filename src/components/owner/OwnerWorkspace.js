@@ -511,7 +511,7 @@ export default function OwnerWorkspace({
       case "customers":
         return <OwnerCustomersTab locations={locations} />;
       case "reports":
-        return <OwnerReportsTab locations={locations} />;
+        return <OwnerReportsTab locations={locations} onOpenProducts={() => onNavigate?.("products")} />;
       case "audit":
         return <OwnerAuditTab locations={locations} />;
       case "notes":

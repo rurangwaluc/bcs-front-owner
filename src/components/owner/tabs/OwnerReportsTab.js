@@ -301,7 +301,7 @@ function ProfitTableMobileRow({ row, active, onSelect }) {
   );
 }
 
-export default function OwnerReportsTab({ locations = [] }) {
+export default function OwnerReportsTab({ locations = [], onOpenProducts = null }) {
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
 
@@ -569,6 +569,15 @@ export default function OwnerReportsTab({ locations = [] }) {
         <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
           {subText}
         </p>
+        {isMissingCost && onOpenProducts ? (
+          <button
+            type="button"
+            onClick={onOpenProducts}
+            className="mt-3 rounded-full border border-amber-500/40 px-3 py-1.5 text-xs font-black text-amber-500 hover:bg-amber-500/10"
+          >
+            Go to products
+          </button>
+        ) : null}
       </div>
     );
   }
