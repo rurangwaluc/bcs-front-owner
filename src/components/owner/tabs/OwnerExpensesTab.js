@@ -11,7 +11,7 @@ import {
   safeDate,
   safeNumber,
 } from "../OwnerShared";
-import { createExpense, listExpenses, voidExpense } from "../../../lib/api";
+import { approveExpenseRequest, createExpense, listExpenseRequests, listExpenses, rejectExpenseRequest, voidExpense } from "../../../lib/api";
 import { resolveAssetUrl, uploadExpenseProofs } from "../../../lib/apiUpload";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -20,6 +20,7 @@ import AsyncButton from "../../AsyncButton";
 const PAGE_SIZE = 20;
 const METHOD_OPTIONS = ["CASH", "BANK", "MOMO", "CARD", "OTHER"];
 const STATUS_OPTIONS = ["POSTED", "VOID"];
+const REQUEST_STATUS_OPTIONS = ["PENDING", "APPROVED", "REJECTED"];
 const OWNER_EXPENSE_CATEGORY_OPTIONS = [
   "GENERAL",
   "TRANSPORT",
@@ -115,6 +116,45 @@ function normalizeExpense(row) {
     attachments,
     createdAt: row.createdAt ?? row.created_at ?? null,
   };
+}
+
+function normalizeExpenseRequest(row) {
+  if (!row) return null;
+  return {
+    id: row.id ?? null,
+    locationId: row.locationId ?? row.location_id ?? null,
+    locationName: row.locationName ?? row.location_name ?? "",
+    locationCode: row.locationCode ?? row.location_code ?? "",
+    requestedByUserId: row.requestedByUserId ?? row.requested_by_user_id ?? null,
+    requestedByName: row.requestedByName ?? row.requested_by_name ?? row.requesterName ?? "",
+    requestedByEmail: row.requestedByEmail ?? row.requested_by_email ?? row.requesterEmail ?? "",
+    category: row.category ?? "GENERAL",
+    amount: Number(row.amount ?? 0),
+    expenseDate: row.expenseDate ?? row.expense_date ?? null,
+    method: row.method ?? "BANK",
+    status: row.status ?? "PENDING",
+    payeeName: row.payeeName ?? row.payee_name ?? "",
+    reference: row.reference ?? "",
+    note: row.note ?? "",
+    ownerDecisionNote: row.ownerDecisionNote ?? row.owner_decision_note ?? "",
+    postedExpenseId: row.postedExpenseId ?? row.posted_expense_id ?? null,
+    createdAt: row.createdAt ?? row.created_at ?? null,
+  };
+}
+
+function normalizeExpenseRequestsResponse(result) {
+  if (Array.isArray(result)) return result;
+  if (Array.isArray(result?.expenseRequests)) return result.expenseRequests;
+  if (Array.isArray(result?.rows)) return result.rows;
+  if (Array.isArray(result?.data)) return result.data;
+  return [];
+}
+
+function displayRequester(row) {
+  if (safe(row?.requestedByName)) return safe(row.requestedByName);
+  if (safe(row?.requestedByEmail)) return safe(row.requestedByEmail);
+  if (row?.requestedByUserId != null) return `User #${safeNumber(row.requestedByUserId)}`;
+  return "-";
 }
 
 function displayBranch(row) {
@@ -754,6 +794,9 @@ export default function OwnerExpensesTab({ locations = [] }) {
   const [expenses, setExpenses] = useState([]);
   const [nextCursor, setNextCursor] = useState(null);
   const [selectedExpenseId, setSelectedExpenseId] = useState(null);
+  const [requestLoading, setRequestLoading] = useState(true);
+  const [expenseRequests, setExpenseRequests] = useState([]);
+  const [requestStatus, setRequestStatus] = useState("PENDING");
 
   const [q, setQ] = useState("");
   const [locationId, setLocationId] = useState("");
@@ -886,6 +929,61 @@ export default function OwnerExpensesTab({ locations = [] }) {
     to,
   ]);
 
+  const loadExpenseRequests = useCallback(async () => {
+    setRequestLoading(true);
+    setErrorText("");
+
+    try {
+      const result = await listExpenseRequests({
+        status: requestStatus || undefined,
+        locationId: locationId || undefined,
+        q: q || undefined,
+        limit: 50,
+      });
+      const rows = normalizeExpenseRequestsResponse(result)
+        .map(normalizeExpenseRequest)
+        .filter(Boolean);
+      setExpenseRequests(rows);
+    } catch (e) {
+      setExpenseRequests([]);
+      setErrorText(e?.data?.error || e?.message || "Failed to load expense requests");
+    } finally {
+      setRequestLoading(false);
+    }
+  }, [q, locationId, requestStatus]);
+
+  useEffect(() => {
+    loadExpenseRequests();
+  }, [loadExpenseRequests]);
+
+  async function handleApproveRequest(row) {
+    setErrorText("");
+    try {
+      const result = await approveExpenseRequest(row.id, { ownerDecisionNote: "Approved from owner expenses review." });
+      setSuccessText("Expense request approved and posted");
+      await Promise.all([loadExpenseRequests(), loadFirstPage()]);
+      const nextId = result?.expense?.id ?? null;
+      if (nextId) setSelectedExpenseId(nextId);
+      window.setTimeout(() => setSuccessText(""), 2500);
+    } catch (e) {
+      setErrorText(e?.data?.error || e?.message || "Expense request could not be approved");
+    }
+  }
+
+  async function handleRejectRequest(row) {
+    const reason = window.prompt("Reject reason");
+    if (!reason || reason.trim().length < 3) return;
+    setErrorText("");
+    try {
+      await rejectExpenseRequest(row.id, { ownerDecisionNote: reason.trim() });
+      setSuccessText("Expense request rejected");
+      await loadExpenseRequests();
+      window.setTimeout(() => setSuccessText(""), 2500);
+    } catch (e) {
+      setErrorText(e?.data?.error || e?.message || "Expense request could not be rejected");
+    }
+  }
+
   useEffect(() => {
     loadFirstPage();
   }, [loadFirstPage]);
@@ -982,6 +1080,100 @@ export default function OwnerExpensesTab({ locations = [] }) {
                 valueClassName="text-[17px] leading-tight"
               />
             </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Expense requests"
+            subtitle="Review staff expense requests before any money leaves the selected payment method."
+            right={
+              <FormSelect
+                value={requestStatus}
+                onChange={(e) => setRequestStatus(e.target.value)}
+                className="h-11 min-w-[150px]"
+              >
+                <option value="">All requests</option>
+                {REQUEST_STATUS_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </FormSelect>
+            }
+          >
+            {requestLoading ? (
+              <div className="rounded-3xl border border-stone-200 bg-stone-50 p-6 text-sm text-stone-500 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-400">
+                Loading expense requests...
+              </div>
+            ) : expenseRequests.length === 0 ? (
+              <EmptyState text="No expense requests match the current filters." />
+            ) : (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {expenseRequests.map((row) => {
+                  const pending = String(row.status || "").toUpperCase() === "PENDING";
+                  return (
+                    <div
+                      key={row.id}
+                      className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-950"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-stone-400">
+                            Request #{safeNumber(row.id)} / {safeDate(row.createdAt)}
+                          </p>
+                          <h3 className="mt-1 text-xl font-bold text-stone-950 dark:text-stone-50">
+                            {money(row.amount, "RWF")}
+                          </h3>
+                          <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
+                            {safe(row.category) || "GENERAL"} / {safe(row.method) || "BANK"}
+                          </p>
+                        </div>
+                        <span className="inline-flex h-8 items-center rounded-full bg-amber-100 px-3 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                          {safe(row.status) || "PENDING"}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-900">
+                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-stone-400">Branch</div>
+                          <div className="mt-1 text-sm font-semibold">{displayBranch(row)}</div>
+                        </div>
+                        <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-900">
+                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-stone-400">Requested by</div>
+                          <div className="mt-1 text-sm font-semibold">{displayRequester(row)}</div>
+                        </div>
+                        <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-900">
+                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-stone-400">Expense date</div>
+                          <div className="mt-1 text-sm font-semibold">{safeDate(row.expenseDate)}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-3 text-sm text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
+                        {safe(row.note) || "No note recorded"}
+                      </div>
+
+                      {pending ? (
+                        <div className="mt-4 flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleRejectRequest(row)}
+                            className="inline-flex h-11 items-center justify-center rounded-xl border border-rose-300 bg-white px-5 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 dark:border-rose-800 dark:bg-stone-900 dark:text-rose-300"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApproveRequest(row)}
+                            className="inline-flex h-11 items-center justify-center rounded-xl bg-stone-950 px-5 text-sm font-semibold text-white transition hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-950"
+                          >
+                            Approve and post
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </SectionCard>
 
           <SectionCard

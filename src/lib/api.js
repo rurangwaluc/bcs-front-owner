@@ -94,6 +94,24 @@ export function voidExpense(expenseId, reason) {
   });
 }
 
+export function listExpenseRequests(params = {}) {
+  return apiFetch(`/cash/expense-requests${buildQuery(params)}`);
+}
+
+export function approveExpenseRequest(requestId, payload = {}) {
+  return apiFetch(`/cash/expense-requests/${requestId}/approve`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function rejectExpenseRequest(requestId, payload = {}) {
+  return apiFetch(`/cash/expense-requests/${requestId}/reject`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
 /**
  * Owner given-out loans API
  */
